@@ -20,7 +20,8 @@ from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
 
 from .functions import split_host  # NOQA
 
-from .classes import NetworkClient, CoTWorker, AsyncNetworkClient  # NOQA
+from .classes import (NetworkClient, CoTWorker, AsyncNetworkClient,  # NOQA
+                      AsyncCoTWorker)
 
 __author__ = 'Greg Albrecht W2GMD <oss@undef.net>'
 __copyright__ = 'Copyright 2020 Orion Labs, Inc.'

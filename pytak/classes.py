@@ -202,6 +202,7 @@ class AsyncNetworkClient(asyncio.Protocol):
         _console_handler.setFormatter(pytak.LOG_FORMAT)
         _logger.addHandler(_console_handler)
         _logger.propagate = False
+    logging.getLogger('asyncio').setLevel(pytak.LOG_LEVEL)
 
     def __init__(self, msg_queue: queue.Queue, on_con_lost) -> None:
         self.transport = None
@@ -212,25 +213,60 @@ class AsyncNetworkClient(asyncio.Protocol):
         self.transport = transport
         self.address = transport.get_extra_info('peername')
         self._logger.debug('Connected to %s', self.address)
-        #self._work_queue()
 
-    def data_received(self, data):
-        self._logger.debug('Received "%s"', data.decode())
+    #def data_received(self, data):
+    #    self._logger.debug('Received "%s"', data.decode())
 
     def connection_lost(self, exc):
         self._logger.warning('Disconnected from %s', self.address)
         self._logger.exception(exc)
-        # if not self.on_con_lost.done():
-        self.on_con_lost.set_result(True)
+        #if not self.on_con_lost.done():
+        self.on_con_lost.set_result(None)
 
     def error_received(self, exc):
         self._logger.warning('Disconnected from %s', self.address)
         self._logger.exception(exc)
-        # if not self.on_con_lost.done():
-        self.on_con_lost.set_result(True)
+        #if not self.on_con_lost.done():
+        self.on_con_lost.set_result(None)
 
     def eof_received(self):
         self._logger.debug('Received EOF from %s', self.address)
         self.transport.close()
-        # if not self.on_con_lost.done():
-        self.on_con_lost.set_result(True)
+        #if not self.on_con_lost.done():
+        self.on_con_lost.set_result(None)
+
+    def wait_connection_lost(self):
+        return self.on_con_lost.done()
+
+
+class AsyncCoTWorker:
+
+    """Async CoTWorker."""
+
+    _logger = logging.getLogger(__name__)
+    if not _logger.handlers:
+        _logger.setLevel(pytak.LOG_LEVEL)
+        _console_handler = logging.StreamHandler()
+        _console_handler.setLevel(pytak.LOG_LEVEL)
+        _console_handler.setFormatter(pytak.LOG_FORMAT)
+        _logger.addHandler(_console_handler)
+        _logger.propagate = False
+    logging.getLogger('asyncio').setLevel(pytak.LOG_LEVEL)
+
+    def __init__(self, msg_queue: asyncio.Queue, transport) -> None:
+        self.msg_queue = msg_queue
+        self.transport = transport
+
+    async def run(self):
+        """Runs this Thread, reads in Message Queue & sends out CoT."""
+        self._logger.info('Running AsyncCoTWorker')
+
+        while True:
+            msg = await self.msg_queue.get()
+            self._logger.debug('From msg_queue: "%s"', msg)
+            if not msg:
+                continue
+            self.transport.write(msg)
+            if not os.environ.get('DISABLE_RANDOM_SLEEP'):
+                time.sleep(pytak.DEFAULT_SLEEP * random.random())
+
