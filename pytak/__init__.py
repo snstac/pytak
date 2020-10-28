@@ -16,9 +16,11 @@ Python Team Awareness Kit (PyTAK) Module.
 """
 
 from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
-                        DEFAULT_BACKOFF)
+                        DEFAULT_BACKOFF, DEFAULT_SLEEP)
 
-from .classes import NetworkClient, CoTWorker  # NOQA
+from .functions import split_host  # NOQA
+
+from .classes import NetworkClient, CoTWorker, AsyncNetworkClient  # NOQA
 
 __author__ = 'Greg Albrecht W2GMD <oss@undef.net>'
 __copyright__ = 'Copyright 2020 Orion Labs, Inc.'

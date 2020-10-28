@@ -3,6 +3,7 @@
 
 """Python Team Awareness Kit (PyTAK) Module Class Definitions."""
 
+import asyncio
 import logging
 import os
 import queue
@@ -112,7 +113,7 @@ class NetworkClient:
         try:
             self.socket.sendall(event)
             if not os.environ.get('DISABLE_RANDOM_SLEEP'):
-                time.sleep(random.random())
+                time.sleep(pytak.DEFAULT_SLEEP * random.random())
             return True
         except Exception as exc:
             self._logger.error(
@@ -186,4 +187,50 @@ class CoTWorker(threading.Thread):
                     continue
                 self.net_client.send_cot(msg)
             except queue.Empty:
+                recv = self.net_client.socket.recv(1024)
                 pass
+
+
+class AsyncNetworkClient(asyncio.Protocol):
+    """Async CoT Network Client (TX)."""
+
+    _logger = logging.getLogger(__name__)
+    if not _logger.handlers:
+        _logger.setLevel(pytak.LOG_LEVEL)
+        _console_handler = logging.StreamHandler()
+        _console_handler.setLevel(pytak.LOG_LEVEL)
+        _console_handler.setFormatter(pytak.LOG_FORMAT)
+        _logger.addHandler(_console_handler)
+        _logger.propagate = False
+
+    def __init__(self, msg_queue: queue.Queue, on_con_lost) -> None:
+        self.transport = None
+        self.msg_queue = msg_queue
+        self.on_con_lost = on_con_lost
+
+    def connection_made(self, transport):
+        self.transport = transport
+        self.address = transport.get_extra_info('peername')
+        self._logger.debug('Connected to %s', self.address)
+        #self._work_queue()
+
+    def data_received(self, data):
+        self._logger.debug('Received "%s"', data.decode())
+
+    def connection_lost(self, exc):
+        self._logger.warning('Disconnected from %s', self.address)
+        self._logger.exception(exc)
+        # if not self.on_con_lost.done():
+        self.on_con_lost.set_result(True)
+
+    def error_received(self, exc):
+        self._logger.warning('Disconnected from %s', self.address)
+        self._logger.exception(exc)
+        # if not self.on_con_lost.done():
+        self.on_con_lost.set_result(True)
+
+    def eof_received(self):
+        self._logger.debug('Received EOF from %s', self.address)
+        self.transport.close()
+        # if not self.on_con_lost.done():
+        self.on_con_lost.set_result(True)
