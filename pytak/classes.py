@@ -11,12 +11,14 @@ import random
 import socket
 import threading
 import time
+import urllib
 
 import pytak
+import pycot
 
-__author__ = 'Greg Albrecht W2GMD <oss@undef.net>'
-__copyright__ = 'Copyright 2020 Orion Labs, Inc.'
-__license__ = 'Apache License, Version 2.0'
+__author__ = "Greg Albrecht W2GMD <oss@undef.net>"
+__copyright__ = "Copyright 2020 Orion Labs, Inc."
+__license__ = "Apache License, Version 2.0"
 
 
 # Dear Reader, Py3 doesn't need to inherit from Object anymore!
@@ -214,13 +216,9 @@ class AsyncNetworkClient(asyncio.Protocol):
         self.address = transport.get_extra_info('peername')
         self._logger.debug('Connected to %s', self.address)
 
-    #def data_received(self, data):
-    #    self._logger.debug('Received "%s"', data.decode())
-
     def connection_lost(self, exc):
         self._logger.warning('Disconnected from %s', self.address)
         self._logger.exception(exc)
-        #if not self.on_con_lost.done():
         self.on_con_lost.set_result(None)
 
     def error_received(self, exc):
@@ -298,8 +296,42 @@ class EventWorker:
             if not event:
                 continue
             self._logger.debug("event='%s'", event)
-            self.writer.write(event.render(encoding='UTF-8', standalone=True))
-            await self.writer.drain()
+            _event = event.render(encoding='UTF-8', standalone=True)
+            if hasattr(self.writer, "send"):
+                await self.writer.send(_event)
+            else:
+                self.writer.write(_event)
+                await self.writer.drain()
             if not os.environ.get('DISABLE_RANDOM_SLEEP'):
                 await asyncio.sleep(pytak.DEFAULT_SLEEP * random.random())
 
+
+class MessageWorker:
+
+    _logger = logging.getLogger(__name__)
+    if not _logger.handlers:
+        _logger.setLevel(pytak.LOG_LEVEL)
+        _console_handler = logging.StreamHandler()
+        _console_handler.setLevel(pytak.LOG_LEVEL)
+        _console_handler.setFormatter(pytak.LOG_FORMAT)
+        _logger.addHandler(_console_handler)
+        _logger.propagate = False
+    logging.getLogger('asyncio').setLevel(pytak.LOG_LEVEL)
+
+    def __init__(self, event_queue: asyncio.Queue,
+                 url: urllib.parse.ParseResult, cot_stale: int = None):
+        self.event_queue = event_queue
+        self.url = url
+        self.cot_stale = cot_stale
+
+    async def _put_event_queue(self, event: pycot.Event) -> None:
+        """Puts Event onto the CoT Transmit Queue."""
+        try:
+            await self.event_queue.put(event)
+        except queue.Full as exc:
+            self._logger.warning(
+                'Lost CoT Event (queue full): "%s"', _event)
+
+    async def run(self) -> None:
+        self._logger.info("Overwrite this method!")
+        pass
