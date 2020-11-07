@@ -261,12 +261,45 @@ class AsyncCoTWorker:
         """Runs this Thread, reads in Message Queue & sends out CoT."""
         self._logger.info('Running AsyncCoTWorker')
 
-        while True:
+        while 1:
             msg = await self.msg_queue.get()
             self._logger.debug('From msg_queue: "%s"', msg)
             if not msg:
                 continue
             self.transport.write(msg)
             if not os.environ.get('DISABLE_RANDOM_SLEEP'):
-                time.sleep(pytak.DEFAULT_SLEEP * random.random())
+                await asyncio.sleep(pytak.DEFAULT_SLEEP * random.random())
+
+
+class EventWorker:
+
+    """EventWorker."""
+
+    _logger = logging.getLogger(__name__)
+    if not _logger.handlers:
+        _logger.setLevel(pytak.LOG_LEVEL)
+        _console_handler = logging.StreamHandler()
+        _console_handler.setLevel(pytak.LOG_LEVEL)
+        _console_handler.setFormatter(pytak.LOG_FORMAT)
+        _logger.addHandler(_console_handler)
+        _logger.propagate = False
+    logging.getLogger('asyncio').setLevel(pytak.LOG_LEVEL)
+
+    def __init__(self, event_queue: asyncio.Queue, writer) -> None:
+        self.event_queue = event_queue
+        self.writer = writer
+
+    async def run(self):
+        """Runs this Thread, reads in Message Queue & sends out CoT."""
+        self._logger.info('Running EventWorker')
+
+        while 1:
+            event = await self.event_queue.get()
+            if not event:
+                continue
+            self._logger.debug("event='%s'", event)
+            self.writer.write(event.render(encoding='UTF-8', standalone=True))
+            await self.writer.drain()
+            if not os.environ.get('DISABLE_RANDOM_SLEEP'):
+                await asyncio.sleep(pytak.DEFAULT_SLEEP * random.random())
 
