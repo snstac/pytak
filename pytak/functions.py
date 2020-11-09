@@ -52,45 +52,54 @@ async def udp_client(url):
     return stream
 
 
-def faa_to_cot_type(category: int, flight: str = None,
-                    icao_hex: str = None) -> str:
+def faa_to_cot_type(icao_hex: int, category: int = None,
+                    flight: str = None) -> str:
     """
-    Determine Cursor on Target Event Type from ADS-B Emitter Category & Flight.
-
-    :param category:
-    :param flight:
-    :return:
+    Determine Cursor on Target Event Type from ICAO, and if available, from
+    Emitter Category & Flight.
     """
-    cm = "C"  # Civ/Mil
-
-    fof = "u"  # Non-FVEY
+    cm = "C"  # Civ
+    attitude = "u"  # Unknown
+    icao_int = int(f"0x{icao_hex}", 16)
 
     if flight:
         for dom in pytak.DOMESTIC_AIRLINES:
             if flight.startswith(dom):
-                fof = "f"
+                attitude = "f"
 
-    if (pytak.DEFAULT_HEX_RANGES["US"][0] <= int(f"0x{icao_hex}", 16) <=
-            pytak.DEFAULT_HEX_RANGES["US"][1]):
-        fof = "f"
+    # SN: Leave "neutral" as Taiwan uses this subset instead of PRC China....
+    tw_start = 0x899000
+    tw_end = 0x8993FF
+    if tw_start <= icao_int <= tw_end:
+        attitude = "n"
 
-    fvey = ["UK", "CA", "NZ", "AU"]
-    for fkey in fvey:
-        if (pytak.DEFAULT_HEX_RANGES[fkey][0] <= int(f"0x{icao_hex}", 16) <=
-                pytak.DEFAULT_HEX_RANGES[fkey][1]):
-            fof = "n"
+    # SN: Make the US range (all non-mil) ICAO addresses just generic "n"
+    us_civ_start = pytak.DEFAULT_HEX_RANGES["US-CIV"]["start"]
+    us_civ_end = pytak.DEFAULT_HEX_RANGES["US-CIV"]["end"]
+    if us_civ_start <= icao_int <= us_civ_end:
+        attitude = "n"
+
+    # Friendly Mil:
+    # mil = ["US-MIL", "UK-MIL", "CA-MIL", "NZ-MIL", "AU-MIL"]
+    # for fvey in mil:
+    #    mil_start = pytak.DEFAULT_HEX_RANGES[fvey]["start"]
+    #    mil_end = pytak.DEFAULT_HEX_RANGES[fvey]["end"]
+    #    if mil_start <= icao_int <= mil_end:
+    #        attitude = "f"
+    #        cm = "M"
+
+    # Default Fixed Wing
+    cot_type = f"a-{attitude}-A-{cm}-F"
 
     if category == 7:  # Rotor/Helicopter
-        cot_type = f"a-{fof}-A-{cm}-H"
+        cot_type = f"a-{attitude}-A-{cm}-H"
     if category == 10:  # Balloon
-        cot_type = f"a-{fof}-A-{cm}-L"
+        cot_type = f"a-{attitude}-A-{cm}-L"
     elif category == 14:  # Drone
-        cot_type = f"a-{fof}-A-{cm}-F-q"
+        cot_type = f"a-{attitude}-A-{cm}-F-q"
     elif category == 17 or category == 18:
-        cot_type = f"a-{fof}-G-E-V-C"
+        cot_type = f"a-{attitude}-G-E-V-C"
     elif category == 19:
-        cot_type = f"a-{fof}-G-I-U-T-com-tow"
-    else:  # Default Fixed Wing
-        cot_type = f"a-{fof}-A-{cm}-F"
+        cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 
     return cot_type

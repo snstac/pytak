@@ -30,11 +30,11 @@ DEFAULT_BACKOFF: int = 120
 DEFAULT_SLEEP: int = 5
 
 DEFAULT_HEX_RANGES: dict = {
-    "US": [0xA00000, 0xAFFFFF],
-    "CA": [0xC00000, 0xC3FFFF],
-    "NZ": [0xC80000, 0xC87FFF],
-    "AU": [0x440000, 0x447FFF],
-    "UK": [0x400000, 0x43FFFF]
+    "US-CIV": {"start": 0xA00000, "end": 0xAFFFFF},
+    "CA-CIV": {"start": 0xC00000, "end": 0xC3FFFF},
+    "NZ-CIV": {"start": 0xC80000, "end": 0xC87FFF},
+    "AU-CIV": {"start": 0x440000, "end": 0x447FFF},
+    "UK-CIV": {"start": 0x400000, "end": 0x43FFFF}
 }
 
 DOMESTIC_AIRLINES: list = [

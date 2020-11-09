@@ -5,6 +5,22 @@ Python Module for creating clients to connect to a Team Awareness Kit (TAK)
 Server.
 
 
+Requirements
+============
+
+PyTAK requires libffi/libffi-dev.
+
+Debian & Ubuntu::
+
+  $ sudo apt-get install libffi-dev
+
+RedHat, Fedora, CentOS::
+
+  $ sudo yum install libffi-devel
+  # or
+  $ sudo dnf install libffi-devel
+
+
 Installation
 ============
 
