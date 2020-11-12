@@ -145,7 +145,7 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
         elif _category in ["14", "B6"]:  # Drone
             cot_type = f"a-{attitude}-A-{cm}-F-q"
         elif _category in ["17", "18", "C1", "C2"]:
-            cot_type = f"a-.-G-E-V-C"
+            cot_type = f"a-.-G-E-V-C-U"
         elif _category in ["19"]:
             cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 
