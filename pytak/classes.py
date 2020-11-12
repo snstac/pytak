@@ -296,7 +296,12 @@ class EventWorker:
             if not event:
                 continue
             self._logger.debug("event='%s'", event)
-            _event = event.render(encoding='UTF-8', standalone=True)
+
+            if isinstance(event, pycot.Event):
+                _event = event.render(encoding='UTF-8', standalone=True)
+            else:
+                _event = event
+
             if hasattr(self.writer, "send"):
                 await self.writer.send(_event)
             else:

@@ -15,7 +15,7 @@ import setuptools
 import sys
 
 __title__ = "pytak"
-__version__ = "2.3.0"
+__version__ = "3.0.0b1"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2020 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"

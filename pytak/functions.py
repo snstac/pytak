@@ -5,10 +5,11 @@
 
 import asyncio
 import socket
-
-import pytak
+import struct
 
 import asyncio_dgram
+
+import pytak
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2020 Orion Labs, Inc."
@@ -52,6 +53,38 @@ async def udp_client(url):
     return stream
 
 
+async def multicast_client(url):
+    """Create a UDP Network client, simulate other transports."""
+    host, port = parse_cot_url(url)
+    group = socket.inet_aton(host)
+    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+    stream = await asyncio_dgram.bind((host, port))
+    sock = stream.socket
+    #sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    return stream
+
+
+async def eventworker_factory(cot_url, event_queue, fts_token: str = None):
+    # CoT/TAK Event Workers (transmitters):
+    if "http" in cot_url.scheme and fts_token:
+        eventworker = pytak.FTSClient(
+            event_queue,
+            cot_url.geturl(),
+            fts_token
+        )
+    elif "tcp" in cot_url.scheme:
+        host, port = pytak.parse_cot_url(cot_url)
+        _, writer = await asyncio.open_connection(host, port)
+        eventworker = pytak.EventWorker(event_queue, writer)
+    elif "udp" in cot_url.scheme:
+        writer = await pytak.udp_client(cot_url)
+        eventworker = pytak.EventWorker(event_queue, writer)
+
+    return eventworker
+
+
 def faa_to_cot_type(icao_hex: int, category: int = None,
                     flight: str = None) -> str:
     """
@@ -60,12 +93,14 @@ def faa_to_cot_type(icao_hex: int, category: int = None,
     """
     cm = "C"  # Civ
     attitude = "u"  # Unknown
-    icao_int = int(f"0x{icao_hex}", 16)
+
+    icao_int = int(f"0x{icao_hex.replace('~', '')}", 16)
 
     if flight:
         for dom in pytak.DOMESTIC_AIRLINES:
             if flight.startswith(dom):
-                attitude = "f"
+                # SN: Should be "n" for Mil/Fed posture.
+                attitude = "f"  # FIXME: Default posture depends on user.
 
     # SN: Leave "neutral" as Taiwan uses this subset instead of PRC China....
     tw_start = 0x899000

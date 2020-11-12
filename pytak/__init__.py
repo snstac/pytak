@@ -20,7 +20,8 @@ from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DEFAULT_ATAK_PORT, DEFAULT_BROADCAST_PORT,
                         DOMESTIC_AIRLINES, DEFAULT_HEX_RANGES)
 
-from .functions import split_host, udp_client, parse_cot_url, faa_to_cot_type  # NOQA
+from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
+                        faa_to_cot_type, multicast_client, eventworker_factory)
 
 from .classes import (NetworkClient, CoTWorker, AsyncNetworkClient,  # NOQA
                       AsyncCoTWorker, EventWorker, MessageWorker)
