@@ -66,7 +66,16 @@ async def multicast_client(url):
     return stream
 
 
-async def eventworker_factory(cot_url, event_queue, fts_token: str = None):
+async def eventworker_factory(cot_url: str, event_queue,
+                              fts_token: str = None):
+    """
+    Creates a Cursor on Target Event Worker based on URL parameters.
+
+    :param cot_url: URL to CoT Destination.
+    :param event_queue: asyncio.Queue worker to get events from.
+    :param fts_token: If supplied, API Token to use for FreeTAKServer REST.
+    :return: EventWorker or asyncio Protocol
+    """
     # CoT/TAK Event Workers (transmitters):
     if "http" in cot_url.scheme and fts_token:
         eventworker = pytak.FTSClient(
@@ -85,10 +94,10 @@ async def eventworker_factory(cot_url, event_queue, fts_token: str = None):
     return eventworker
 
 
-def faa_to_cot_type(icao_hex: int, category: int = None,
+def faa_to_cot_type(icao_hex: int, category: str = None,
                     flight: str = None) -> str:
     """
-    Determine Cursor on Target Event Type from ICAO, and if available, from
+    Classify Cursor on Target Event Type from ICAO, and if available, from
     Emitter Category & Flight.
     """
     cm = "C"  # Civ
@@ -126,15 +135,18 @@ def faa_to_cot_type(icao_hex: int, category: int = None,
     # Default Fixed Wing
     cot_type = f"a-{attitude}-A-{cm}-F"
 
-    if category == 7:  # Rotor/Helicopter
-        cot_type = f"a-{attitude}-A-{cm}-H"
-    if category == 10:  # Balloon
-        cot_type = f"a-{attitude}-A-{cm}-L"
-    elif category == 14:  # Drone
-        cot_type = f"a-{attitude}-A-{cm}-F-q"
-    elif category == 17 or category == 18:
-        cot_type = f"a-{attitude}-G-E-V-C"
-    elif category == 19:
-        cot_type = f"a-{attitude}-G-I-U-T-com-tow"
+    if category:
+        _category = str(category)
+
+        if _category in ["7", "A7"]:  # Rotor/Helicopter
+            cot_type = f"a-{attitude}-A-{cm}-H"
+        if _category in ["10", "B2"]:  # Balloon
+            cot_type = f"a-{attitude}-A-{cm}-L"
+        elif _category in ["14", "B6"]:  # Drone
+            cot_type = f"a-{attitude}-A-{cm}-F-q"
+        elif _category in ["17", "18", "C1", "C2"]:
+            cot_type = f"a-.-G-E-V-C"
+        elif _category in ["19"]:
+            cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 
     return cot_type
