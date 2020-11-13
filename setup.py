@@ -15,7 +15,7 @@ import setuptools
 import sys
 
 __title__ = "pytak"
-__version__ = "3.0.0b3"
+__version__ = "3.0.0b5"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2020 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
@@ -51,7 +51,7 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License"
     ],
     keywords=[
-        "Cursor on Target", "ATAK"
+        "Cursor on Target", "ATAK", "TAK", "CoT"
     ],
     install_requires=[
         "asyncio_dgram",

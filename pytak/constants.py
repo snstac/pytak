@@ -12,14 +12,14 @@ __license__ = "Apache License, Version 2.0"
 
 
 if bool(os.environ.get('DEBUG')):
-    LOG_LEVEL = logging.DEBUG
-    LOG_FORMAT = logging.Formatter(
+    LOG_LEVEL: int = logging.DEBUG
+    LOG_FORMAT: logging.Formatter = logging.Formatter(
         ('%(asctime)s pytak %(levelname)s %(name)s.%(funcName)s:%(lineno)d - '
          '%(message)s'))
     logging.debug('pytak Debugging Enabled via DEBUG Environment Variable.')
 else:
-    LOG_LEVEL = logging.INFO
-    LOG_FORMAT = logging.Formatter(
+    LOG_LEVEL: int = logging.INFO
+    LOG_FORMAT: logging.Formatter = logging.Formatter(
         ('%(asctime)s pytak %(levelname)s - %(message)s'))
 
 

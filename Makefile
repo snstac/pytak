@@ -55,3 +55,6 @@ lint: remember
 pylint: lint
 
 test: lint pep8 nosetests
+
+mypy:
+	mypy --strict .

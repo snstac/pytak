@@ -23,8 +23,8 @@ from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
 from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
                         faa_to_cot_type, multicast_client, eventworker_factory)
 
-from .classes import (NetworkClient, CoTWorker, AsyncNetworkClient,  # NOQA
-                      AsyncCoTWorker, EventWorker, MessageWorker)
+from .classes import Worker, EventWorker, MessageWorker  # NOQA
+
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2020 Orion Labs, Inc."

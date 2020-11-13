@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""APRS Cursor-on-Target Constants."""
+"""PyTAK Functions."""
 
 import asyncio
 import socket
-import struct
 
 import asyncio_dgram
 
@@ -16,9 +15,10 @@ __copyright__ = "Copyright 2020 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
 
 
-def split_host(host, port) -> tuple:
-    if ':' in host:
-        addr, port = host.split(':')
+def split_host(host, port: int = None) -> tuple:
+    """Given a host:port and/or port, returns host, port."""
+    if ":" in host:
+        addr, port = host.split(":")
         port = int(port)
     elif port:
         addr = host
@@ -26,11 +26,11 @@ def split_host(host, port) -> tuple:
     else:
         addr = host
         port = int(pytak.DEFAULT_COT_PORT)
-
     return addr, port
 
 
 def parse_cot_url(url) -> tuple:
+    """Parses a Cursor on Target destination URL."""
     if ":" in url.path:
         host, port = str(url.path).split(":")
     else:
@@ -43,7 +43,7 @@ def parse_cot_url(url) -> tuple:
 
 
 async def udp_client(url):
-    """Create a UDP Network client, simulate other transports."""
+    """Create a CoT UDP Network Client"""
     host, port = parse_cot_url(url)
     stream = await asyncio_dgram.connect((host, port))
     if "broadcast" in url.scheme:
@@ -54,20 +54,20 @@ async def udp_client(url):
 
 
 async def multicast_client(url):
-    """Create a UDP Network client, simulate other transports."""
+    """Create a CoT Multicast Network Client."""
     host, port = parse_cot_url(url)
-    group = socket.inet_aton(host)
-    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
     stream = await asyncio_dgram.bind((host, port))
     sock = stream.socket
-    #sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+    # group = socket.inet_aton(host)
+    # mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+    # sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     return stream
 
 
 async def eventworker_factory(cot_url: str, event_queue,
-                              fts_token: str = None):
+                              fts_token: str = None) -> pytak.Worker:
     """
     Creates a Cursor on Target Event Worker based on URL parameters.
 
@@ -76,22 +76,23 @@ async def eventworker_factory(cot_url: str, event_queue,
     :param fts_token: If supplied, API Token to use for FreeTAKServer REST.
     :return: EventWorker or asyncio Protocol
     """
-    # CoT/TAK Event Workers (transmitters):
-    if "http" in cot_url.scheme and fts_token:
-        eventworker = pytak.FTSClient(
-            event_queue,
-            cot_url.geturl(),
-            fts_token
-        )
+    event_worker: pytak.Worker = None
+    if "http" in cot_url.scheme and fts_token:  # pylint: disable=no-else-raise
+        raise Exception(
+            "HTTP Support is not implemented yet. Send beer to gba@undef.net")
+        # event_worker = pytak.FTSClient(
+        #    event_queue,
+        #    cot_url.geturl(),
+        #    fts_token
+        # )
     elif "tcp" in cot_url.scheme:
         host, port = pytak.parse_cot_url(cot_url)
         _, writer = await asyncio.open_connection(host, port)
-        eventworker = pytak.EventWorker(event_queue, writer)
+        event_worker = pytak.EventWorker(event_queue, writer)
     elif "udp" in cot_url.scheme:
         writer = await pytak.udp_client(cot_url)
-        eventworker = pytak.EventWorker(event_queue, writer)
-
-    return eventworker
+        event_worker = pytak.EventWorker(event_queue, writer)
+    return event_worker
 
 
 def faa_to_cot_type(icao_hex: int, category: str = None,
@@ -100,8 +101,8 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
     Classify Cursor on Target Event Type from ICAO, and if available, from
     Emitter Category & Flight.
     """
-    cm = "C"  # Civ
-    attitude = "u"  # Unknown
+    affil = "C"  # Affiliation, default = Civilian
+    attitude = "u"  # Attitude
 
     icao_int = int(f"0x{icao_hex.replace('~', '')}", 16)
 
@@ -133,19 +134,19 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
     #        cm = "M"
 
     # Default Fixed Wing
-    cot_type = f"a-{attitude}-A-{cm}-F"
+    cot_type = f"a-{attitude}-A-{affil}-F"
 
     if category:
         _category = str(category)
 
         if _category in ["7", "A7"]:  # Rotor/Helicopter
-            cot_type = f"a-{attitude}-A-{cm}-H"
+            cot_type = f"a-{attitude}-A-{affil}-H"
         if _category in ["10", "B2"]:  # Balloon
-            cot_type = f"a-{attitude}-A-{cm}-L"
+            cot_type = f"a-{attitude}-A-{affil}-L"
         elif _category in ["14", "B6"]:  # Drone
-            cot_type = f"a-{attitude}-A-{cm}-F-q"
+            cot_type = f"a-{attitude}-A-{affil}-F-q"
         elif _category in ["17", "18", "C1", "C2"]:
-            cot_type = f"a-.-G-E-V-C-U"
+            cot_type = "a-.-G-E-V-C-U"
         elif _category in ["19"]:
             cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 

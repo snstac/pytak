@@ -1,14 +1,52 @@
 pytak - Python Team Awareness Kit (PyTAK) Module.
 *************************************************
 
-Python Module for creating clients to connect to a Team Awareness Kit (TAK)
-Server.
+PyTAK is a Python Module for creating TAK clients & servers.
+
+This module include Classes for handling CoT Events & non-CoT Messages, as well
+as functions for serializing CoT Events.
+
+Usage
+=====
+
+The following Python 3.7 code example creates a Cursor on Target Client that
+gets events from a CoT Event Queue and transmits them to our destination URL
+using TCP. Events are put onto the Queue by the Message Worker (QED). Events
+are expected to be serialized using the ![pycot](https://github.com/ampledata/pycot)
+Module::
+
+    #!/usr/bin/env python3.7
+    import asyncio
+
+    # Boilerplate: Create a Loop, create a Queue:
+    loop = asyncio.get_running_loop()
+    event_queue = asyncio.Queue(loop=loop)
+
+    # CoT Event Stale period in seconds:
+    cot_stale = 120
+
+    # Define our CoT Destination URL:
+    cot_url = urllib.parse.urlparse("tcp:freetakserver.example.com:8087")
+
+    # Create our CoT Event Queue Worker
+    event_worker = await pytak.eventworker_factory(cot_url, event_queue)
+
+    # Create our Message Source (You need to implement this!)
+    message_worker = MyMessageWorker(event_queue, cot_stale)
+
+    done, pending = await asyncio.wait(
+        asyncio.gather(event_worker, meessage_worker),
+        return_when=asyncio.FIRST_COMPLETED)
+
+    for task in done:
+        print(f"Task completed: {task}")
 
 
 Requirements
 ============
 
-PyTAK requires libffi/libffi-dev.
+PyTAK requires the FFI Library libffi (or libffi-dev), to install follow these
+instructions.
 
 Debian & Ubuntu::
 
@@ -39,16 +77,8 @@ Option B) Install from this source tree::
 Build Status
 ============
 
-Master:
-
-.. image:: https://travis-ci.com/ampledata/pytak.svg?branch=master
+.. image:: https://travis-ci.com/ampledata/pytak.svg?branch=main
     :target: https://travis-ci.com/ampledata/pytak
-
-Develop:
-
-.. image:: https://travis-ci.com/ampledata/pytak.svg?branch=develop
-    :target: https://travis-ci.com/ampledata/pytak
-
 
 Source
 ======
