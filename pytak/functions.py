@@ -66,17 +66,7 @@ async def multicast_client(url):
     return stream
 
 
-async def eventworker_factory(cot_url: str, event_queue,
-                              fts_token: str = None) -> pytak.Worker:
-    """
-    Creates a Cursor on Target Event Worker based on URL parameters.
-
-    :param cot_url: URL to CoT Destination.
-    :param event_queue: asyncio.Queue worker to get events from.
-    :param fts_token: If supplied, API Token to use for FreeTAKServer REST.
-    :return: EventWorker or asyncio Protocol
-    """
-    event_worker: pytak.Worker = None
+async def protocol_factory(cot_url, fts_token: str = None):
     if "http" in cot_url.scheme and fts_token:  # pylint: disable=no-else-raise
         raise Exception(
             "HTTP Support is not implemented yet. Send beer to gba@undef.net")
@@ -87,12 +77,25 @@ async def eventworker_factory(cot_url: str, event_queue,
         # )
     elif "tcp" in cot_url.scheme:
         host, port = pytak.parse_cot_url(cot_url)
-        _, writer = await asyncio.open_connection(host, port)
-        event_worker = pytak.EventWorker(event_queue, writer)
+        reader, writer = await asyncio.open_connection(host, port)
     elif "udp" in cot_url.scheme:
+        reader = None
         writer = await pytak.udp_client(cot_url)
-        event_worker = pytak.EventWorker(event_queue, writer)
-    return event_worker
+    return reader, writer
+
+
+async def eventworker_factory(cot_url: str, event_queue,
+                              fts_token: str = None) -> pytak.Worker:
+    """
+    Creates a Cursor on Target Event Worker based on URL parameters.
+
+    :param cot_url: URL to CoT Destination.
+    :param event_queue: asyncio.Queue worker to get events from.
+    :param fts_token: If supplied, API Token to use for FreeTAKServer REST.
+    :return: EventWorker or asyncio Protocol
+    """
+    reader, writer = protocol_factory(cot_url, fts_token)
+    return pytak.EventWorker(event_queue, writer)
 
 
 def faa_to_cot_type(icao_hex: int, category: str = None,

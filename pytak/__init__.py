@@ -18,12 +18,15 @@ Python Team Awareness Kit (PyTAK) Module.
 from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DEFAULT_BACKOFF, DEFAULT_SLEEP,
                         DEFAULT_ATAK_PORT, DEFAULT_BROADCAST_PORT,
-                        DOMESTIC_AIRLINES, DEFAULT_HEX_RANGES)
+                        DOMESTIC_AIRLINES, DEFAULT_HEX_RANGES,
+                        DEFAULT_COT_STALE)
+
+from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
+                      EventTransmitter, EventReceiver)
 
 from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
-                        faa_to_cot_type, multicast_client, eventworker_factory)
-
-from .classes import Worker, EventWorker, MessageWorker  # NOQA
+                        faa_to_cot_type, multicast_client, eventworker_factory,
+                        protocol_factory)
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"

@@ -35,7 +35,7 @@ Module::
     message_worker = MyMessageWorker(event_queue, cot_stale)
 
     done, pending = await asyncio.wait(
-        asyncio.gather(event_worker, meessage_worker),
+        asyncio.gather(event_worker, message_worker),
         return_when=asyncio.FIRST_COMPLETED)
 
     for task in done:
