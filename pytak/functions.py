@@ -94,7 +94,7 @@ async def eventworker_factory(cot_url: str, event_queue,
     :param fts_token: If supplied, API Token to use for FreeTAKServer REST.
     :return: EventWorker or asyncio Protocol
     """
-    reader, writer = protocol_factory(cot_url, fts_token)
+    reader, writer = await protocol_factory(cot_url, fts_token)
     return pytak.EventWorker(event_queue, writer)
 
 
