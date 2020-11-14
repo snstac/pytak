@@ -17,29 +17,31 @@ Module::
 
     #!/usr/bin/env python3.7
     import asyncio
+    import urllib
+    import pytak
 
-    # Boilerplate: Create a Loop, create a Queue:
     loop = asyncio.get_running_loop()
-    event_queue = asyncio.Queue(loop=loop)
-
-    # CoT Event Stale period in seconds:
-    cot_stale = 120
-
-    # Define our CoT Destination URL:
-    cot_url = urllib.parse.urlparse("tcp:freetakserver.example.com:8087")
+    tx_queue: asyncio.Queue = asyncio.Queue()
+    rx_queue: asyncio.Queue = asyncio.Queue()
+    cot_url: urllib.parse.ParseResult = urllib.parse.urlparse('tcp:fts.example.com:8087')
 
     # Create our CoT Event Queue Worker
-    event_worker = await pytak.eventworker_factory(cot_url, event_queue)
+    reader, writer = await pytak.protocol_factory(cot_url)
+    write_worker = pytak.EventTransmitter(tx_queue, writer)
+    read_worker = pytak.EventReceiver(rx_queue, reader)
 
-    # Create our Message Source (You need to implement this!)
-    message_worker = MyMessageWorker(event_queue, cot_stale)
+    message_worker = MyMessageWorker(
+        event_queue=tx_queue,
+        cot_stale=opts.cot_stale
+    )
 
     done, pending = await asyncio.wait(
-        asyncio.gather(event_worker, message_worker),
+        set([message_worker.run(), read_worker.run(), write_worker.run()]),
         return_when=asyncio.FIRST_COMPLETED)
 
     for task in done:
         print(f"Task completed: {task}")
+
 
 
 Requirements
