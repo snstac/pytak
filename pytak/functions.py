@@ -128,13 +128,13 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
         attitude = "n"
 
     # Friendly Mil:
-    # mil = ["US-MIL", "UK-MIL", "CA-MIL", "NZ-MIL", "AU-MIL"]
-    # for fvey in mil:
-    #    mil_start = pytak.DEFAULT_HEX_RANGES[fvey]["start"]
-    #    mil_end = pytak.DEFAULT_HEX_RANGES[fvey]["end"]
-    #    if mil_start <= icao_int <= mil_end:
-    #        attitude = "f"
-    #        cm = "M"
+    mil = ["US-MIL", "CAN-MIL"]
+    for fvey in mil:
+        mil_start = pytak.DEFAULT_HEX_RANGES[fvey]["start"]
+        mil_end = pytak.DEFAULT_HEX_RANGES[fvey]["end"]
+        if mil_start <= icao_int <= mil_end:
+            attitude = "f"
+            affil = "M"
 
     # Default Fixed Wing
     cot_type = f"a-{attitude}-A-{affil}-F"

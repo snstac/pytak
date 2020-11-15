@@ -32,8 +32,10 @@ DEFAULT_COT_STALE: int = 120
 
 
 DEFAULT_HEX_RANGES: dict = {
-    "US-CIV": {"start": 0xA00000, "end": 0xAFFFFF},
-    "CA-CIV": {"start": 0xC00000, "end": 0xC3FFFF},
+    "US-CIV": {"start": 0xA00000, "end": 0xADF7C7},
+    "US-MIL": {"start": 0xADF7C8, "end": 0xAFFFFF},
+    "CAN-CIV": {"start": 0xC00000, "end": 0xC0CDF8},
+    "CAN-MIL": {"start": 0xC0CDF9, "end": 0xC3FFFF},
     "NZ-CIV": {"start": 0xC80000, "end": 0xC87FFF},
     "AU-CIV": {"start": 0x440000, "end": 0x447FFF},
     "UK-CIV": {"start": 0x400000, "end": 0x43FFFF}
