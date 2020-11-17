@@ -117,7 +117,7 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
     Emitter Category & Flight.
     """
     affil = "C"  # Affiliation, default = Civilian
-    attitude = "u"  # Attitude
+    attitude = "."  # Attitude
 
     icao_int = int(f"0x{icao_hex.replace('~', '')}", 16)
 
