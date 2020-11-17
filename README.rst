@@ -12,15 +12,15 @@ Category, Flight Name, et al.
 
 Examples of TAK Clients using the this module:
 
-* `aiscot<https://github.com/ampledata/aiscot>`__: Automatic Identification System (AIS) to Cursor on Target (CoT) Gateway. Transforms AIS position messages to CoT PLI Events.
-* `adsbcot<https://github.com/ampledata/adsbcot>`__: Automatic Dependent Surveillance-Broadcast (ADS-B) to Cursor on Target (CoT) Gateway. Transforms ADS-B position messages to CoT PLI Events.
-* `adsbxcot<https://github.com/ampledata/adsbxcot>`__: ADS-B Exchange to Cursor on Target (CoT) Gateway. Transforms ADS-B position messages to CoT PLI Events.
-* `stratuxcot<https://github.com/ampledata/stratuxcot>`__: Stratux ADS-B to Cursor on Target (CoT) Gateway. Transforms position messages to CoT PLI Events.
-* `aprscot<https://github.com/ampledata/aprscot>`__: Automatic Packet Reporting System (APRS) to Cursor on Target (CoT) Gateway. Transforms APRS position messages to CoT PLI Events.
+* `aiscot<https://github.com/ampledata/aiscot>`_: Automatic Identification System (AIS) to Cursor on Target (CoT) Gateway. Transforms AIS position messages to CoT PLI Events.
+* `adsbcot<https://github.com/ampledata/adsbcot>`_: Automatic Dependent Surveillance-Broadcast (ADS-B) to Cursor on Target (CoT) Gateway. Transforms ADS-B position messages to CoT PLI Events.
+* `adsbxcot<https://github.com/ampledata/adsbxcot>`_: ADS-B Exchange to Cursor on Target (CoT) Gateway. Transforms ADS-B position messages to CoT PLI Events.
+* `stratuxcot<https://github.com/ampledata/stratuxcot>`_: Stratux ADS-B to Cursor on Target (CoT) Gateway. Transforms position messages to CoT PLI Events.
+* `aprscot<https://github.com/ampledata/aprscot>`_: Automatic Packet Reporting System (APRS) to Cursor on Target (CoT) Gateway. Transforms APRS position messages to CoT PLI Events.
 
 See also:
 
-* `pycot<https://github.com/ampledata/pycot>`__: Python Cursor on Target (CoT), a Python Module for serializing CoT Events, for use with TAK clients & servers.
+* `pycot<https://github.com/ampledata/pycot>`_: Python Cursor on Target (CoT), a Python Module for serializing CoT Events, for use with TAK clients & servers.
 
 Usage
 =====
@@ -28,7 +28,7 @@ Usage
 The following Python 3.7 code example creates a Cursor on Target Client that
 gets events from a CoT Event Queue and transmits them to our destination URL
 using TCP. Events are put onto the Queue by the Message Worker (QED). Events
-are expected to be serialized using the `pycot<https://github.com/ampledata/pycot>`__
+are expected to be serialized using the `pycot<https://github.com/ampledata/pycot>`_
 Module::
 
     #!/usr/bin/env python3.7
