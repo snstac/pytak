@@ -106,7 +106,7 @@ def hex_country_lookup(icao_hex: int) -> str:
     for country_dict in pytak.ICAO_RANGES:
         start = country_dict["start"]
         end = country_dict["end"]
-        if start <= icao <= end:
+        if start <= icao_hex <= end:
             return country_dict["country"]
 
 
