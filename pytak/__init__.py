@@ -19,7 +19,7 @@ from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DEFAULT_BACKOFF, DEFAULT_SLEEP,
                         DEFAULT_ATAK_PORT, DEFAULT_BROADCAST_PORT,
                         DOMESTIC_AIRLINES, DEFAULT_HEX_RANGES,
-                        DEFAULT_COT_STALE)
+                        DEFAULT_COT_STALE, ICAO_RANGES)
 
 from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
                       EventTransmitter, EventReceiver)

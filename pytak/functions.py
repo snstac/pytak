@@ -98,6 +98,18 @@ async def eventworker_factory(cot_url: str, event_queue,
     return pytak.EventWorker(event_queue, writer)
 
 
+def hex_country_lookup(icao_hex: int) -> str:
+    """
+    Pull country from ICAO Hex within the stdin file when there is no match to
+    csv files (e.g., faa-aircraft.csv).
+    """
+    for country_dict in pytak.ICAO_RANGES:
+        start = country_dict["start"]
+        end = country_dict["end"]
+        if start <= icao <= end:
+            return country_dict["country"]
+
+
 def faa_to_cot_type(icao_hex: int, category: str = None,
                     flight: str = None) -> str:
     """
@@ -115,20 +127,23 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
                 # SN: Should be "n" for Mil/Fed posture.
                 attitude = "f"  # FIXME: Default posture depends on user.
 
-    # SN: Leave "neutral" as Taiwan uses this subset instead of PRC China....
     tw_start = 0x899000
     tw_end = 0x8993FF
     if tw_start <= icao_int <= tw_end:
         attitude = "n"
 
-    # SN: Make the US range (all non-mil) ICAO addresses just generic "n"
-    us_civ_start = pytak.DEFAULT_HEX_RANGES["US-CIV"]["start"]
-    us_civ_end = pytak.DEFAULT_HEX_RANGES["US-CIV"]["end"]
-    if us_civ_start <= icao_int <= us_civ_end:
+    civs = ["US-CIV", "CAN-CIV", "NZ-CIV", "AUS-CIV", "UK-CIV"]
+    for civ in civs:
+        civ_start = pytak.DEFAULT_HEX_RANGES[civ]["start"]
+        civ_end = pytak.DEFAULT_HEX_RANGES[civ]["end"]
+        if civ_start <= icao_int <= civ_end:
+            attitude = "n"
+
+    if hex_country_lookup(icao_hex):
         attitude = "n"
 
     # Friendly Mil:
-    mil = ["US-MIL", "CAN-MIL"]
+    mil = ["US-MIL", "CAN-MIL", "NZ-MIL", "AUS-MIL"]
     for fvey in mil:
         mil_start = pytak.DEFAULT_HEX_RANGES[fvey]["start"]
         mil_end = pytak.DEFAULT_HEX_RANGES[fvey]["end"]
@@ -136,15 +151,16 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
             attitude = "f"
             affil = "M"
 
-    # Default Fixed Wing
-    cot_type = f"a-{attitude}-A-{affil}-F"
+    cot_type = f"a-{attitude}-A-{affil}"
 
     if category:
         _category = str(category)
 
-        if _category in ["7", "A7"]:  # Rotor/Helicopter
+        if _category in ["1", "2", "3", "4", "5", "6", "A1", "A2", "A3", "A4", "A5", "A6"]:  # Fixed
+            cot_type = f"a-{attitude}-A-{affil}-F"
+        elif _category in ["7", "A7"]:  # Rotor/Helicopter
             cot_type = f"a-{attitude}-A-{affil}-H"
-        if _category in ["10", "B2"]:  # Balloon
+        elif _category in ["10", "B2"]:  # Balloon
             cot_type = f"a-{attitude}-A-{affil}-L"
         elif _category in ["14", "B6"]:  # Drone
             cot_type = f"a-{attitude}-A-{affil}-F-q"
@@ -154,3 +170,4 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
             cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 
     return cot_type
+
