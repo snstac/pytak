@@ -67,6 +67,8 @@ async def multicast_client(url):
 
 
 async def protocol_factory(cot_url, fts_token: str = None):
+    reader = None
+    writer = None
     if "http" in cot_url.scheme and fts_token:  # pylint: disable=no-else-raise
         raise Exception(
             "HTTP Support is not implemented yet. Send beer to gba@undef.net")
@@ -81,6 +83,10 @@ async def protocol_factory(cot_url, fts_token: str = None):
     elif "udp" in cot_url.scheme:
         reader = None
         writer = await pytak.udp_client(cot_url)
+    else:
+        raise Exception(
+            "Please specify a protocol in your URL, for example: tcp:xxx or "
+            "udp:xxx")
     return reader, writer
 
 
@@ -143,7 +149,7 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
         attitude = "n"
 
     # Friendly Mil:
-    mil = ["US-MIL", "CAN-MIL", "NZ-MIL", "AUS-MIL"]
+    mil = ["US-MIL", "CAN-MIL", "NZ-MIL", "AUS-MIL", "UK-MIL"]
     for fvey in mil:
         mil_start = pytak.DEFAULT_HEX_RANGES[fvey]["start"]
         mil_end = pytak.DEFAULT_HEX_RANGES[fvey]["end"]

@@ -31,6 +31,14 @@ DEFAULT_SLEEP: int = 5
 DEFAULT_COT_STALE: int = 120
 
 
+DOMESTIC_AIRLINES: list = [
+    "AAL",
+    "UAL",
+    "FDX",
+    "UPS",
+    "SWA"
+]
+
 DEFAULT_HEX_RANGES: dict = {
     "US-CIV": {"start": 0xA00000, "end": 0xADF7C7},
     "US-MIL": {"start": 0xADF7C8, "end": 0xAFFFFF},
@@ -40,16 +48,9 @@ DEFAULT_HEX_RANGES: dict = {
     "NZ-MIL": {"start": 0xC87F00, "end": 0xC87FFF},
     "AUS-CIV": {"start": 0x7C0000, "end": 0x7FFFFF},
     "AUS-MIL": {"start": 0x7CF800, "end": 0x7CFAFF},
-    "UK-CIV": {"start": 0x400000, "end": 0x43FFFF}
+    "UK-CIV": {"start": 0x400000, "end": 0x43FFFF},
+    "UK-MIL": {"start": 0x43C000, "end": 0x43CFFF}
 }
-
-DOMESTIC_AIRLINES: list = [
-    "AAL",
-    "UAL",
-    "FDX",
-    "UPS",
-    "SWA"
-]
 
 ICAO_RANGES = [
     {"start": 0x700000, "end": 0x700FFF, "country": "Afghanistan"},

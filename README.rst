@@ -4,7 +4,11 @@ pytak - Python Team Awareness Kit (PyTAK) Module.
 PyTAK is a Python Module for creating TAK clients & servers.
 
 This module include Classes for handling CoT Events & non-CoT Messages, as well
-as functions for serializing CoT Events.
+as functions for serializing CoT Events. As a bonus, there are helper functions
+for classifying Aircraft attitude/affiliation/posture based on ICAO, Emitter
+Category, Flight Name, et al.
+
+**IF YOU HAVE AN URGENT OPERATIONAL NEED**: Email ops@undef.net or call/sms +1-415-598-8226
 
 Usage
 =====
@@ -23,7 +27,7 @@ Module::
     loop = asyncio.get_running_loop()
     tx_queue: asyncio.Queue = asyncio.Queue()
     rx_queue: asyncio.Queue = asyncio.Queue()
-    cot_url: urllib.parse.ParseResult = urllib.parse.urlparse('tcp:fts.example.com:8087')
+    cot_url: urllib.parse.ParseResult = urllib.parse.urlparse("tcp:fts.example.com:8087")
 
     # Create our CoT Event Queue Worker
     reader, writer = await pytak.protocol_factory(cot_url)
@@ -99,3 +103,11 @@ Copyright 2020 Orion Labs, Inc.
 License
 =======
 Apache License, Version 2.0. See LICENSE for details.
+
+Style
+=====
+
+1. Prefer double-quotes over single quotes.
+2. Prefer spaces over tabs.
+3. Follow PEP-8.
+4. Follow Google Python Style.
