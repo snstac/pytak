@@ -98,7 +98,7 @@ async def eventworker_factory(cot_url: str, event_queue,
     return pytak.EventWorker(event_queue, writer)
 
 
-def hex_country_lookup(icao_hex: int) -> str:
+def hex_country_lookup(icao_int: int) -> str:
     """
     Pull country from ICAO Hex within the stdin file when there is no match to
     csv files (e.g., faa-aircraft.csv).
@@ -106,7 +106,7 @@ def hex_country_lookup(icao_hex: int) -> str:
     for country_dict in pytak.ICAO_RANGES:
         start = country_dict["start"]
         end = country_dict["end"]
-        if start <= icao_hex <= end:
+        if start <= icao_int <= end:
             return country_dict["country"]
 
 
@@ -139,7 +139,7 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
         if civ_start <= icao_int <= civ_end:
             attitude = "n"
 
-    if hex_country_lookup(icao_hex):
+    if hex_country_lookup(icao_int):
         attitude = "n"
 
     # Friendly Mil:
