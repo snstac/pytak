@@ -115,6 +115,19 @@ def hex_country_lookup(icao_int: int) -> str:
         if start <= icao_int <= end:
             return country_dict["country"]
 
+def dolphin(flight: str = None) -> str:
+    """
+    Classify an aircraft as USCG Dolphin, or not.
+    What, are you afraid of water?
+    """
+    # MH-65D Dolphins out of Air Station SF use older ADS-B, but luckily have
+    # a similar "flight" name.
+    # For example:
+    # * C6540 / AE2682 https://globe.adsbexchange.com/?icao=ae2682
+    # * C6604 / AE26BB https://globe.adsbexchange.com/?icao=ae26bb
+    if flight and len(flight) >= 3 and flight[:2] is "C6":
+        return True
+
 
 def faa_to_cot_type(icao_hex: int, category: str = None,
                     flight: str = None) -> str:
@@ -174,6 +187,9 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
             cot_type = "a-.-G-E-V-C-U"
         elif _category in ["19"]:
             cot_type = f"a-{attitude}-G-I-U-T-com-tow"
+
+    if dolphin(flight):
+        cot_type = "a-f-A-M-H"
 
     return cot_type
 
