@@ -5,6 +5,7 @@
 
 import asyncio
 import socket
+import ssl
 
 import asyncio_dgram
 
@@ -69,18 +70,47 @@ async def multicast_client(url):
 async def protocol_factory(cot_url, fts_token: str = None):
     reader = None
     writer = None
-    if "http" in cot_url.scheme and fts_token:  # pylint: disable=no-else-raise
-        raise Exception(
-            "HTTP Support is not implemented yet. Send beer to gba@undef.net")
-        # event_worker = pytak.FTSClient(
-        #    event_queue,
-        #    cot_url.geturl(),
-        #    fts_token
-        # )
-    elif "tcp" in cot_url.scheme:
+    scheme = cot_url.scheme.lower()
+    if scheme in ["https", "http", "ws", "wss"]:  # NOQA pylint: disable=no-else-raise
+        if "teamconnect" in cot_url.geturl():
+            writer = await pytak.TCClient(cot_url).run()
+            reader = writer
+    elif scheme in ["tcp"]:
         host, port = pytak.parse_cot_url(cot_url)
         reader, writer = await asyncio.open_connection(host, port)
-    elif "udp" in cot_url.scheme:
+    elif scheme in ["tls", "ssl"]:
+        host, port = pytak.parse_cot_url(cot_url)
+
+        client_cert = os.environ.get("PYTAK_CLIENT_CERT")
+        client_key = os.environ.get("PYTAK_CLIENT_KEY")
+        client_cafile = os.environ.get("PYTAK_CLIENT_CAFILE")
+        client_ciphers = os.environ.get(
+            "PYTAK_CLIENT_CAFILE", pytak.DEFAULT_FIPS_CIPHERS)
+        dont_check_hostname = bool(os.environ.get("PYTAK_DONT_CHECK_HOSTNAME"))
+
+        # SSL Context setup:
+        ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_ctx.options |= ssl.OP_NO_TLSv1
+        ssl_ctx.options |= ssl.OP_NO_TLSv1_1
+        ssl_ctx.set_ciphers(client_ciphers)
+        ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+
+        if client_key:
+            ssl_ctx.load_cert_chain(client_cert, keyfile=client_key)
+        else:
+            ssl_ctx.load_cert_chain(client_cert)
+
+        if client_cafile:
+            ssl_ctx.load_verify_locations(cafile=client_cafile)
+
+        # Default to checking hostnames:
+        if dont_check_hostname:
+            ssl_ctx.check_hostname = False
+        else:
+            ssl_ctx.check_hostname = True
+
+        reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
+    elif scheme in ["udp"]:
         reader = None
         writer = await pytak.udp_client(cot_url)
     else:
@@ -115,7 +145,7 @@ def hex_country_lookup(icao_int: int) -> str:
         if start <= icao_int <= end:
             return country_dict["country"]
 
-def dolphin(flight: str = None) -> str:
+def dolphin(flight: str = None, affil: str = None) -> str:
     """
     Classify an aircraft as USCG Dolphin, or not.
     What, are you afraid of water?
@@ -125,8 +155,9 @@ def dolphin(flight: str = None) -> str:
     # For example:
     # * C6540 / AE2682 https://globe.adsbexchange.com/?icao=ae2682
     # * C6604 / AE26BB https://globe.adsbexchange.com/?icao=ae26bb
-    if flight and len(flight) >= 3 and flight[:2] is "C6":
-        return True
+    if flight and len(flight) >= 3 and flight[:2] in ["C6", b"C6"]:
+        if affil and affil in ["M", b"M"]:
+            return True
 
 
 def faa_to_cot_type(icao_hex: int, category: str = None,
@@ -188,8 +219,8 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
         elif _category in ["19"]:
             cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 
-    if dolphin(flight):
-        cot_type = "a-f-A-M-H"
+    if dolphin(flight, affil):
+        cot_type = f"a-f-A-{affil}-H"
 
     return cot_type
 

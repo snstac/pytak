@@ -3,6 +3,7 @@
 
 """Python Team Awareness Kit (PyTAK) Module Class Definitions."""
 
+import aiohttp
 import asyncio
 import logging
 import os
@@ -11,6 +12,7 @@ import random
 import urllib
 
 import pycot
+import websockets
 
 import pytak
 
@@ -160,3 +162,59 @@ class EventReceiver(Worker):  # pylint: disable=too-few-public-methods
         while 1:
             rx_event = await self.event_queue.get()
             self._logger.debug("rx_event='%s'", rx_event)
+
+
+class TCClient:
+
+    _logger = logging.getLogger(__name__)
+    if not _logger.handlers:
+        _logger.setLevel(pytak.LOG_LEVEL)
+        _console_handler = logging.StreamHandler()
+        _console_handler.setLevel(pytak.LOG_LEVEL)
+        _console_handler.setFormatter(pytak.LOG_FORMAT)
+        _logger.addHandler(_console_handler)
+        _logger.propagate = False
+    logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
+    logging.getLogger("websockets").setLevel(pytak.LOG_LEVEL)
+
+    def __init__(self, url):
+        self.url = url
+        self.access_token = None
+
+    async def auth(self):
+        self._logger.debug("Attempting to Login to TC")
+        auth_url = "https://app-api.parteamconnect.com/api/v1/auth/token"
+        team_url = self.url.geturl()
+        scope = f"{team_url}/.bridge-both"
+        payload = {
+            "url": team_url,
+            "grant_type": "client_credentials",
+            "client_id": os.environ.get("TC_ACCESS_KEY_ID"),
+            "client_secret": os.environ.get("TC_SECRET_KEY"),
+            "scope": scope
+        }
+        # headers: {"content-type": "application/x-www-form-urlencoded"},
+        self._logger.debug("payload='%s'", payload)
+        async with aiohttp.ClientSession() as session:
+            resp = await session.request(
+                method="POST", url=auth_url, data=payload)
+            resp.raise_for_status()
+
+            json_resp = await resp.json()
+            access_token = json_resp.get("access_token")
+            assert access_token
+            self._logger.debug("Received Access Token")
+            self.access_token = access_token
+            return self.access_token
+
+    async def run(self) -> None:
+        url = self.url.geturl().replace("https", "wss")
+        self._logger.info("Running TCClient for %", url)
+        while 1:
+            await self.auth()
+            if self.access_token:
+                headers = websockets.http.Headers({("Authentication", f"Bearer {self.access_token}")})
+                self._logger.debug(headers)
+                x = await websockets.connect(url, extra_headers=headers)
+                print(x)
+                await asyncio.sleep(30)
