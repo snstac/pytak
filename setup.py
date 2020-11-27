@@ -56,6 +56,7 @@ setuptools.setup(
     install_requires=[
         "asyncio_dgram",
         "pycot",
-        "websockets"
+        "websockets",
+        "aiohttp"
     ]
 )
