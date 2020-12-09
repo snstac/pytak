@@ -14,6 +14,8 @@ import urllib
 import pycot
 import websockets
 
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
+
 import pytak
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
@@ -174,15 +176,64 @@ class TCClient:
         _console_handler.setFormatter(pytak.LOG_FORMAT)
         _logger.addHandler(_console_handler)
         _logger.propagate = False
-    logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
-    logging.getLogger("websockets").setLevel(pytak.LOG_LEVEL)
+    # logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
+    logging.getLogger("websockets").setLevel(logging.DEBUG) # pytak.LOG_LEVEL)
 
-    def __init__(self, url):
+    def __init__(self, url, timeout=3):
         self.url = url
+        self.wss_url = self.url.geturl().replace("http", "ws")
         self.access_token = None
+        self.client = self.get_websocket_connection()
+        self.timeout = timeout
+        self._flag_closed = False
+
+    @property
+    def closed(self):
+        return self._flag_closed
+
+    async def create(self, timeout=3):
+        await self.client.asend(None)
+        return self
+
+    async def get_websocket_connection(self):
+        while not self.closed:
+            try:
+                await self.auth()
+                headers = websockets.http.Headers(
+                    {("Authorization", f"Bearer {self.access_token}")})
+                print("Create New Connection...")
+                async with websockets.connect(
+            self.wss_url, extra_headers=headers, ping_timeout=120,
+            ping_interval=5) as ws:
+                    self._websocket_connection = ws
+                    data = yield
+
+                    while 1:
+                        await ws.send(data)
+                        data = yield await asyncio.wait_for(ws.recv(), self.timeout)
+
+            except (asyncio.TimeoutError, ConnectionClosedOK, ConnectionClosedError):
+                pass
+
+    async def send(self, data):
+        if self.closed:
+            await self._websocket_connection.ping()
+
+        r = await self.client.asend(data)
+        if (r) :
+            return r
+        else:
+            # timeout retry
+            return await self.client.asend(data)
+
+    async def close(self):
+        if not self.closed:
+            self._flag_closed = True
+            await self._websocket_connection.close()
+            print("Connection closed.")
 
     async def auth(self):
-        self._logger.debug("Attempting to Login to TC")
+        self._logger.debug("Logging into TC")
         auth_url = "https://app-api.parteamconnect.com/api/v1/auth/token"
         team_url = self.url.geturl()
         scope = f"{team_url}/.bridge-both"
@@ -193,8 +244,8 @@ class TCClient:
             "client_secret": os.environ.get("TC_SECRET_KEY"),
             "scope": scope
         }
-        # headers: {"content-type": "application/x-www-form-urlencoded"},
         self._logger.debug("payload='%s'", payload)
+
         async with aiohttp.ClientSession() as session:
             resp = await session.request(
                 method="POST", url=auth_url, data=payload)
@@ -203,18 +254,19 @@ class TCClient:
             json_resp = await resp.json()
             access_token = json_resp.get("access_token")
             assert access_token
-            self._logger.debug("Received Access Token")
+
+            self._logger.debug("Received TC Access Token")
             self.access_token = access_token
+
             return self.access_token
 
     async def run(self) -> None:
-        url = self.url.geturl().replace("https", "wss")
-        self._logger.info("Running TCClient for %", url)
-        while 1:
-            await self.auth()
-            if self.access_token:
-                headers = websockets.http.Headers({("Authentication", f"Bearer {self.access_token}")})
-                self._logger.debug(headers)
-                x = await websockets.connect(url, extra_headers=headers)
-                print(x)
-                await asyncio.sleep(30)
+        loop = asyncio.get_event_loop()
+        self._logger.info("Running TCClient for %s", self.url)
+
+        await self.auth()
+        headers = websockets.http.Headers(
+            {("Authorization", f"Bearer {self.access_token}")})
+        return await websockets.connect(
+            self.wss_url, extra_headers=headers, ping_timeout=120,
+            ping_interval=5)

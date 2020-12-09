@@ -73,7 +73,7 @@ async def protocol_factory(cot_url, fts_token: str = None):
     scheme = cot_url.scheme.lower()
     if scheme in ["https", "http", "ws", "wss"]:  # NOQA pylint: disable=no-else-raise
         if "teamconnect" in cot_url.geturl():
-            writer = await pytak.TCClient(cot_url).run()
+            writer = await pytak.TCClient(cot_url).create()
             reader = writer
     elif scheme in ["tcp"]:
         host, port = pytak.parse_cot_url(cot_url)
