@@ -98,17 +98,25 @@ TLS Support
 TLS Support for connections to TAK destinations is configured with two settings:
 
 1) Specify 'tls:' in the CoT Destination URL, for example: 'tls:my-tak-server.example.com:8089'
-2) Specify the TLS Cert & Key paramaters in the environment:
+2) Specify the TLS Cert & Key paramaters in the environment.
 
-Required:
+Required TLS Environment:
+
 * PYTAK_TLS_CLIENT_CERT: TLS Public Key Certificate that the pytak client will use to connect.
 * PYTAK_TLS_CLIENT_KEY: TLS Private Key for the above TLS Public Key Certificate.
 
-Optional:
+Optional TLS Environment:
+
 * PYTAK_TLS_DONT_VERIFY: Disable destination TLS Certificate Verification.
 * PYTAK_TLS_DONT_CHECK_HOSTNAME: Disable destination TLS Certificate Common Name (CN) Verification.
 * PYTAK_TLS_CLIENT_CAFILE: Specify CA trust store to use for remote TLS Verification.
 * PYTAK_TLS_CLIENT_CIPHERS: Specify colon seperated list of TLS Cipher Suites (Defaults to FIPS 140-2 / NSA Suite B)
+
+For example, if you're using 'adsbcot' and want to send CoT to a TAK Server
+listening for TLS connections on port 8089::
+
+    $ PYTAK_TLS_CLIENT_CERT=client.cert.pem PYTAK_TLS_CLIENT_KEY=client.key.pem \
+      adsbcot -D http://172.17.2.122:8080/data/aircraft.json -U tls:my-tak-server.example.com:8089
 
 Build Status
 ============
