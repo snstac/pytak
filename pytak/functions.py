@@ -4,6 +4,7 @@
 """PyTAK Functions."""
 
 import asyncio
+import os
 import socket
 import ssl
 
@@ -81,18 +82,21 @@ async def protocol_factory(cot_url, fts_token: str = None):
     elif scheme in ["tls", "ssl"]:
         host, port = pytak.parse_cot_url(cot_url)
 
-        client_cert = os.environ.get("PYTAK_CLIENT_CERT")
-        client_key = os.environ.get("PYTAK_CLIENT_KEY")
-        client_cafile = os.environ.get("PYTAK_CLIENT_CAFILE")
-        client_ciphers = os.environ.get(
-            "PYTAK_CLIENT_CAFILE", pytak.DEFAULT_FIPS_CIPHERS)
-        dont_check_hostname = bool(os.environ.get("PYTAK_DONT_CHECK_HOSTNAME"))
+        client_cert = os.getenv("PYTAK_TLS_CLIENT_CERT")
+        client_key = os.getenv("PYTAK_TLS_CLIENT_KEY")
+        client_cafile = os.getenv("PYTAK_TLS_CLIENT_CAFILE")
+        client_ciphers = os.getenv(
+            "PYTAK_CLIENT_CIPHERS", pytak.DEFAULT_FIPS_CIPHERS)
+
+        dont_check_hostname = bool(os.getenv("PYTAK_TLS_DONT_CHECK_HOSTNAME"))
+        dont_verify = bool(os.getenv("PYTAK_TLS_DONT_VERIFY"))
 
         # SSL Context setup:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_ctx.options |= ssl.OP_NO_TLSv1
         ssl_ctx.options |= ssl.OP_NO_TLSv1_1
         ssl_ctx.set_ciphers(client_ciphers)
+        ssl_ctx.check_hostname = True
         ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
 
         if client_key:
@@ -103,11 +107,19 @@ async def protocol_factory(cot_url, fts_token: str = None):
         if client_cafile:
             ssl_ctx.load_verify_locations(cafile=client_cafile)
 
+        # Default to verifying cert:
+        if dont_verify:
+            print(
+                "pytak TLS Certificate Verification DISABLED by Environment.")
+            print("pytak TLS Hostname Check DISABLED by Environment.")
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
         # Default to checking hostnames:
         if dont_check_hostname:
+            print("pytak TLS Hostname Check DISABLED by Environment.")
             ssl_ctx.check_hostname = False
-        else:
-            ssl_ctx.check_hostname = True
+
 
         reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
     elif scheme in ["udp"]:
