@@ -92,6 +92,24 @@ Option B) Install from this source tree::
     $ python setup.py install
 
 
+TLS Support
+===========
+
+TLS Support for connections to TAK destinations is configured with two settings:
+
+1) Specify 'tls:' in the CoT Destination URL, for example: 'tls:my-tak-server.example.com:8089'
+2) Specify the TLS Cert & Key paramaters in the environment:
+
+Required:
+* PYTAK_TLS_CLIENT_CERT: TLS Public Key Certificate that the pytak client will use to connect.
+* PYTAK_TLS_CLIENT_KEY: TLS Private Key for the above TLS Public Key Certificate.
+
+Optional:
+* PYTAK_TLS_DONT_VERIFY: Disable destination TLS Certificate Verification.
+* PYTAK_TLS_DONT_CHECK_HOSTNAME: Disable destination TLS Certificate Common Name (CN) Verification.
+* PYTAK_TLS_CLIENT_CAFILE: Specify CA trust store to use for remote TLS Verification.
+* PYTAK_TLS_CLIENT_CIPHERS: Specify colon seperated list of TLS Cipher Suites (Defaults to FIPS 140-2 / NSA Suite B)
+
 Build Status
 ============
 
@@ -110,7 +128,7 @@ https://www.orionlabs.io/
 
 Copyright
 =========
-Copyright 2020 Orion Labs, Inc.
+Copyright 2021 Orion Labs, Inc.
 
 License
 =======

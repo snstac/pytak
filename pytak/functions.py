@@ -86,7 +86,7 @@ async def protocol_factory(cot_url, fts_token: str = None):
         client_key = os.getenv("PYTAK_TLS_CLIENT_KEY")
         client_cafile = os.getenv("PYTAK_TLS_CLIENT_CAFILE")
         client_ciphers = os.getenv(
-            "PYTAK_CLIENT_CIPHERS", pytak.DEFAULT_FIPS_CIPHERS)
+            "PYTAK_TLS_CLIENT_CIPHERS", pytak.DEFAULT_FIPS_CIPHERS)
 
         dont_check_hostname = bool(os.getenv("PYTAK_TLS_DONT_CHECK_HOSTNAME"))
         dont_verify = bool(os.getenv("PYTAK_TLS_DONT_VERIFY"))
