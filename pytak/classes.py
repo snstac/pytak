@@ -148,8 +148,10 @@ class EventTransmitter(Worker):  # pylint: disable=too-few-public-methods
                 self.writer.write(_event)
                 await self.writer.drain()
 
-            if os.environ.get("FTS_COMPAT"):
-                await asyncio.sleep(pytak.DEFAULT_SLEEP * random.random())
+            if os.getenv("FTS_COMPAT") or os.getenv("PYTAK_SLEEP"):
+                sleep_period: int = int(os.getenv("PYTAK_SLEEP") or (pytak.DEFAULT_SLEEP * random.random()))
+                self._logger.debug("Sleeping for sleep_period=%s Seconds", sleep_period)
+                await asyncio.sleep(sleep_period)
 
 
 class EventReceiver(Worker):  # pylint: disable=too-few-public-methods

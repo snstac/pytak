@@ -129,7 +129,8 @@ FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which r
 client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must
 meter their input speed.
 
-To use a PyTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`::
+To use a PyTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`. This will cause the PyTAK
+client to sleep a random number of seconds between transmitting CoT to a FTS server::
 
     export FTS_COMPAT=1
     aprscot ...
@@ -138,6 +139,12 @@ Or, inline::
 
     FTS_COMPAT=1 aprscot
 
+
+
+Alternatively you can specify a static sleep period by setting PYTAK_SLEEP to an integer number of seconds::
+
+    export PYTAK_SLEEP=3
+    spotcot ...
 
 
 TLS Support
