@@ -32,6 +32,15 @@ def publish():
 publish()
 
 
+def read_readme(readme_file="README.rst") -> str:
+    """Read the contents of the README file for use as a long_description."""
+    readme: str = ""
+    this_directory = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(this_directory, readme_file), encoding="utf-8") as f:
+        readme = f.read()
+    return readme
+
+
 setuptools.setup(
     version=__version__,
     name=__title__,
@@ -42,8 +51,8 @@ setuptools.setup(
     author="Greg Albrecht",
     author_email="oss@undef.net",
     package_data={"": ["LICENSE"]},
-    license=open("LICENSE").read(),
-    long_description=open("README.rst").read(),
+    license=read_readme("LICENSE"),
+    long_description=read_readme(),
     zip_safe=False,
     include_package_data=True,
     classifiers=[

@@ -9,7 +9,7 @@ as functions for serializing CoT Events. As a bonus, there are helper functions
 for classifying Aircraft attitude/affiliation/posture based on ICAO, Emitter
 Category, Flight Name, et al.
 
-PyTAK has been tested with and is compatible with:
+PyTAK has been tested with and is compatible with the following:
 
 Servers:
 
@@ -35,7 +35,6 @@ Examples of software clients using the the PyTAK Python Module include:
 * `aprscot <https://github.com/ampledata/aprscot>`_: Automatic Packet Reporting System (APRS) to Cursor on Target (CoT) Gateway. Transforms APRS position messages to CoT PLI Events.
 
 See also:
-
 * `pycot <https://github.com/ampledata/pycot>`_: Python Cursor on Target (CoT), a Python Module for serializing CoT Events, for use with TAK clients & servers.
 
 
