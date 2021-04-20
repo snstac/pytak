@@ -51,8 +51,9 @@ setuptools.setup(
     author="Greg Albrecht",
     author_email="oss@undef.net",
     package_data={"": ["LICENSE"]},
-    license=read_readme("LICENSE"),
+    license="Apache License, Version 2.0",
     long_description=read_readme(),
+    long_description_content_type="text/x-rst",
     zip_safe=False,
     include_package_data=True,
     classifiers=[
