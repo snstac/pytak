@@ -19,7 +19,7 @@ from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 import pytak
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2020 Orion Labs, Inc."
+__copyright__ = "Copyright 2021 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
 
 
@@ -148,7 +148,7 @@ class EventTransmitter(Worker):  # pylint: disable=too-few-public-methods
                 self.writer.write(_event)
                 await self.writer.drain()
 
-            if not os.environ.get('DISABLE_RANDOM_SLEEP'):
+            if os.environ.get("FTS_COMPAT"):
                 await asyncio.sleep(pytak.DEFAULT_SLEEP * random.random())
 
 

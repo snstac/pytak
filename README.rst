@@ -22,6 +22,16 @@ See also:
 
 * `pycot <https://github.com/ampledata/pycot>`_: Python Cursor on Target (CoT), a Python Module for serializing CoT Events, for use with TAK clients & servers.
 
+
+Support PYTAK Development
+=========================
+
+PYTAK Software development is powered by COFFEE! Since we probably won't be able to meet in person any time soon, you
+can buy me a virtual coffee here:
+
+<a href="https://www.buymeacoffee.com/ampledata" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy me a coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
+
+
 Usage
 =====
 
@@ -90,6 +100,24 @@ Option B) Install from this source tree::
     $ git clone https://github.com/ampledata/pytak.git
     $ cd pytak/
     $ python setup.py install
+
+
+FreeTAKServer Support
+=====================
+
+FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which restricts the number of CoT Events a
+client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must
+meter their input speed.
+
+To use a PYTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`::
+
+    export FTS_COMPAT=1
+    aprscot ...
+
+Or, inline::
+
+    FTS_COMPAT=1 aprscot
+
 
 
 TLS Support
