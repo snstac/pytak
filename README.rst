@@ -1,5 +1,6 @@
 pytak - Python Team Awareness Kit (PyTAK) Module.
 *************************************************
+**IF YOU HAVE AN URGENT OPERATIONAL NEED**: Email ops@undef.net or call/sms +1-415-598-8226
 
 PyTAK is a Python Module for creating TAK clients & servers.
 
@@ -8,9 +9,18 @@ as functions for serializing CoT Events. As a bonus, there are helper functions
 for classifying Aircraft attitude/affiliation/posture based on ICAO, Emitter
 Category, Flight Name, et al.
 
-**IF YOU HAVE AN URGENT OPERATIONAL NEED**: Email ops@undef.net or call/sms +1-415-598-8226
+PyTAK has been tested with and is compatible with:
 
-Examples of TAK Clients using the this module:
+* TAK Server
+* Free TAK Server (FTS/FreeTAKServer)
+* taky
+* WinTAK
+* ATAK
+* RaptorX
+* RedTAK
+* WebTAK **NOT CURRENTLY WORKING**
+
+Examples of software clients using the the PyTAK Python Module include:
 
 * `aiscot <https://github.com/ampledata/aiscot>`_: Automatic Identification System (AIS) to Cursor on Target (CoT) Gateway. Transforms AIS position messages to CoT PLI Events.
 * `adsbcot <https://github.com/ampledata/adsbcot>`_: Automatic Dependent Surveillance-Broadcast (ADS-B) to Cursor on Target (CoT) Gateway. Transforms ADS-B position messages to CoT PLI Events.
@@ -23,14 +33,15 @@ See also:
 * `pycot <https://github.com/ampledata/pycot>`_: Python Cursor on Target (CoT), a Python Module for serializing CoT Events, for use with TAK clients & servers.
 
 
-Support PYTAK Development
+Support PyTAK Development
 =========================
 
-PYTAK Software development is powered by COFFEE! Since we probably won't be able to meet in person any time soon, you
+PyTAK Software development is powered by coffee! Since we probably won't be able to meet in person any time soon, you
 can buy me a virtual coffee here:
 
-<a href="https://www.buymeacoffee.com/ampledata" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy me a coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
-
+.. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
+    :target: https://www.buymeacoffee.com/ampledata
+    :alt: Support PyTAK development: Buy me a coffee!
 
 Usage
 =====
@@ -42,6 +53,7 @@ are expected to be serialized using the `pycot <https://github.com/ampledata/pyc
 Module::
 
     #!/usr/bin/env python3.7
+
     import asyncio
     import urllib
     import pytak
@@ -109,7 +121,7 @@ FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which r
 client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must
 meter their input speed.
 
-To use a PYTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`::
+To use a PyTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`::
 
     export FTS_COMPAT=1
     aprscot ...
@@ -160,7 +172,7 @@ Author
 ======
 Greg Albrecht W2GMD oss@undef.net
 
-https://www.orionlabs.io/
+https://ampledata.org/
 
 Copyright
 =========
@@ -172,7 +184,6 @@ Apache License, Version 2.0. See LICENSE for details.
 
 Style
 =====
-
 1. Prefer double-quotes over single quotes.
 2. Prefer spaces over tabs.
 3. Follow PEP-8.
