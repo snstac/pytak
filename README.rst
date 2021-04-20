@@ -91,6 +91,9 @@ Module::
 Requirements
 ============
 
+1. Python 3.6 or above.
+2. LibFFI (see below):
+
 PyTAK requires the FFI Library libffi (or libffi-dev), to install follow these
 instructions.
 

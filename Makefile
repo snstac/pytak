@@ -2,7 +2,7 @@
 #
 # Source:: https://github.com/ampledata/pytak
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2020 Orion Labs, Inc.
+# Copyright:: Copyright 2021 Orion Labs, Inc.
 # License:: Apache License, Version 2.0
 #
 

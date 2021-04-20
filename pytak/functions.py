@@ -13,7 +13,7 @@ import asyncio_dgram
 import pytak
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2020 Orion Labs, Inc."
+__copyright__ = "Copyright 2021 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
 
 
@@ -69,6 +69,13 @@ async def multicast_client(url):
 
 
 async def protocol_factory(cot_url, fts_token: str = None):
+    """
+    Given a CoT Destination URL, create a Connection Class Instance for the given protocol.
+
+    :param cot_url: CoT Destination URL
+    :param fts_token:
+    :return:
+    """
     reader = None
     writer = None
     scheme = cot_url.scheme.lower()
@@ -156,6 +163,7 @@ def hex_country_lookup(icao_int: int) -> str:
         end = country_dict["end"]
         if start <= icao_int <= end:
             return country_dict["country"]
+
 
 def dolphin(flight: str = None, affil: str = None) -> str:
     """

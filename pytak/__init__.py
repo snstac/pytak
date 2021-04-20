@@ -9,7 +9,7 @@ Python Team Awareness Kit (PyTAK) Module.
 
 
 :author: Greg Albrecht W2GMD <oss@undef.net>
-:copyright: Copyright 2020 Orion Labs, Inc.
+:copyright: Copyright 2021 Orion Labs, Inc.
 :license: Apache License, Version 2.0
 :source: <https://github.com/ampledata/pytak>
 
@@ -30,5 +30,5 @@ from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2020 Orion Labs, Inc."
+__copyright__ = "Copyright 2021 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
