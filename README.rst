@@ -11,14 +11,20 @@ Category, Flight Name, et al.
 
 PyTAK has been tested with and is compatible with:
 
-* TAK Server
-* Free TAK Server (FTS/FreeTAKServer)
-* taky
-* WinTAK
-* ATAK
+Servers:
+
+* `TAK Server <https://takmaps.com/>`_
+* `Free TAK Server (FTS/FreeTAKServer) <https://github.com/FreeTAKTeam/FreeTakServer>`_
+* `taky <https://github.com/tkuester/taky>`_
+* `PAR Team Connect <https://pargovernment.com/TeamConnect/>`_ **COMMING SOON**
+
+Clients:
+
+* `WinTAK <https://www.civtak.org/2020/09/23/wintak-is-publicly-available/>`_
+* `ATAK <https://www.civtak.org/download-atak/>`_
+* `RedTAK <http://ampledata.org/node_red_atak.html>`_
 * RaptorX
-* RedTAK
-* WebTAK **NOT CURRENTLY WORKING**
+* `WebTAK <https://takmaps.com/>`_ **NOT CURRENTLY WORKING**
 
 Examples of software clients using the the PyTAK Python Module include:
 
