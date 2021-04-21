@@ -31,7 +31,7 @@ DEFAULT_SLEEP: int = 5
 DEFAULT_COT_STALE: int = 120
 DEFAULT_FIPS_CIPHERS: str = "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"
 
-DOMESTIC_AIRLINES: list = [
+DOMESTIC_AIRLINES: list = [    # maybe transition this to a text file, 3LD identifiers change rapidly, not major airlines, but there are hundreds of these world wide
     "AAL",
     "UAL",
     "FDX",
@@ -44,7 +44,8 @@ DEFAULT_HEX_RANGES: dict = {
     "US-MIL": {"start": 0xADF7C8, "end": 0xAFFFFF},
     "CAN-CIV": {"start": 0xC00000, "end": 0xC0CDF8},
     "CAN-MIL": {"start": 0xC0CDF9, "end": 0xC3FFFF},
-    "NZ-CIV": {"start": 0xC80000, "end": 0xC87FFF},
+    "NZ-CIV": {"start": 0xC80000, "end": 0xC87DFF},
+    "NZ-gnd": {"start": 0xC87E00, "end": 0xC87EFF}, # reserved for ground vehicle transponders
     "NZ-MIL": {"start": 0xC87F00, "end": 0xC87FFF},
     "AUS-CIV": {"start": 0x7C0000, "end": 0x7FFFFF},
     "AUS-MIL": {"start": 0x7CF800, "end": 0x7CFAFF},
