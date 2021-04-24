@@ -226,17 +226,29 @@ def faa_to_cot_type(icao_hex: int, category: str = None,
     if category:
         _category = str(category)
 
-        if _category in ["1", "2", "3", "4", "5", "6", "A1", "A2", "A3", "A4", "A5", "A6"]:  # Fixed
+        if _category in ["0", "A0"]: # Unknown type. Have witnessed V-22 as A0
+            cot_type = f"a-{attitude}-A-{affil}"
+        elif _category in ["1", "A1"]: # Fixed wing
             cot_type = f"a-{attitude}-A-{affil}-F"
+        elif _category in ["2", "A2"]: # Fixed wing cargo light
+            cot_type = f"a-{attitude}-A-{affil}-F-C-L"
+        elif _category in ["3", "A3"]: # Fixed wing cargo
+            cot_type = f"a-{attitude}-A-{affil}-F-C"
+        elif _category in ["4", "A4"]: # Fixed wing cargo medium
+            cot_type = f"a-{attitude}-A-{affil}-F-C-M"
+        elif _category in ["5", "A5"]: # Fixed wing cargo heavy
+            cot_type = f"a-{attitude}-A-{affil}-F-C-H"
+        elif _category in ["6", "A6"]: # High performance/fighter
+            cot_type = f"a-{attitude}-A-{affil}-F-F"
         elif _category in ["7", "A7"]:  # Rotor/Helicopter
             cot_type = f"a-{attitude}-A-{affil}-H"
         elif _category in ["10", "B2"]:  # Balloon
             cot_type = f"a-{attitude}-A-{affil}-L"
         elif _category in ["14", "B6"]:  # Drone
-            cot_type = f"a-{attitude}-A-{affil}-F-q"
-        elif _category in ["17", "18", "C1", "C2"]:
+            cot_type = f"a-{attitude}-A-M-F-Q"
+        elif _category in ["17", "18", "C1", "C2"]: # Ground Vehicle
             cot_type = "a-.-G-E-V-C-U"
-        elif _category in ["19"]:
+        elif _category in ["19"]: # Ground Emitter/Comms
             cot_type = f"a-{attitude}-G-I-U-T-com-tow"
 
     if dolphin(flight, affil):
