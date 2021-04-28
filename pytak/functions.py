@@ -188,8 +188,9 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
     """
     affil = "C"  # Affiliation, default = Civilian
     attitude = "."  # Attitude
+                                    ### TODO:  If the adsbx has a leading underscore and registry "_N1234A" then that means they are calculating the registration with no Flight ID field transmited
 
-    icao_int = int(f"0x{icao_hex.replace('~', 'TIS-B_')}", 16)  # the "~" is a adsbexchange (possibly a few others) visual customization to indicate a non (MLAT, ADS-B ICAO hex) ADS-B track injected by the FAA via the ADS-B rebroadcast, usually FAA Secondary Radar Mode A/C tracks for safety
+    icao_int = int(f"0x{icao_hex.replace('~', 'TIS-B_')}", 16)  # the "~" is a adsbexchange (possibly a few others) visual customization to indicate a non (MLAT, ADS-B ICAO hex) ADS-B track injected by the FAA via the ADS-B rebroadcast, usually FAA Secondary Radar Mode A/C tracks for safety and ground vehicles
 
     if flight:
         for dom in pytak.DOMESTIC_AIRLINES:  # can eliminate this if section, as it will already be coded as neutral civil cot type if left alone which fits the cot framework.
@@ -236,9 +237,9 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
         elif _category in ["10", "B2"]:  # Lighter-than-air, Balloon
             cot_type = f"a-{attitude}-A-{affil}-L"
         elif _category in ["14", "B6"]:  # Drone/UAS/RPV
-            cot_type = f"a-{attitude}-A-M-F-q" # this will have to have {affil}=M to generate a 2525B marker in TAK...cannot be CIV "C"
+            cot_type = f"a-{attitude}-A-M-F-Q" # this will have to have {affil}=M to generate a 2525B marker in TAK...cannot be CIV "C" as no CIV drone icons exist for 2525B
         elif _category in ["15", "B7"]:  # Space/Trans-atmospheric vehicle - SpaceX, Blue Origin, Virgin Galactic 
-            cot_type = f"a-{attitude}-P-{affil}"    # will having -P- affect anything??? ...different than line 224.
+            cot_type = f"a-{attitude}-P-{affil}"    # will having -P- affect anything??? ...different than line 223.
         elif _category in ["17", "18", "C1", "C2"]:
             cot_type = f"a-.-G-E-V-C-U"
         elif _category in ["17", "18", "C1", "C2"]:  # includes emergency and service vehicles, as there is no specific 2525B icon for each
@@ -249,7 +250,7 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
             cot_type = f"a-{attitude}-A-{affil}"  # unknown air track, need to make sure it is type="a-u-A" if not a specific attitude/affil attribution
                    
     if dolphin(flight, affil):
-        cot_type = f"a-f-A-{affil}-H"
+        cot_type = f"a-f-A-{affil}-H-H"  # -H-H is CSAR rotary wing 2525B icon
 
     return cot_type
 
