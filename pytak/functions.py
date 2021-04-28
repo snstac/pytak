@@ -197,10 +197,10 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
             if flight.startswith(dom):
                 attitude = "n"
                    
-    tw_start = 0x899000
-    tw_end = 0x8993FF
-    if tw_start <= icao_int <= tw_end:
-        attitude = "n"
+    # tw_start = 0x899000
+    # tw_end = 0x8993FF
+    # if tw_start <= icao_int <= tw_end:
+    #    attitude = "n"
 
     civs = ["US-CIV", "CAN-CIV", "NZ-CIV", "AUS-CIV", "UK-CIV"]
     for civ in civs:
