@@ -240,8 +240,6 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
             cot_type = f"a-{attitude}-A-M-F-Q" # this will have to have {affil}=M to generate a 2525B marker in TAK...cannot be CIV "C" as no CIV drone icons exist for 2525B
         elif _category in ["15", "B7"]:  # Space/Trans-atmospheric vehicle - SpaceX, Blue Origin, Virgin Galactic 
             cot_type = f"a-{attitude}-P-{affil}"    # will having -P- affect anything??? ...different than line 223.
-        elif _category in ["17", "18", "C1", "C2"]:
-            cot_type = f"a-.-G-E-V-C-U"
         elif _category in ["17", "18", "C1", "C2"]:  # includes emergency and service vehicles, as there is no specific 2525B icon for each
             cot_type = f"a-.-G-E-V-C-U"
         elif _category in ["19", "C3"]:
