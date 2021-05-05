@@ -37,6 +37,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           python setup.py sdist bdist_wheel
+          python setup.py --command-packages=stdeb.command bdist_deb
 
       - uses: actions/upload-artifact@v2
         with:
@@ -45,20 +46,12 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
 
-  build-linux-packages:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: create deb from package
-        run: |
-          python setup.py --command-packages=stdeb.command bdist_deb
-
       - uses: actions/upload-artifact@v2
         with:
           name: artifact-deb
           path: |
-            ./*.deb
+            */*.deb
+            *.deb
 
   create-release:
     runs-on: ubuntu-latest
