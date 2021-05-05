@@ -6,10 +6,10 @@ on:
       - 'v*.*.*'
 
 env:
-  APP_NAME: 'nimjson'
-  NIM_VERSION: '1.2.4'
-  MAINTAINER: 'jiro4989'
-  DESC: 'nimjson generates nim object definitions from json documents.'
+  APP_NAME: "pytak"
+  PYTAK_VERSION: "3.5.0b1"
+  MAINTAINER: "ampledata"
+  DESC: "Python Team Awareness Kit (PyTAK) Module"
 
 jobs:
   build-artifact:
@@ -21,28 +21,22 @@ jobs:
           - windows-latest
           - macOS-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: jiro4989/setup-nim-action@v1
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          nim-version: ${{ env.NIM_VERSION }}
-      - run: nimble build -Y -d:release
-      - name: Create artifact
+          python-version: '3.x'
+      - name: Install dependencies
         run: |
-          os="${{ runner.os }}"
-          assets="${{ env.APP_NAME }}_$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]')"
-          echo "$assets"
-          mkdir -p "dist/$assets"
-          cp -r bin LICENSE README.* "dist/$assets/"
-          (
-            cd dist
-            if [[ "${{ runner.os }}" == Windows ]]; then
-              7z a "$assets.zip" "$assets"
-            else
-              tar czf "$assets.tar.gz" "$assets"
-            fi
-            ls -lah *.*
-          )
-        shell: bash
+          python -m pip install --upgrade pip
+          pip install setuptools wheel twine
+      - name: Build and publish
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          python setup.py sdist bdist_wheel
+
       - uses: actions/upload-artifact@v2
         with:
           name: artifact-${{ matrix.os }}
@@ -53,11 +47,7 @@ jobs:
   build-linux-packages:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: ${{ env.NIM_VERSION }}
-      - run: nimble build -Y -d:release
+      - uses: actions/checkout@v2
 
       - name: create sample script
         run: |
@@ -65,6 +55,7 @@ jobs:
           mkdir -p .rpmpkg/usr/bin
           cp -p bin/* .debpkg/usr/bin/
           cp -p bin/* .rpmpkg/usr/bin/
+
       - uses: jiro4989/build-deb-action@v2
         with:
           package: ${{ env.APP_NAME }}
@@ -103,7 +94,7 @@ jobs:
       - build-artifact
       - build-linux-packages
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Generate changelog
         run: |
           wget https://github.com/git-chglog/git-chglog/releases/download/0.9.1/git-chglog_linux_amd64
