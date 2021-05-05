@@ -19,18 +19,20 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.x'
+
       - name: Install dependencies
         run: |
           sudo apt install python3-all debhelper -y
           python -m pip install --upgrade pip
           pip install setuptools wheel twine stdeb
+
       - name: Build and publish
         env:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           python setup.py sdist bdist_wheel
-          python setup.py --command-packages=stdeb.command bdist_deb
+          ./make_deb.sh
 
       - uses: actions/upload-artifact@v2
         with:
@@ -43,5 +45,4 @@ jobs:
         with:
           name: artifact-deb
           path: |
-            */*.deb
-            *.deb
+            bdist_deb/*.deb
