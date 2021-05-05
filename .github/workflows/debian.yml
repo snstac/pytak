@@ -35,4 +35,5 @@ jobs:
         with:
           name: artifact-deb
           path: |
-            bdist_deb/*.deb
+            */*.deb
+            ../*.deb
