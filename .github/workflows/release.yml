@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches: [ main, add_packaging ]
 
 env:
   APP_NAME: "pytak"
