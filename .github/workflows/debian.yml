@@ -30,7 +30,8 @@ jobs:
       - name: Build Debian/Apt bdist_deb
         run: |
           python3 setup.py --command-packages=stdeb.command bdist_deb
-          ls -al *.deb
+          ls -al */*.deb
+          ls -al ../*.deb
 
       - uses: actions/upload-artifact@v2
         with:
