@@ -23,7 +23,7 @@ jobs:
           python-version: '3.x'
       - name: Install dependencies
         run: |
-          apt install python3-all debhelper -y
+          sudo apt install python3-all debhelper -y
           python -m pip install --upgrade pip
           pip install setuptools wheel twine stdeb
       - name: Build and publish
