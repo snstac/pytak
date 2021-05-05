@@ -11,8 +11,9 @@ Setup for the Python Team Awareness Kit (PyTAK) Module.
 """
 
 import os
-import setuptools
 import sys
+
+import setuptools
 
 __title__ = "pytak"
 __version__ = "3.5.0b1"
@@ -36,8 +37,8 @@ def read_readme(readme_file="README.rst") -> str:
     """Read the contents of the README file for use as a long_description."""
     readme: str = ""
     this_directory = os.path.abspath(os.path.dirname(__file__))
-    with open(os.path.join(this_directory, readme_file), encoding="UTF-8") as f:
-        readme = f.read()
+    with open(os.path.join(this_directory, readme_file), encoding="UTF-8") as rmf:
+        readme = rmf.read()
     return readme
 
 
