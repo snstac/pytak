@@ -30,7 +30,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           python setup.py sdist bdist_wheel
-          python setup.py --command-packages=stdeb.command bdist_deb
+          python setup.py --command-packages=stdeb.command bdist_deb --build-depends dh-python
 
       - uses: actions/upload-artifact@v2
         with:
