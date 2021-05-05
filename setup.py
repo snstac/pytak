@@ -15,7 +15,7 @@ import setuptools
 import sys
 
 __title__ = "pytak"
-__version__ = "3.4.0"
+__version__ = "3.5.0b1"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2021 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
@@ -36,7 +36,7 @@ def read_readme(readme_file="README.rst") -> str:
     """Read the contents of the README file for use as a long_description."""
     readme: str = ""
     this_directory = os.path.abspath(os.path.dirname(__file__))
-    with open(os.path.join(this_directory, readme_file), encoding="utf-8") as f:
+    with open(os.path.join(this_directory, readme_file), encoding="UTF-8") as f:
         readme = f.read()
     return readme
 
