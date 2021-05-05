@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel twine
+          pip install setuptools wheel twine stdeb
       - name: Build and publish
         env:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
@@ -50,44 +50,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: create sample script
+      - name: create deb from package
         run: |
-          mkdir -p .debpkg/usr/bin
-          mkdir -p .rpmpkg/usr/bin
-          cp -p bin/* .debpkg/usr/bin/
-          cp -p bin/* .rpmpkg/usr/bin/
-
-      - uses: jiro4989/build-deb-action@v2
-        with:
-          package: ${{ env.APP_NAME }}
-          package_root: .debpkg
-          maintainer: ${{ env.MAINTAINER }}
-          version: ${{ github.ref }}
-          arch: 'amd64'
-          desc: '${{ env.DESC }}'
-
-      - uses: jiro4989/build-rpm-action@v2
-        with:
-          summary: '${{ env.DESC }}'
-          package: ${{ env.APP_NAME }}
-          package_root: .rpmpkg
-          maintainer: ${{ env.MAINTAINER }}
-          version: ${{ github.ref }}
-          arch: 'x86_64'
-          desc: '${{ env.DESC }}'
+          python setup.py --command-packages=stdeb.command bdist_deb
 
       - uses: actions/upload-artifact@v2
         with:
           name: artifact-deb
           path: |
             ./*.deb
-
-      - uses: actions/upload-artifact@v2
-        with:
-          name: artifact-rpm
-          path: |
-            ./*.rpm
-            !./*-debuginfo-*.rpm
 
   create-release:
     runs-on: ubuntu-latest
