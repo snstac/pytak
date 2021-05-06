@@ -204,11 +204,15 @@ https://ampledata.org/
 
 Copyright
 =========
-Copyright 2021 Orion Labs, Inc.
+PyTAK is Copyright 2021 Orion Labs, Inc.
+
+asyncio_dgram is Copyright (c) 2019 Justin Bronder
 
 License
 =======
-Apache License, Version 2.0. See LICENSE for details.
+PyTAK is licensed under the Apache License, Version 2.0. See LICENSE for details.
+
+asyncio_dgram is licensed under the MIT License, see pytak/asyncio_dgram/LICENSE for details.
 
 Style
 =====

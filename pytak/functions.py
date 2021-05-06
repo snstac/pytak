@@ -11,9 +11,9 @@ import ssl
 import xml
 import xml.etree.ElementTree
 
-import asyncio_dgram
 
 import pytak
+import pytak.asyncio_dgram
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2021 Orion Labs, Inc."
@@ -50,7 +50,7 @@ def parse_cot_url(url) -> tuple:
 async def udp_client(url):
     """Create a CoT UDP Network Client"""
     host, port = parse_cot_url(url)
-    stream = await asyncio_dgram.connect((host, port))
+    stream = await pytak.asyncio_dgram.connect((host, port))
     if "broadcast" in url.scheme:
         sock = stream.socket
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

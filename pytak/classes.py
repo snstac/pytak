@@ -3,7 +3,6 @@
 
 """Python Team Awareness Kit (PyTAK) Module Class Definitions."""
 
-import aiohttp
 import asyncio
 import logging
 import os
@@ -11,12 +10,15 @@ import queue
 import random
 import urllib
 
-import pycot
-import websockets
-
-from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
-
 import pytak
+
+# Legacy use of pycot
+with_pycot = False
+try:
+    import pycot
+    with_pycot = True
+except ImportError:
+    pass
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2021 Orion Labs, Inc."
@@ -46,7 +48,7 @@ class Worker:  # pylint: disable=too-few-public-methods
             self._logger.debug("Sleeping for sleep_period=%s Seconds", sleep_period)
             await asyncio.sleep(sleep_period)
 
-    async def handle_event(self, event: pycot.Event) -> None:
+    async def handle_event(self, event: str) -> None:
         """Placeholder handle_event Method for this Class."""
         self._logger.warning("Overwrite this method!")
 
@@ -82,11 +84,11 @@ class EventWorker(Worker):  # pylint: disable=too-few-public-methods
         super().__init__(event_queue)
         self.writer = writer
 
-    async def handle_event(self, event: pycot.Event) -> None:
+    async def handle_event(self, event: str) -> None:
         """CoT Event Handler, accepts CoT Events from the CoT Event Queue and processes them for writing."""
         self._logger.debug("CoT Event Handler event='%s'", event)
 
-        if isinstance(event, pycot.Event):
+        if with_pycot and isinstance(event, pycot.Event):
             _event = event.render(encoding="UTF-8", standalone=True)
         else:
             _event = event
@@ -115,7 +117,7 @@ class MessageWorker(Worker):  # pylint: disable=too-few-public-methods
         super().__init__(event_queue)
         self.cot_stale = cot_stale or pytak.DEFAULT_COT_STALE
 
-    async def _put_event_queue(self, event: pycot.Event) -> None:
+    async def _put_event_queue(self, event: str) -> None:
         """Puts Event onto the CoT Event Queue."""
         try:
             await self.event_queue.put(event)
