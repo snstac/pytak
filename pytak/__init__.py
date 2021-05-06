@@ -28,7 +28,7 @@ from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
                         faa_to_cot_type, multicast_client, eventworker_factory,
                         protocol_factory, hello_event)
 
-import asyncio_dgram
+from . import asyncio_dgram
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
