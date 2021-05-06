@@ -1,4 +1,4 @@
-# Makefile for Python Cursor on Target Module.
+# Makefile for Python Team Awareness Kit (PyTAK) Module
 #
 # Source:: https://github.com/ampledata/pytak
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
@@ -13,12 +13,12 @@
 all: develop
 
 install_requirements:
-	pip install -r requirements.txt
+	pip install -r requirements_test.txt
 
-develop: remember
+develop:
 	python setup.py develop
 
-install: remember
+install:
 	python setup.py install
 
 uninstall:
@@ -26,31 +26,22 @@ uninstall:
 
 reinstall: uninstall install
 
-remember:
-	@echo
-	@echo "Hello from the Makefile..."
-	@echo "Don't forget to run: 'make install_requirements'"
-	@echo
-
 clean:
 	@rm -rf *.egg* build dist *.py[oc] */*.py[co] cover doctest_pypi.cfg \
 		nosetests.xml pylint.log output.xml flake8.log tests.log \
 		test-result.xml htmlcov fab.log .coverage
 
 publish:
-	python setup.py register sdist upload
+	python setup.py publish
 
-nosetests: remember
-	python setup.py nosetests
-
-pep8: remember
-	flake8 --max-complexity 12 --exit-zero pytak/*.py tests/*.py
+pep8:
+	flake8 --max-complexity 12 --exit-zero pytak/*.py
 
 flake8: pep8
 
-lint: remember
+lint:
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
-		-r n pytak/*.py tests/*.py || exit 0
+		-r n pytak/*.py || exit 0
 
 pylint: lint
 
