@@ -22,7 +22,7 @@ from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DEFAULT_COT_STALE, ICAO_RANGES, DEFAULT_FIPS_CIPHERS)
 
 from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
-                      EventTransmitter, EventReceiver, TCClient)
+                      EventTransmitter, EventReceiver)
 
 from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
                         adsb_to_cot_type, multicast_client, eventworker_factory,

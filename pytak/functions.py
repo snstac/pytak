@@ -68,7 +68,7 @@ async def multicast_client(url):
     return stream
 
 
-async def protocol_factory(cot_url, fts_token: str = None):
+async def protocol_factory(cot_url):
     """
     Given a CoT Destination URL, create a Connection Class Instance for the given protocol.
 
@@ -79,11 +79,8 @@ async def protocol_factory(cot_url, fts_token: str = None):
     reader = None
     writer = None
     scheme = cot_url.scheme.lower()
-    if scheme in ["https", "http", "ws", "wss"]:  # NOQA pylint: disable=no-else-raise
-        if "teamconnect" in cot_url.geturl():
-            writer = await pytak.TCClient(cot_url).create()
-            reader = writer
-    elif scheme in ["tcp"]:
+
+    if scheme in ["tcp"]:
         host, port = pytak.parse_cot_url(cot_url)
         reader, writer = await asyncio.open_connection(host, port)
     elif scheme in ["tls", "ssl"]:
@@ -130,26 +127,24 @@ async def protocol_factory(cot_url, fts_token: str = None):
 
         reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
     elif scheme in ["udp"]:
-        reader = None
         writer = await pytak.udp_client(cot_url)
     else:
         raise Exception(
-            "Please specify a protocol in your URL, for example: tcp:xxx or "
-            "udp:xxx")
+            "Please specify a protocol in your CoT Destination URL, "
+            "for example: tcp:xxx:9876, tls:xxx:1234, udp:xxx:9999, etc.")
+
     return reader, writer
 
 
-async def eventworker_factory(cot_url: str, event_queue,
-                              fts_token: str = None) -> pytak.Worker:
+async def eventworker_factory(cot_url: str, event_queue: asyncio.Queue) -> pytak.Worker:
     """
     Creates a Cursor on Target Event Worker based on URL parameters.
 
     :param cot_url: URL to CoT Destination.
     :param event_queue: asyncio.Queue worker to get events from.
-    :param fts_token: If supplied, API Token to use for FreeTAKServer REST.
     :return: EventWorker or asyncio Protocol
     """
-    reader, writer = await protocol_factory(cot_url, fts_token)
+    reader, writer = await protocol_factory(cot_url)
     return pytak.EventWorker(event_queue, writer)
 
 
