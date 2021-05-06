@@ -61,7 +61,7 @@ async def udp_client(url):
 async def multicast_client(url):
     """Create a CoT Multicast Network Client."""
     host, port = parse_cot_url(url)
-    stream = await asyncio_dgram.bind((host, port))
+    stream = await pytak.asyncio_dgram.bind((host, port))
     sock = stream.socket
     # group = socket.inet_aton(host)
     # mreq = struct.pack('4sL', group, socket.INADDR_ANY)
