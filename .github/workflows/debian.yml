@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload Release Asset
         id: upload-release-asset
-        uses: AButler/upload-release-assets@master
+        uses: AButler/upload-release-assets@v2.0
         with:
           files: 'deb_dist/*.deb'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
