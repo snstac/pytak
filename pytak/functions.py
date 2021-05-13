@@ -170,6 +170,7 @@ def dolphin(flight: str = None, affil: str = None) -> str:
     # For example:
     # * C6540 / AE2682 https://globe.adsbexchange.com/?icao=ae2682
     # * C6604 / AE26BB https://globe.adsbexchange.com/?icao=ae26bb
+    ### TODO:  pull this out into a custom csv or txt file of known aircraft you want to assign a specific CoT type based on FlightID AND/OR ICAO HEX address
     if flight and len(flight) >= 3 and flight[:2] in ["C6", b"C6"]:
         if affil and affil in ["M", b"M"]:
             return True
@@ -184,18 +185,22 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
     affil = "C"  # Affiliation, default = Civilian
     attitude = "."  # Attitude
                                     ### TODO:  If the adsbx has a leading underscore and registry "_N1234A" then that means they are calculating the registration with no Flight ID field transmited
-
-    icao_int = int(f"0x{icao_hex.replace('~', 'TIS-B_')}", 16)  # the "~" is a adsbexchange (possibly a few others) visual customization to indicate a non (MLAT, ADS-B ICAO hex) ADS-B track injected by the FAA via the ADS-B rebroadcast, usually FAA Secondary Radar Mode A/C tracks for safety and ground vehicles
+                                    ### TODO:  If no specific country allocated ICAO address range, e.g. "country": "Rsrvd (ICAO SAM Region)" or "country": "ICAO (special use)" set 
+                                    ###         OMMIT {affil}
+                                    ###         {attitude} = u    (unknown)
+                    
+    icao_int = int(f"0x{icao_hex.replace('~', 'TIS-B_')}", 16) 
+        # the "~" is a adsbexchange (possibly a few others) visual customization to indicate a non (MLAT, ADS-B ICAO hex) ADS-B track injected by the FAA via the ADS-B rebroadcast, usually FAA Secondary Radar Mode A/C tracks for safety and ground vehicles
 
     if flight:
         for dom in pytak.DOMESTIC_AIRLINES:  # can eliminate this if section, as it will already be coded as neutral civil cot type if left alone which fits the cot framework.
             if flight.startswith(dom):
                 attitude = "n"
                    
-    # tw_start = 0x899000
-    # tw_end = 0x8993FF
-    # if tw_start <= icao_int <= tw_end:
-    #    attitude = "n"
+      tw_start = 0x899000
+      tw_end = 0x8993FF
+      if tw_start <= icao_int <= tw_end:
+         attitude = "n"
 
     civs = ["US-CIV", "CAN-CIV", "NZ-CIV", "AUS-CIV", "UK-CIV"]
     for civ in civs:
@@ -221,10 +226,10 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
     if category:
         _category = str(category)
 
-        if _category in ["1", "2", "3", "4", "5", "A1", "A2", "A3", "A4", "A5"]:  # Fixed wing
+        if _category in ["1", "2", "3", "4", "5", "A1", "A2", "A3", "A4", "A5"]:  # Fixed wing - no CoT exists to further categorize based on DO-260B/GDL90 emitter catagory, cannot determine if Cargo, Passenger, or other without additional info
             cot_type = f"a-{attitude}-A-{affil}-F"
         if _category in ["6", "A6"]:              # Fixed wing...High Performance (basically a fighter jet) type="a-.-A-M-F-F"  capable: >5g & >400 knots
-            cot_type = f"a-{attitude}-A-M-F-F"    # force the MIL "F" icon for fast mover, even if a civil ICAO address               
+            cot_type = f"a-{attitude}-A-M-F-F"    # force the MIL {affil}  "F" icon for fast mover, even if a civil ICAO address, no pink/magenta 2525 icon exists; just = s_apmff--------.png       
         elif _category in ["7", "A7"]:  # Rotor/Helicopter
             cot_type = f"a-{attitude}-A-{affil}-H"
         elif _category in ["9", "B1"]:  # Glider/sailplane
@@ -235,12 +240,18 @@ def adsb_to_cot_type(icao_hex: int, category: str = None,     #change faa_to_cot
             cot_type = f"a-{attitude}-A-M-F-Q" # this will have to have {affil}=M to generate a 2525B marker in TAK...cannot be CIV "C" as no CIV drone icons exist for 2525B
         elif _category in ["15", "B7"]:  # Space/Trans-atmospheric vehicle - SpaceX, Blue Origin, Virgin Galactic 
             cot_type = f"a-{attitude}-P-{affil}"    # will having -P- affect anything??? ...different than line 223.
-        elif _category in ["17", "18", "C1", "C2"]:  # includes emergency and service vehicles, as there is no specific 2525B icon for each
+        elif _category in ["17", "18", "C1", "C2"]:  # Surface Vehicle - includes emergency and service vehicles, as there is no specific 2525B icon for each
             cot_type = f"a-.-G-E-V-C-U"
-        elif _category in ["19", "C3"]:
-            cot_type = f"a-{attitude}-G-I-U-T-com-tow" # "pont obstacle" i.e. fixed tower - radio, beacon, tethered ballons, etc  (MILSTD 2525 "D" has a tethered balloon icon that "B" doesn't)
+      # elif _category in ["17", "C1"]:  #  ***OPTION***  Surface Vehicle - Emergency Vehicle
+      #     cot_type = f"a-.-G-E-V-U-A"   # MILSTD 2525B icon = Ambulance (blue circle w/ Cross)
+        elif _category in ["19", "20", "C3", "C4"]:
+            cot_type = f"a-{attitude}-G-I-U-T-com-tow" # "pont obstacle (includes tethered ballons)" & "cluster obstacles" i.e. fixed tower - radio, beacon, tethered ballons, etc  (MILSTD 2525 "D" has a tethered balloon icon that "B" doesn't)
         elif _category in ["0", "8", "13", "16", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "A0", "B0", "B5", "C0", "C6", "C7", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"]:
-            cot_type = f"a-{attitude}-A-{affil}"  # unknown air track, need to make sure it is type="a-u-A" if not a specific attitude/affil attribution
+            cot_type = f"a-{attitude}-A-{affil}"
+                   # this catagory are for all the "No ADS-B Emitter Catagory Information" undefined/unattributed/reserved emmitter catagories in DO-260B/GDL90
+                   # adsbexchange will often set A0 for MLAT (TCAS or MODE-S only transponders) tracks
+                   # add elif or if for:
+                   #            if no definitive {attitude} and {affil} possible, for the UNKNOWN DO-260B/GDL90 emmitter catagories, make cot_type = a-u-A
                    
     if dolphin(flight, affil):
         cot_type = f"a-f-A-{affil}-H-H"  # -H-H is CSAR rotary wing 2525B icon
