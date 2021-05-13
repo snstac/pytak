@@ -25,7 +25,7 @@ from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
                       EventTransmitter, EventReceiver)
 
 from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
-                        faa_to_cot_type, multicast_client, eventworker_factory,
+                        adsb_to_cot_type, multicast_client, eventworker_factory,
                         protocol_factory, hello_event)
 
 from . import asyncio_dgram
