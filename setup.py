@@ -16,7 +16,7 @@ import sys
 import setuptools
 
 __title__ = "pytak"
-__version__ = "3.5.0b1"
+__version__ = "3.5.0b6"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2021 Orion Labs, Inc."
 __license__ = "Apache License, Version 2.0"
@@ -63,11 +63,5 @@ setuptools.setup(
     ],
     keywords=[
         "Cursor on Target", "ATAK", "TAK", "CoT"
-    ],
-    install_requires=[
-        "asyncio_dgram",
-        "pycot",
-        "websockets",
-        "aiohttp"
     ]
 )

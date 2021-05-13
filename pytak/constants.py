@@ -30,6 +30,7 @@ DEFAULT_BACKOFF: int = 120
 DEFAULT_SLEEP: int = 5
 DEFAULT_COT_STALE: int = 120
 DEFAULT_FIPS_CIPHERS: str = "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"
+ISO_8601_UTC = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 DOMESTIC_AIRLINES: list = [    # maybe transition this to a text file, 3LD identifiers change rapidly, not major airlines, but there are hundreds of these world wide
     "AAL",

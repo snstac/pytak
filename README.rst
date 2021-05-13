@@ -41,8 +41,10 @@ See also:
 Support PyTAK Development
 =========================
 
-PyTAK Software development is powered by coffee! Since we probably won't be able to meet in person any time soon, you
-can buy me a virtual coffee here:
+PyTAK has been developed for the Disaster Response, Public Safety and Frontline community at-large. This software is
+currently provided at no-cost to our end-users. All development is self-funded and all time-spent is entirely
+voluntary. Any contribution you can make to further these software development efforts, and the mission of PyTAK to
+provide ongoing SA capabilities to our end-users, is greatly appreciated:
 
 .. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
     :target: https://www.buymeacoffee.com/ampledata
@@ -90,61 +92,47 @@ Module::
 Requirements
 ============
 
-1. Python 3.6 or above.
-2. LibFFI (see below):
+PyTAK requires Python 3.6 or above and WILL NOT work on Python versions below 3.6 (that means no Python 2 support).
 
-PyTAK requires the FFI Library libffi (or libffi-dev), to install follow these
-instructions.
+Installation
+============
 
-Debian & Ubuntu::
+New for 2021, PyTAK is available as a Debian .deb package. This is the preferred way to install PyTAK as it will pull
+in all of the required OS-level dependencies::
+
+    $ wget https://github.com/ampledata/pytak/releases/download/31928/python3-pytak_3.5.0b1-1_all.deb
+    $ sudo apt install -f ./python3-pytak_3.5.0b1-1_all.deb
+
+
+Alternative Installation
+========================
+
+(you should really install from an OS package above!)
+
+You can install from PyPI or from source. Both of these methods will require additional OS libraries::
+
+Install LibFFI on Ubuntu::
 
   $ sudo apt-get install libffi-dev
 
-RedHat, Fedora, CentOS::
+Install LibFFI on RedHat, Fedora, CentOS::
 
   $ sudo yum install libffi-devel
   # or
   $ sudo dnf install libffi-devel
 
 
-Installation
-============
-
-Option A) Install from the Python Package Index::
+Install PyTAK from the Python Package Index::
 
     $ pip install pytak
 
 
-Option B) Install from this source tree::
+Install PyTAK from this source tree::
 
     $ git clone https://github.com/ampledata/pytak.git
     $ cd pytak/
     $ python setup.py install
 
-
-FreeTAKServer Support
-=====================
-
-FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which restricts the number of CoT Events a
-client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must
-meter their input speed.
-
-To use a PyTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`. This will cause the PyTAK
-client to sleep a random number of seconds between transmitting CoT to a FTS server::
-
-    export FTS_COMPAT=1
-    aprscot ...
-
-Or, inline::
-
-    FTS_COMPAT=1 aprscot
-
-
-
-Alternatively you can specify a static sleep period by setting PYTAK_SLEEP to an integer number of seconds::
-
-    export PYTAK_SLEEP=3
-    spotcot ...
 
 
 TLS Support
@@ -173,6 +161,31 @@ listening for TLS connections on port 8089::
     $ PYTAK_TLS_CLIENT_CERT=client.cert.pem PYTAK_TLS_CLIENT_KEY=client.key.pem \
       adsbcot -D http://172.17.2.122:8080/data/aircraft.json -U tls:my-tak-server.example.com:8089
 
+
+FreeTAKServer Support
+=====================
+
+FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which restricts the number of CoT Events a
+client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must
+meter their input speed.
+
+To use a PyTAK-based client with FTS, set the `FTS_COMPAT` Environment Variable to `1`. This will cause the PyTAK
+client to sleep a random number of seconds between transmitting CoT to a FTS server::
+
+    export FTS_COMPAT=1
+    aprscot ...
+
+Or, inline::
+
+    FTS_COMPAT=1 aprscot
+
+
+
+Alternatively you can specify a static sleep period by setting PYTAK_SLEEP to an integer number of seconds::
+
+    export PYTAK_SLEEP=3
+    spotcot ...
+
 Build Status
 ============
 
@@ -191,11 +204,15 @@ https://ampledata.org/
 
 Copyright
 =========
-Copyright 2021 Orion Labs, Inc.
+PyTAK is Copyright 2021 Orion Labs, Inc.
+
+asyncio_dgram is Copyright (c) 2019 Justin Bronder
 
 License
 =======
-Apache License, Version 2.0. See LICENSE for details.
+PyTAK is licensed under the Apache License, Version 2.0. See LICENSE for details.
+
+asyncio_dgram is licensed under the MIT License, see pytak/asyncio_dgram/LICENSE for details.
 
 Style
 =====

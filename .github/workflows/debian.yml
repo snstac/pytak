@@ -1,0 +1,61 @@
+name: Build Debian package
+
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  DEB_BUILD_OPTIONS: nocheck
+
+jobs:
+  build-artifact:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            python3 python3-dev python3-pip python3-venv python3-all \
+            dh-python debhelper devscripts dput software-properties-common \
+            python3-distutils python3-setuptools python3-wheel python3-stdeb
+
+      - name: Build Debian/Apt sdist_dsc
+        run: |
+          rm -Rf deb_dist/*
+          python3 setup.py --command-packages=stdeb.command sdist_dsc
+
+      - name: Build Debian/Apt bdist_deb
+        run: |
+          python3 setup.py --command-packages=stdeb.command bdist_deb
+          ls -al deb_dist/
+
+      - uses: actions/upload-artifact@master
+        with:
+          name: artifact-deb
+          path: |
+            deb_dist/*.deb
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: deb_dist/*.deb
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
