@@ -21,12 +21,13 @@ from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DOMESTIC_AIRLINES, DEFAULT_HEX_RANGES,
                         DEFAULT_COT_STALE, ICAO_RANGES, DEFAULT_FIPS_CIPHERS, ISO_8601_UTC)
 
-from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
-                      EventTransmitter, EventReceiver)
+from .classes import Worker, EventWorker, MessageWorker,  EventTransmitter, EventReceiver  # NOQA
 
-from .functions import (split_host, udp_client, parse_cot_url,  # NOQA
-                        adsb_to_cot_type, multicast_client, eventworker_factory,
-                        protocol_factory, hello_event)
+from .functions import split_host, parse_cot_url, hello_event  # NOQA
+
+from .client_functions import udp_client, multicast_client, eventworker_factory, protocol_factory  # NOQA
+
+from .air_functions import adsb_to_cot_type, faa_to_cot_type  # NOAQ
 
 from . import asyncio_dgram
 
