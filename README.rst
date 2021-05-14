@@ -109,7 +109,7 @@ Alternative Installation
 
 (you should really install from an OS package above!)
 
-You can install from PyPI or from source. Both of these methods will require additional OS libraries::
+You can install from PyPI or from source. Both of these methods will require additional OS libraries:
 
 Install LibFFI on Ubuntu::
 
