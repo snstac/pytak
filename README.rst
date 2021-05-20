@@ -33,9 +33,7 @@ Examples of software clients using the the PyTAK Python Module include:
 * `adsbxcot <https://github.com/ampledata/adsbxcot>`_: ADS-B Exchange to Cursor on Target (CoT) Gateway. Transforms ADS-B position messages to CoT PLI Events.
 * `stratuxcot <https://github.com/ampledata/stratuxcot>`_: Stratux ADS-B to Cursor on Target (CoT) Gateway. Transforms position messages to CoT PLI Events.
 * `aprscot <https://github.com/ampledata/aprscot>`_: Automatic Packet Reporting System (APRS) to Cursor on Target (CoT) Gateway. Transforms APRS position messages to CoT PLI Events.
-
-See also:
-* `pycot <https://github.com/ampledata/pycot>`_: Python Cursor on Target (CoT), a Python Module for serializing CoT Events, for use with TAK clients & servers.
+* `spotcot <https://github.com/ampledata/spotcot>`_: Globalstar SPOT to Cursor on Target (CoT) Gateway. Transforms Spot position messages to CoT PLI Events.
 
 
 Support PyTAK Development
@@ -100,9 +98,8 @@ Installation
 New for 2021, PyTAK is available as a Debian .deb package. This is the preferred way to install PyTAK as it will pull
 in all of the required OS-level dependencies::
 
-    $ wget https://github.com/ampledata/pytak/releases/download/31928/python3-pytak_3.5.0b1-1_all.deb
-    $ sudo apt install -f ./python3-pytak_3.5.0b1-1_all.deb
-
+    $ wget https://github.com/ampledata/pytak/releases/latest/download/python3-pytak_latest_all.deb
+    $ sudo apt install -f ./python3-pytak_latest_all.deb
 
 Alternative Installation
 ========================
@@ -186,11 +183,6 @@ Alternatively you can specify a static sleep period by setting PYTAK_SLEEP to an
     export PYTAK_SLEEP=3
     spotcot ...
 
-Build Status
-============
-
-.. image:: https://travis-ci.com/ampledata/pytak.svg?branch=main
-    :target: https://travis-ci.com/ampledata/pytak
 
 Source
 ======
