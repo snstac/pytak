@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 setup.py --command-packages=stdeb.command bdist_deb
           ls -al deb_dist/
+          cp deb_dist/python3-pytak_*_all.deb deb_dist/python3-pytak_latest_all.deb
 
       - uses: actions/upload-artifact@master
         with:
