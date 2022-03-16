@@ -37,6 +37,7 @@ def test_parse_cot_url_udp_port():
     assert 'www.example.com' == host1
     assert 9999 == port1
 
+
 def test_parse_cot_url_udp_broadcast():
     test_url1: str = 'udp+broadcast://www.example.com'
     cot_url1: urllib.parse.ParseResult = urllib.parse.urlparse(test_url1)

@@ -30,7 +30,8 @@ async def create_udp_client(url: urllib.parse.ParseResult) -> pytak.asyncio_dgra
 
 async def protocol_factory(cot_url: urllib.parse.ParseResult):
     """
-    Given a COT Destination URL, create a Connection Class Instance for the given protocol.
+    Given a COT Destination URL, create a Connection Class Instance for the 
+    given protocol.
 
     :param cot_url: COT Destination URL
     :return:
@@ -45,13 +46,21 @@ async def protocol_factory(cot_url: urllib.parse.ParseResult):
     elif scheme in ["tls", "ssl"]:
         host, port = pytak.parse_cot_url(cot_url)
 
+        # End-user will either need to:
+        #  A) Create the default files for these parameters, or;
+        #  B) Set these environmental variables to point to the files.
         client_cert = os.getenv("PYTAK_TLS_CLIENT_CERT")
         client_key = os.getenv("PYTAK_TLS_CLIENT_KEY")
         client_cafile = os.getenv("PYTAK_TLS_CLIENT_CAFILE")
-        client_ciphers = os.getenv(
-            "PYTAK_TLS_CLIENT_CIPHERS", pytak.DEFAULT_FIPS_CIPHERS)
 
+        # Default cipher suite: ALL.
+        #  Also available in FIPS: DEFAULT_FIPS_CIPHERS
+        client_ciphers = os.getenv("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
+
+        # If the cert's CN doesn't match the hostname, set this:
         dont_check_hostname = bool(os.getenv("PYTAK_TLS_DONT_CHECK_HOSTNAME"))
+
+        # If the cert's CA isn't in our trust chain, set this:
         dont_verify = bool(os.getenv("PYTAK_TLS_DONT_VERIFY"))
 
         # SSL Context setup:
@@ -73,17 +82,23 @@ async def protocol_factory(cot_url: urllib.parse.ParseResult):
         # Default to verifying cert:
         if dont_verify:
             print(
-                "pytak TLS Certificate Verification DISABLED by Environment.")
-            print("pytak TLS Hostname Check DISABLED by Environment.")
+                "WARN: pytak TLS Certificate Verification DISABLED by "
+                "PYTAK_TLS_DONT_VERIFY environment.")
+            print(
+                "WARN: pytak TLS CN/Hostname Check DISABLED by "
+                "PYTAK_TLS_DONT_VERIFY environment.")
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
 
         # Default to checking hostnames:
         if dont_check_hostname:
-            print("pytak TLS Hostname Check DISABLED by Environment.")
+            print(
+                "WARN: pytak TLS CN/Hostname Check DISABLED by "
+                "PYTAK_TLS_DONT_CHECK_HOSTNAME environment.")
             ssl_ctx.check_hostname = False
 
-        reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
+        reader, writer = await asyncio.open_connection(
+            host, port, ssl=ssl_ctx)
     elif "udp" in scheme:
         writer = await pytak.create_udp_client(cot_url)
     else:
