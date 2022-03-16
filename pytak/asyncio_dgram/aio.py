@@ -3,7 +3,7 @@ import pathlib
 import socket
 import warnings
 
-__all__ = ("TransportClosed", "bind", "connect", "from_socket")
+__all__ = ("TransportClosed", "bind", "connect", "from_socket", "DatagramClient")
 
 
 class TransportClosed(Exception):

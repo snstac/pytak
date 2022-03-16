@@ -2,7 +2,7 @@
 #
 # Source:: https://github.com/ampledata/pytak
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2021 Orion Labs, Inc.
+# Copyright:: Copyright 2022 Greg Albrecht
 # License:: Apache License, Version 2.0
 #
 
@@ -18,6 +18,12 @@ install_requirements:
 develop:
 	python setup.py develop
 
+install_editable:
+	pip install -e .
+
+install_test:
+	pip install -r requirements_test.txt
+
 install:
 	python setup.py install
 
@@ -29,7 +35,8 @@ reinstall: uninstall install
 clean:
 	@rm -rf *.egg* build dist *.py[oc] */*.py[co] cover doctest_pypi.cfg \
 		nosetests.xml pylint.log output.xml flake8.log tests.log \
-		test-result.xml htmlcov fab.log .coverage
+		test-result.xml htmlcov fab.log .coverage __pycache__ \
+		*/__pycache__
 
 publish:
 	python setup.py publish
@@ -49,3 +56,8 @@ test: lint pep8 nosetests
 
 mypy:
 	mypy --strict .
+
+pytest:
+	pytest --cov=pytak
+
+test: install_editable install_test pytest

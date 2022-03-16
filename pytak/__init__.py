@@ -9,7 +9,7 @@ Python Team Awareness Kit (PyTAK) Module.
 
 
 :author: Greg Albrecht W2GMD <oss@undef.net>
-:copyright: Copyright 2021 Orion Labs, Inc.
+:copyright: Copyright 2022 Greg Albrecht.
 :license: Apache License, Version 2.0
 :source: <https://github.com/ampledata/pytak>
 
@@ -18,20 +18,19 @@ Python Team Awareness Kit (PyTAK) Module.
 from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DEFAULT_BACKOFF, DEFAULT_SLEEP,
                         DEFAULT_ATAK_PORT, DEFAULT_BROADCAST_PORT,
-                        DOMESTIC_AIRLINES, DEFAULT_HEX_RANGES,
-                        DEFAULT_COT_STALE, ICAO_RANGES, DEFAULT_FIPS_CIPHERS, ISO_8601_UTC)
+                        DEFAULT_COT_STALE, DEFAULT_FIPS_CIPHERS, ISO_8601_UTC)
 
-from .classes import Worker, EventWorker, MessageWorker,  EventTransmitter, EventReceiver  # NOQA
+from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
+                      EventTransmitter, EventReceiver)
 
 from .functions import split_host, parse_cot_url, hello_event  # NOQA
 
-from .client_functions import udp_client, multicast_client, eventworker_factory, protocol_factory  # NOQA
-
-from .air_functions import adsb_to_cot_type, faa_to_cot_type  # NOAQ
+from .client_functions import (create_udp_client, eventworker_factory,  # NOQA 
+                               protocol_factory)
 
 from . import asyncio_dgram
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2021 Orion Labs, Inc."
+__copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"

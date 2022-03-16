@@ -3,20 +3,15 @@
 
 """PyTAK Functions."""
 
-import asyncio
 import datetime
-import os
-import socket
-import ssl
 import xml
 import xml.etree.ElementTree
-
 
 import pytak
 import pytak.asyncio_dgram
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2021 Orion Labs, Inc."
+__copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -31,24 +26,24 @@ def split_host(host, port: int = None) -> tuple:
     else:
         addr = host
         port = int(pytak.DEFAULT_COT_PORT)
-    return addr, port
+    return addr, int(port)
 
 
-def parse_cot_url(url) -> tuple:
-    """Parses a Cursor on Target destination URL."""
-    if ":" in url.path:
-        host, port = str(url.path).split(":")
+def parse_cot_url(url: str) -> tuple:
+    """Parses a COT destination URL."""
+    if ":" in url.netloc:
+        host, port = url.netloc.split(":")
     else:
-        host = url.path
+        host = url.netloc
         if "broadcast" in url.scheme:
             port = pytak.DEFAULT_BROADCAST_PORT
         else:
             port = pytak.DEFAULT_COT_PORT
-    return host, port
+    return host, int(port)
 
 
 def hello_event(uid="pytak") -> str:
-    """Generates a Hello CoT Event."""
+    """Generates a Hello COT Event."""
     time = datetime.datetime.now(datetime.timezone.utc)
 
     root = xml.etree.ElementTree.Element("event")

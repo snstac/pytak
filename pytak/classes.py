@@ -21,7 +21,7 @@ except ImportError:
     pass
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2021 Orion Labs, Inc."
+__copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -44,8 +44,10 @@ class Worker:  # pylint: disable=too-few-public-methods
 
     async def fts_compat(self) -> None:
         if os.getenv("FTS_COMPAT") or os.getenv("PYTAK_SLEEP"):
-            sleep_period: int = int(os.getenv("PYTAK_SLEEP") or (pytak.DEFAULT_SLEEP * random.random()))
-            self._logger.debug("Sleeping for sleep_period=%s Seconds", sleep_period)
+            sleep_period: int = int(os.getenv("PYTAK_SLEEP") or 
+                (pytak.DEFAULT_SLEEP * random.random()))
+            self._logger.debug(
+                "Sleeping for sleep_period=%s Seconds", sleep_period)
             await asyncio.sleep(sleep_period)
 
     async def handle_event(self, event: str) -> None:
@@ -53,11 +55,14 @@ class Worker:  # pylint: disable=too-few-public-methods
         self._logger.warning("Overwrite this method!")
 
     async def run(self, number_of_iterations=-1):
-        """Runs EventWorker Thread, reads in CoT Event Queue & passes CoT Events to CoT Event Handler."""
+        """
+        Runs EventWorker Thread, reads in CoT Event Queue & passes COT Events 
+        to COT Event Handler.
+        """
         self._logger.info("Running EventWorker")
 
-        # We're instantiating the while loop this way, and using get_nowait(), to allow unit testing of at least one
-        # call of this loop.
+        # We're instantiating the while loop this way, and using get_nowait(), 
+        # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
             event = await self.event_queue.get()
             if not event:
@@ -80,12 +85,16 @@ class EventWorker(Worker):  # pylint: disable=too-few-public-methods
     Class.
     """
 
-    def __init__(self, event_queue: asyncio.Queue, writer) -> None:
+    def __init__(self, event_queue: asyncio.Queue, 
+                 writer: asyncio.Protocol) -> None:
         super().__init__(event_queue)
-        self.writer = writer
+        self.writer: asyncio.Protocol = writer
 
     async def handle_event(self, event: str) -> None:
-        """CoT Event Handler, accepts CoT Events from the CoT Event Queue and processes them for writing."""
+        """
+        COT Event Handler, accepts CoT Events from the CoT Event Queue and 
+        processes them for writing.
+        """
         self._logger.debug("CoT Event Handler event='%s'", event)
 
         if with_pycot and isinstance(event, pycot.Event):

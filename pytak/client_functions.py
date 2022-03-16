@@ -4,26 +4,23 @@
 """PyTAK Functions."""
 
 import asyncio
-import datetime
 import os
 import socket
 import ssl
-import xml
-import xml.etree.ElementTree
-
+import urllib
 
 import pytak
 import pytak.asyncio_dgram
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2021 Orion Labs, Inc."
+__copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
-async def udp_client(url):
-    """Create a CoT UDP Network Client"""
+async def create_udp_client(url: urllib.parse.ParseResult) -> pytak.asyncio_dgram.DatagramClient:
+    """Creates an async UDP network client."""
     host, port = pytak.parse_cot_url(url)
-    stream = await pytak.asyncio_dgram.connect((host, port))
+    stream: pytak.asyncio_dgram.DatagramClient = await pytak.asyncio_dgram.connect((host, port))
     if "broadcast" in url.scheme:
         sock = stream.socket
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -31,25 +28,11 @@ async def udp_client(url):
     return stream
 
 
-async def multicast_client(url):
-    """Create a CoT Multicast Network Client."""
-    host, port = pytak.parse_cot_url(url)
-    stream = await pytak.asyncio_dgram.bind((host, port))
-    sock = stream.socket
-    # group = socket.inet_aton(host)
-    # mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-    # sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    return stream
-
-
-async def protocol_factory(cot_url):
+async def protocol_factory(cot_url: urllib.parse.ParseResult):
     """
-    Given a CoT Destination URL, create a Connection Class Instance for the given protocol.
+    Given a COT Destination URL, create a Connection Class Instance for the given protocol.
 
-    :param cot_url: CoT Destination URL
-    :param fts_token:
+    :param cot_url: COT Destination URL
     :return:
     """
     reader = None
@@ -100,10 +83,9 @@ async def protocol_factory(cot_url):
             print("pytak TLS Hostname Check DISABLED by Environment.")
             ssl_ctx.check_hostname = False
 
-
         reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
-    elif scheme in ["udp"]:
-        writer = await pytak.udp_client(cot_url)
+    elif "udp" in scheme:
+        writer = await pytak.create_udp_client(cot_url)
     else:
         raise Exception(
             "Please specify a protocol in your CoT Destination URL, "
@@ -112,11 +94,12 @@ async def protocol_factory(cot_url):
     return reader, writer
 
 
-async def eventworker_factory(cot_url: str, event_queue: asyncio.Queue) -> pytak.Worker:
+async def eventworker_factory(cot_url: urllib.parse.ParseResult, 
+                              event_queue: asyncio.Queue) -> pytak.Worker:
     """
-    Creates a Cursor on Target Event Worker based on URL parameters.
+    Creates a COT Event Worker based on URL parameters.
 
-    :param cot_url: URL to CoT Destination.
+    :param cot_url: URL to COT Destination.
     :param event_queue: asyncio.Queue worker to get events from.
     :return: EventWorker or asyncio Protocol
     """

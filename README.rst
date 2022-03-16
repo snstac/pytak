@@ -4,27 +4,24 @@ pytak - Python Team Awareness Kit (PyTAK) Module.
 
 PyTAK is a Python Module for creating TAK clients & servers.
 
-This module include Classes for handling CoT Events & non-CoT Messages, as well
-as functions for serializing CoT Events. As a bonus, there are helper functions
-for classifying Aircraft attitude/affiliation/posture based on ICAO, Emitter
-Category, Flight Name, et al.
+This module include Classes for handling Cursor on Target (COT) Events & 
+non-COT Messages, as well as functions for serializing COT Events.
 
 PyTAK has been tested with and is compatible with the following:
 
 Servers:
 
-* `TAK Server <https://takmaps.com/>`_
-* `Free TAK Server (FTS/FreeTAKServer) <https://github.com/FreeTAKTeam/FreeTakServer>`_
+* `TAK Server <https://tak.gov/>`_
 * `taky <https://github.com/tkuester/taky>`_
+* `Free TAK Server (FTS/FreeTAKServer) <https://github.com/FreeTAKTeam/FreeTakServer>`_
 * `PAR Team Connect <https://pargovernment.com/TeamConnect/>`_ **COMMING SOON**
 
 Clients:
 
-* `WinTAK <https://www.civtak.org/2020/09/23/wintak-is-publicly-available/>`_
-* `ATAK <https://www.civtak.org/download-atak/>`_
-* `RedTAK <http://ampledata.org/node_red_atak.html>`_
-* RaptorX
-* `WebTAK <https://takmaps.com/>`_ **NOT CURRENTLY WORKING**
+* `WinTAK <https://tak.gov/>`_
+* `ATAK <https://tak.gov/>`_
+* `iTAK <https://tak.gov/>`_
+* `TAKX <https://tak.gov/>`_
 
 Examples of software clients using the the PyTAK Python Module include:
 
@@ -90,13 +87,14 @@ Module::
 Requirements
 ============
 
-PyTAK requires Python 3.6 or above and WILL NOT work on Python versions below 3.6 (that means no Python 2 support).
+PyTAK requires Python 3.6 or above and WILL NOT work on Python versions 
+below 3.6 (that means no Python 2 support).
 
 Installation
 ============
 
-New for 2021, PyTAK is available as a Debian .deb package. This is the preferred way to install PyTAK as it will pull
-in all of the required OS-level dependencies::
+PyTAK is available as a Debian .deb package. This is the preferred way to 
+install PyTAK as it will pull in all of the required OS-level dependencies::
 
     $ wget https://github.com/ampledata/pytak/releases/latest/download/python3-pytak_latest_all.deb
     $ sudo apt install -f ./python3-pytak_latest_all.deb
@@ -104,9 +102,8 @@ in all of the required OS-level dependencies::
 Alternative Installation
 ========================
 
-(you should really install from an OS package above!)
-
-You can install from PyPI or from source. Both of these methods will require additional OS libraries:
+You can install from PyPI or from source. Both of these methods will require 
+additional OS libraries.
 
 Install LibFFI on Ubuntu::
 
@@ -196,7 +193,7 @@ https://ampledata.org/
 
 Copyright
 =========
-PyTAK is Copyright 2021 Orion Labs, Inc.
+PyTAK is Copyright 2022 Greg Albrecht
 
 asyncio_dgram is Copyright (c) 2019 Justin Bronder
 
