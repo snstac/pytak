@@ -4,10 +4,12 @@
 """PyTAK Functions."""
 
 import asyncio
+import json
 import os
 import socket
 import ssl
 import urllib
+import urllib.request
 
 import pytak
 import pytak.asyncio_dgram
@@ -17,10 +19,17 @@ __copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
-async def create_udp_client(url: urllib.parse.ParseResult) -> pytak.asyncio_dgram.DatagramClient:
-    """Creates an async UDP network client."""
+async def create_udp_client(
+        url: urllib.parse.ParseResult) -> pytak.asyncio_dgram.DatagramClient:
+    """
+    Creates an async UDP network client. Supports UDP unicast & broadcast.
+
+    `url` is urllib-parsed URL to remote host. eg. 'udp://example.com:1234'
+    """
     host, port = pytak.parse_cot_url(url)
-    stream: pytak.asyncio_dgram.DatagramClient = await pytak.asyncio_dgram.connect((host, port))
+    stream: pytak.asyncio_dgram.DatagramClient = \
+        await pytak.asyncio_dgram.connect((host, port))
+
     if "broadcast" in url.scheme:
         sock = stream.socket
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -33,8 +42,7 @@ async def protocol_factory(cot_url: urllib.parse.ParseResult):
     Given a COT Destination URL, create a Connection Class Instance for the 
     given protocol.
 
-    :param cot_url: COT Destination URL
-    :return:
+    `url` is urllib-parsed URL to remote host. eg. 'udp://example.com:1234'
     """
     reader = None
     writer = None
@@ -101,6 +109,8 @@ async def protocol_factory(cot_url: urllib.parse.ParseResult):
             host, port, ssl=ssl_ctx)
     elif "udp" in scheme:
         writer = await pytak.create_udp_client(cot_url)
+    elif "http" in scheme:
+        writer = await pytak.create_tc_client(cot_url)
     else:
         raise Exception(
             "Please specify a protocol in your CoT Destination URL, "
@@ -120,3 +130,30 @@ async def eventworker_factory(cot_url: urllib.parse.ParseResult,
     """
     reader, writer = await protocol_factory(cot_url)
     return pytak.EventWorker(event_queue, writer)
+
+
+def tc_get_auth(client_id: str, client_secret: str, 
+                scope_url: str = '.bridge-both') -> dict:
+    """
+    Authenticates against the Team Connect API.
+    
+    Returns the complete auth payload, including `access_token`
+    """
+    payload: dict = {
+        'grant_type': 'client_credentials',
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'scope': scope_url
+    }
+    payload: str = json.dumps(payload)
+    url: str = pytak.DEFAULT_TC_TOKEN_URL
+
+    req: urllib.request.Request = urllib.request.Request(
+        url = url, data = bytes(payload.encode('utf-8')), method = 'POST')
+    req.add_header('Content-type', 'application/json; charset=UTF-8')
+
+    with urllib.request.urlopen(req) as resp:
+        if resp.status == 200:
+            response_data = json.loads(resp.read().decode('utf-8'))
+            return response_data
+    return {}

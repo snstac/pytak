@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """Python Team Awareness Kit (PyTAK) Module Class Definitions."""
@@ -8,11 +8,10 @@ import logging
 import os
 import queue
 import random
-import urllib
 
 import pytak
 
-# Legacy use of pycot
+# DEPRECATED(Mar. 18, 2022): Use of `pycot` is discouraged.
 with_pycot = False
 try:
     import pycot
@@ -26,7 +25,6 @@ __license__ = "Apache License, Version 2.0"
 
 
 class Worker:  # pylint: disable=too-few-public-methods
-
     """Meta class for all other Worker Classes."""
 
     _logger = logging.getLogger(__name__)
@@ -73,7 +71,6 @@ class Worker:  # pylint: disable=too-few-public-methods
 
 
 class EventWorker(Worker):  # pylint: disable=too-few-public-methods
-
     """
     EventWorker handles getting Cursor on Target Events from a queue, and
     passing them off to a Transport Worker.
@@ -113,12 +110,16 @@ EventTransmitter = EventWorker
 
 
 class MessageWorker(Worker):  # pylint: disable=too-few-public-methods
-
     """
-    MessageWorker handles getting non-CoT messages from a non-CoT Input,
-    encoding them as CoT, and putting them onto a CoT Event Queue.
+    Reads/gets Messages (!COT) from an `asyncio.Protocol` or similar async 
+    network client, serializes it as COT, and puts it onto an `asyncio.Queue`. 
 
-    The CoT Event Queue is handled by the `pytak.EventWorker` Class.
+    Implementations should handle serializing Messages as COT Events, and
+    putting them onto the `event_queue`.
+    
+    The `event_queue` is handled by the `pytak.EventWorker` Class.
+
+    pytak([asyncio.Protocol]->[pytak.MessageWorker]->[asyncio.Queue])
     """
 
     def __init__(self, event_queue: asyncio.Queue,
@@ -136,14 +137,24 @@ class MessageWorker(Worker):  # pylint: disable=too-few-public-methods
 
 
 class EventReceiver(Worker):  # pylint: disable=too-few-public-methods
+    """
+    Async receive (input) queue worker. Reads events from a 
+    `pytak.protocol_factory` reader and adds them to an `rx_queue`.
 
-    def __init__(self, rx_queue: asyncio.Queue, reader) -> None:
+    Most implementations use this to drain an RX buffer on a socket.
+
+    pytak([asyncio.Protocol]->[pytak.EventReceiver]->[queue.Queue])
+    """
+
+    def __init__(self, rx_queue: asyncio.Queue, 
+                 reader: asyncio.Protocol) -> None:
         super().__init__(rx_queue)
-        self.reader = reader
+        self.reader: asyncio.Protocol = reader
 
-    async def run(self):
+    async def run(self) -> None:
         self._logger.info("Running EventReceiver")
 
         while 1:
             rx_event = await self.event_queue.get()
             self._logger.debug("rx_event='%s'", rx_event)
+

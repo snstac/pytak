@@ -18,7 +18,8 @@ Python Team Awareness Kit (PyTAK) Module.
 from .constants import (LOG_LEVEL, LOG_FORMAT, DEFAULT_COT_PORT,  # NOQA
                         DEFAULT_BACKOFF, DEFAULT_SLEEP,
                         DEFAULT_ATAK_PORT, DEFAULT_BROADCAST_PORT,
-                        DEFAULT_COT_STALE, DEFAULT_FIPS_CIPHERS, ISO_8601_UTC)
+                        DEFAULT_COT_STALE, DEFAULT_FIPS_CIPHERS, 
+                        ISO_8601_UTC, DEFAULT_TC_TOKEN_URL)
 
 from .classes import (Worker, EventWorker, MessageWorker,  # NOQA
                       EventTransmitter, EventReceiver)

@@ -31,3 +31,6 @@ DEFAULT_SLEEP: int = 5
 DEFAULT_COT_STALE: int = 120
 DEFAULT_FIPS_CIPHERS: str = "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"
 ISO_8601_UTC = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+TC_TOKEN_URL = 'https://app-api.parteamconnect.com/api/v1/auth/token'
+DEFAULT_TC_TOKEN_URL = os.getenv('TC_TOKEN_URL', TC_TOKEN_URL)
