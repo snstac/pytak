@@ -75,7 +75,7 @@ are expected to be serialized XML COT::
     import urllib
     import pytak
 
-    cot_url = urllib.parse.urlparse('tcp:takserver.example.com:8087')
+    cot_url = urllib.parse.urlparse('tcp://takserver.example.com:8087')
 
     async def main():
         # Create TX & RX queues
@@ -154,7 +154,7 @@ TLS Support
 TLS Support for connections to TAK destinations is configured with two 
 settings:
 
-1) Specify 'tls:' in the CoT Destination URL, for example: 'tls:takserver.example.com:8089'
+1) Specify 'tls://' in the CoT Destination URL, for example: 'tls://takserver.example.com:8089'
 2) Specify the TLS Cert & Key paramaters in the environment.
 
 Required TLS Environment:
@@ -173,7 +173,7 @@ For example, if you're using 'adsbcot' and want to send CoT to a TAK Server
 listening for TLS connections on port 8089::
 
     $ PYTAK_TLS_CLIENT_CERT=client.cert.pem PYTAK_TLS_CLIENT_KEY=client.key.pem \
-      adsbcot -D http://172.17.2.122:8080/data/aircraft.json -U tls:takserver.example.com:8089
+      adsbcot -D http://172.17.2.122:8080/data/aircraft.json -U tls://takserver.example.com:8089
 
 
 FreeTAKServer Support
