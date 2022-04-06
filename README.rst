@@ -38,6 +38,14 @@ PyTAK is used by many COT gateways:
 * `spotcot <https://github.com/ampledata/spotcot>`_: Globalstar SPOT to COT Gateway. Transforms Spot satellite position messages to COT PLI Events.
 * `inrcot <https://github.com/ampledata/inrcot>`_: Garmin inReach to COT Gateway. Transforms inReach satellite position messages to COT PLI Events.
 
+PyTAK supports the following network protocols:
+
+* TCP Unicast
+* TLS Unicast (see 'TLS Support' section below)
+* UDP Unicast
+* UDP Broadcast
+* UDP Mulicast (*new*)
+
 Support PyTAK Development
 =========================
 
