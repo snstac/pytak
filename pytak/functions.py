@@ -37,6 +37,8 @@ def parse_cot_url(url: str) -> tuple:
         host = url.netloc
         if "broadcast" in url.scheme:
             port = pytak.DEFAULT_BROADCAST_PORT
+        elif "multicast" in url.scheme:
+            port = pytak.DEFAULT_BROADCAST_PORT
         else:
             port = pytak.DEFAULT_COT_PORT
     return host, int(port)
