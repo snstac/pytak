@@ -4,7 +4,6 @@
 """Python Team Awareness Kit (PyTAK) Module Tests."""
 
 import asyncio
-from math import comb
 import urllib
 
 import pytest
