@@ -92,5 +92,8 @@ async def test_eventworker():
     assert b'taco2' == remaining_event
 
     popped = transport.write.mock_calls.pop()
-    assert b'taco1' == popped.args[0]
+
+    # Python 3.7: popped[1][0]
+    # Python 3.8+: popped.args[0]
+    assert b'taco1' == popped[1][0]
 
