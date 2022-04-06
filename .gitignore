@@ -1,3 +1,4 @@
+.vscode/
 *.deb
 *.egg
 *.egg-info/

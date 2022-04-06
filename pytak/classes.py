@@ -89,20 +89,21 @@ class EventWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def handle_event(self, event: str) -> None:
         """
-        COT Event Handler, accepts CoT Events from the CoT Event Queue and 
+        COT Event Handler, accepts COT Events from the COT Event Queue and 
         processes them for writing.
         """
-        self._logger.debug("CoT Event Handler event='%s'", event)
+        self._logger.debug("COT Event Handler event='%s'", event)
 
         if with_pycot and isinstance(event, pycot.Event):
-            _event = event.render(encoding="UTF-8", standalone=True)
-        else:
-            _event = event
+            event = event.render(encoding="UTF-8", standalone=True)
 
+        await self.send_event(event)
+
+    async def send_event(self, event) -> None:
         if hasattr(self.writer, "send"):
-            await self.writer.send(_event)
+            await self.writer.send(event)
         else:
-            self.writer.write(_event)
+            self.writer.write(event)
             await self.writer.drain()
 
 
