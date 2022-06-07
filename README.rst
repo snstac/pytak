@@ -37,14 +37,16 @@ PyTAK is used by many COT gateways:
 * `aprscot <https://github.com/ampledata/aprscot>`_: Automatic Packet Reporting System (APRS) to COT Gateway. Transforms APRS position messages to COT PLI Events.
 * `spotcot <https://github.com/ampledata/spotcot>`_: Globalstar SPOT to COT Gateway. Transforms Spot satellite position messages to COT PLI Events.
 * `inrcot <https://github.com/ampledata/inrcot>`_: Garmin inReach to COT Gateway. Transforms inReach satellite position messages to COT PLI Events.
+* `zellocot <https://github.com/ampledata/zellocot>`_: ZelloWOrk to COT Gateway. Transforms ZelloWork user locations to COT PLI Events.
 
 PyTAK supports the following network protocols:
 
-* TCP Unicast
-* TLS Unicast (see 'TLS Support' section below)
-* UDP Unicast
-* UDP Broadcast
-* UDP Mulicast (*new*)
+* TCP Unicast: tcp://host:port
+* TLS Unicast: tls://host:port (see 'TLS Support' section below)
+* UDP Unicast: udp://host:port
+* UDP Broadcast: udp+broadcast://network:port
+* UDP Mulicast: udp://group:port
+* STDOUT/STDERR: log://stdout or log://stderr
 
 Support PyTAK Development
 =========================

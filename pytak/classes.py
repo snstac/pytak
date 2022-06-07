@@ -4,20 +4,14 @@
 """Python Team Awareness Kit (PyTAK) Module Class Definitions."""
 
 import asyncio
+import configparser
 import logging
-import os
 import queue
 import random
 
-import pytak
+from urllib.parse import ParseResult, urlparse
 
-# DEPRECATED(Mar. 18, 2022): Use of `pycot` is discouraged.
-with_pycot = False
-try:
-    import pycot
-    with_pycot = True
-except ImportError:
-    pass
+import pytak
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2022 Greg Albrecht"
@@ -37,15 +31,24 @@ class Worker:  # pylint: disable=too-few-public-methods
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, event_queue: asyncio.Queue) -> None:
+    def __init__(self, event_queue: asyncio.Queue, config: dict=None) -> None:
         self.event_queue: asyncio.Queue = event_queue
+        if config:
+            self.config = config
+        else:
+            config_p = configparser.ConfigParser({})
+            config_p.add_section("pytak")
+            self.config = config_p["pytak"]
 
     async def fts_compat(self) -> None:
-        if os.getenv("FTS_COMPAT") or os.getenv("PYTAK_SLEEP"):
-            sleep_period: int = int(os.getenv("PYTAK_SLEEP") or 
-                (pytak.DEFAULT_SLEEP * random.random()))
-            self._logger.debug(
-                "Sleeping for sleep_period=%s Seconds", sleep_period)
+        """
+        If FTS_COMPAT or PYTAK_SLEEP are set, sleeps for a given or random time.
+        """
+        pytak_sleep: int = self.config.get("PYTAK_SLEEP", 0)
+        if self.config.getboolean("FTS_COMPAT") or pytak_sleep:
+            sleep_period: int = int(pytak_sleep or (pytak.DEFAULT_SLEEP * random.random())
+            )
+            self._logger.debug("COMPAT: Sleeping for %ss", sleep_period)
             await asyncio.sleep(sleep_period)
 
     async def handle_event(self, event: str) -> None:
@@ -54,12 +57,12 @@ class Worker:  # pylint: disable=too-few-public-methods
 
     async def run(self, number_of_iterations=-1):
         """
-        Runs EventWorker Thread, reads in CoT Event Queue & passes COT Events 
+        Runs EventWorker Thread, reads in CoT Event Queue & passes COT Events
         to COT Event Handler.
         """
         self._logger.info("Running EventWorker")
 
-        # We're instantiating the while loop this way, and using get_nowait(), 
+        # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
             event = await self.event_queue.get()
@@ -82,64 +85,57 @@ class EventWorker(Worker):  # pylint: disable=too-few-public-methods
     Class.
     """
 
-    def __init__(self, event_queue: asyncio.Queue, 
-                 writer: asyncio.Protocol) -> None:
-        super().__init__(event_queue)
+    def __init__(self, event_queue: asyncio.Queue, config: dict, writer: asyncio.Protocol) -> None:
+        super().__init__(event_queue, config)
         self.writer: asyncio.Protocol = writer
 
     async def handle_event(self, event: str) -> None:
         """
-        COT Event Handler, accepts COT Events from the COT Event Queue and 
+        COT Event Handler, accepts COT Events from the COT Event Queue and
         processes them for writing.
         """
         self._logger.debug("COT Event Handler event='%s'", event)
-
-        if with_pycot and isinstance(event, pycot.Event):
-            event = event.render(encoding="UTF-8", standalone=True)
-
         await self.send_event(event)
 
     async def send_event(self, event) -> None:
+        """Sends an event with the appropriate 'tx' method."""
         if hasattr(self.writer, "send"):
             await self.writer.send(event)
         else:
             self.writer.write(event)
-            await self.writer.drain()
-
-
-EventTransmitter = EventWorker
+            if hasattr(self.writer, "drain"):
+                await self.writer.drain()
+            if hasattr(self.writer, "flush"):
+                self.writer.flush()
 
 
 class MessageWorker(Worker):  # pylint: disable=too-few-public-methods
     """
-    Reads/gets Messages (!COT) from an `asyncio.Protocol` or similar async 
-    network client, serializes it as COT, and puts it onto an `asyncio.Queue`. 
+    Reads/gets Messages (!COT) from an `asyncio.Protocol` or similar async
+    network client, serializes it as COT, and puts it onto an `asyncio.Queue`.
 
     Implementations should handle serializing Messages as COT Events, and
     putting them onto the `event_queue`.
-    
+
     The `event_queue` is handled by the `pytak.EventWorker` Class.
 
     pytak([asyncio.Protocol]->[pytak.MessageWorker]->[asyncio.Queue])
     """
 
-    def __init__(self, event_queue: asyncio.Queue,
-                 cot_stale: int = None) -> None:
-        super().__init__(event_queue)
-        self.cot_stale = cot_stale or pytak.DEFAULT_COT_STALE
+    def __init__(self, event_queue: asyncio.Queue, config: dict) -> None:
+        super().__init__(event_queue, config)
 
     async def _put_event_queue(self, event: str) -> None:
-        """Puts Event onto the CoT Event Queue."""
+        """Puts Event onto the COT Event Queue."""
         try:
             await self.event_queue.put(event)
         except queue.Full:
-            self._logger.warning(
-                "Lost CoT Event (queue full): '%s'", event)
+            self._logger.warning("Lost COT Event (queue full): '%s'", event)
 
 
 class EventReceiver(Worker):  # pylint: disable=too-few-public-methods
     """
-    Async receive (input) queue worker. Reads events from a 
+    Async receive (input) queue worker. Reads events from a
     `pytak.protocol_factory` reader and adds them to an `rx_queue`.
 
     Most implementations use this to drain an RX buffer on a socket.
@@ -147,9 +143,8 @@ class EventReceiver(Worker):  # pylint: disable=too-few-public-methods
     pytak([asyncio.Protocol]->[pytak.EventReceiver]->[queue.Queue])
     """
 
-    def __init__(self, rx_queue: asyncio.Queue, 
-                 reader: asyncio.Protocol) -> None:
-        super().__init__(rx_queue)
+    def __init__(self, rx_queue: asyncio.Queue, config: dict, reader: asyncio.Protocol) -> None:
+        super().__init__(rx_queue, config)
         self.reader: asyncio.Protocol = reader
 
     async def run(self) -> None:
@@ -159,3 +154,62 @@ class EventReceiver(Worker):  # pylint: disable=too-few-public-methods
             rx_event = await self.event_queue.get()
             self._logger.debug("rx_event='%s'", rx_event)
 
+
+class CLITool:
+    """Wrapper Object for CLITools."""
+
+    _logger = logging.getLogger(__name__)
+    if not _logger.handlers:
+        _logger.setLevel(pytak.LOG_LEVEL)
+        _console_handler = logging.StreamHandler()
+        _console_handler.setLevel(pytak.LOG_LEVEL)
+        _console_handler.setFormatter(pytak.LOG_FORMAT)
+        _logger.addHandler(_console_handler)
+        _logger.propagate = False
+    logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
+
+    def __init__(self, config):
+        self.tasks = set()
+        self.running_tasks = set()
+        self.tx_queue: asyncio.Queue = asyncio.Queue()
+        self.rx_queue: asyncio.Queue = asyncio.Queue()
+        self.config = config
+
+    async def setup(self):
+        # Create our COT Event Queue Worker
+        reader, writer = await pytak.protocol_factory(self.config)
+        write_worker = pytak.EventWorker(self.tx_queue, self.config, writer)
+        read_worker = pytak.EventReceiver(self.rx_queue, self.config, reader)
+        self.add_task(write_worker)
+        self.add_task(read_worker)
+
+    async def hello_event(self):
+        await self.tx_queue.put(pytak.hello_event(self.config.get("COT_HOST_ID")))
+
+    def add_task(self, task):
+        self._logger.debug("Adding Task: %s", task)
+        self.tasks.add(task)
+
+    def add_tasks(self, tasks):
+        for task in tasks:
+            self.add_task(task)
+
+    def run_task(self, task):
+        self._logger.debug("Running Task: %s", task)
+        self.running_tasks.add(asyncio.ensure_future(task.run()))
+
+    def run_tasks(self, tasks=None):
+        tasks = tasks or self.tasks
+        for task in tasks:
+            self.run_task(task)
+
+    async def run(self):
+        self._logger.info("Running CLITool")
+        await self.hello_event()
+        self.run_tasks()
+        done, _ = await asyncio.wait(
+            self.running_tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in done:
+            self._logger.info(f"Completed Task: {task}")

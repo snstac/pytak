@@ -3,9 +3,12 @@
 
 """PyTAK Functions."""
 
+
 import datetime
-import xml
-import xml.etree.ElementTree
+import platform
+
+import xml.etree.ElementTree as ET
+
 
 import pytak
 import pytak.asyncio_dgram
@@ -44,18 +47,25 @@ def parse_cot_url(url: str) -> tuple:
     return host, int(port)
 
 
-def hello_event(uid="pytak") -> str:
+def cot_time(cot_stale: int = None):
+    time = datetime.datetime.now(datetime.timezone.utc)
+    if cot_stale:
+        time = time + datetime.timedelta(seconds=int(cot_stale))
+    return time.strftime(pytak.ISO_8601_UTC)
+
+
+def hello_event(uid: str = None) -> str:
     """Generates a Hello COT Event."""
     time = datetime.datetime.now(datetime.timezone.utc)
+    uid: str = uid or f"pytak@{platform.node()}"
 
-    root = xml.etree.ElementTree.Element("event")
-
+    root = ET.Element("event")
     root.set("version", "2.0")
     root.set("type", "t-x-d-d")
     root.set("uid", uid)
     root.set("how", "m-g")
     root.set("time", time.strftime(pytak.ISO_8601_UTC))
     root.set("start", time.strftime(pytak.ISO_8601_UTC))
-    root.set("stale", (time + datetime.timedelta(hours=1)).strftime(pytak.ISO_8601_UTC) )
+    root.set("stale", (time + datetime.timedelta(hours=1)).strftime(pytak.ISO_8601_UTC))
 
-    return xml.etree.ElementTree.tostring(root)
+    return ET.tostring(root)

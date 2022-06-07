@@ -16,7 +16,7 @@ import sys
 import setuptools
 
 __title__ = "pytak"
-__version__ = "4.0.0"
+__version__ = "5.0.0"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
@@ -59,9 +59,7 @@ setuptools.setup(
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python",
-        "License :: OSI Approved :: Apache Software License"
+        "License :: OSI Approved :: Apache Software License",
     ],
-    keywords=[
-        "Cursor on Target", "ATAK", "TAK", "CoT"
-    ]
+    keywords=["Cursor on Target", "ATAK", "TAK", "CoT"],
 )
