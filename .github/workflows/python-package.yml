@@ -24,7 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         make install_test
-        make install_editable
+        make editable
     - name: Analysing the code with pylint
       run: |
         make pylint
