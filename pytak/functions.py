@@ -5,9 +5,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +14,15 @@
 # limitations under the License.
 #
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2022 Greg Albrecht
-# License:: Apache License, Version 2.0
 #
 
 """PyTAK Functions."""
 
 import datetime
 import platform
-
 import xml.etree.ElementTree as ET
 
+from urllib.parse import ParseResult, urlparse
 
 import pytak
 import pytak.asyncio_dgram
@@ -50,8 +46,11 @@ def split_host(host, port: int = None) -> tuple:
     return addr, int(port)
 
 
-def parse_cot_url(url: str) -> tuple:
+def parse_url(url: str) -> tuple:
     """Parses a COT destination URL."""
+    if isinstance(url, str):
+        url: ParseResult = urlparse(url)
+
     if ":" in url.netloc:
         host, port = url.netloc.split(":")
     else:

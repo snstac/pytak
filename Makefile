@@ -18,39 +18,36 @@
 # License:: Apache License, Version 2.0
 #
 
-this_app = "pytak"
+this_app = pytak
 .DEFAULT_GOAL := all
 
-all: develop
-
-install_requirements:
-	pip install -r requirements_test.txt
+all: editable
 
 develop:
-	python setup.py develop
+	python3 setup.py develop
 
 editable:
-	pip install -e .
+	python3 -m pip install -e .
 
-install_test:
-	pip install -r requirements_test.txt
+install_test_requirements:
+	python3 -m pip install -r requirements_test.txt
 
 install:
-	python setup.py install
+	python3 setup.py install
 
 uninstall:
-	pip uninstall -y adsbxcot
+	python3 -m pip uninstall -y $(this_app)
 
 reinstall: uninstall install
+
+publish:
+	python3 setup.py publish
 
 clean:
 	@rm -rf *.egg* build dist *.py[oc] */*.py[co] cover doctest_pypi.cfg \
 		nosetests.xml pylint.log output.xml flake8.log tests.log \
 		test-result.xml htmlcov fab.log .coverage __pycache__ \
 		*/__pycache__
-
-publish:
-	python setup.py publish
 
 pep8:
 	flake8 --max-line-length=88 --extend-ignore=E203 --exit-zero $(this_app)/*.py
@@ -64,7 +61,7 @@ lint:
 pylint: lint
 
 checkmetadata:
-	python setup.py check -s --restructuredtext
+	python3 setup.py check -s --restructuredtext
 
 mypy:
 	mypy --strict .
@@ -72,7 +69,7 @@ mypy:
 pytest:
 	pytest
 
-test: editable install_test pytest
+test: editable install_test_requirements pytest
 
 test_cov:
 	pytest --cov=$(this_app)

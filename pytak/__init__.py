@@ -5,9 +5,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +14,6 @@
 # limitations under the License.
 #
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2022 Greg Albrecht
-# License:: Apache License, Version 2.0
 #
 
 """
@@ -52,13 +48,13 @@ from .constants import (
 
 from .classes import (
     Worker,
-    EventWorker,
-    MessageWorker,
-    EventReceiver,
+    TXWorker,
+    RXWorker,
+    QueueWorker,
     CLITool,
 )
 
-from .functions import split_host, parse_cot_url, hello_event, cot_time
+from .functions import split_host, parse_url, hello_event, cot_time
 
 from .client_functions import (
     create_udp_client,

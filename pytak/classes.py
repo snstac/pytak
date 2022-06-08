@@ -5,9 +5,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +14,6 @@
 # limitations under the License.
 #
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2022 Greg Albrecht
-# License:: Apache License, Version 2.0
 #
 
 """PyTAK Class Definitions."""
@@ -50,14 +46,17 @@ class Worker:  # pylint: disable=too-few-public-methods
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, event_queue: asyncio.Queue, config: dict=None) -> None:
-        self.event_queue: asyncio.Queue = event_queue
+    def __init__(self, queue: asyncio.Queue, config: dict=None) -> None:
+        self.queue: asyncio.Queue = queue
         if config:
             self.config = config
         else:
             config_p = configparser.ConfigParser({})
             config_p.add_section("pytak")
             self.config = config_p["pytak"]
+
+        if self.config.getboolean("DEBUG", False):
+            _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
 
     async def fts_compat(self) -> None:
         """
@@ -70,8 +69,8 @@ class Worker:  # pylint: disable=too-few-public-methods
             self._logger.debug("COMPAT: Sleeping for %ss", sleep_period)
             await asyncio.sleep(sleep_period)
 
-    async def handle_event(self, event: str) -> None:
-        """Placeholder handle_event Method for this Class."""
+    async def handle_data(self, data: bytes) -> None:
+        """Placeholder handle_data Method for this Class."""
         self._logger.warning("Overwrite this method!")
 
     async def run(self, number_of_iterations=-1):
@@ -79,20 +78,20 @@ class Worker:  # pylint: disable=too-few-public-methods
         Runs EventWorker Thread, reads in CoT Event Queue & passes COT Events
         to COT Event Handler.
         """
-        self._logger.info("Running EventWorker")
+        self._logger.info("Running %s", self.__class__)
 
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
-            event = await self.event_queue.get()
-            if not event:
+            data = await self.queue.get()
+            if not data:
                 continue
-            await self.handle_event(event)
+            await self.handle_data(data)
             await self.fts_compat()
             number_of_iterations -= 1
 
 
-class EventWorker(Worker):  # pylint: disable=too-few-public-methods
+class TXWorker(Worker):  # pylint: disable=too-few-public-methods
     """
     EventWorker handles getting Cursor on Target Events from a queue, and
     passing them off to a Transport Worker.
@@ -104,36 +103,58 @@ class EventWorker(Worker):  # pylint: disable=too-few-public-methods
     Class.
     """
 
-    def __init__(self, event_queue: asyncio.Queue, config: dict, writer: asyncio.Protocol) -> None:
-        super().__init__(event_queue, config)
+    def __init__(self, queue: asyncio.Queue, config: dict, writer: asyncio.Protocol) -> None:
+        super().__init__(queue, config)
         self.writer: asyncio.Protocol = writer
 
-    async def handle_event(self, event: str) -> None:
+    async def handle_data(self, data: bytes) -> None:
         """
         COT Event Handler, accepts COT Events from the COT Event Queue and
         processes them for writing.
         """
-        self._logger.debug("COT Event Handler event='%s'", event)
-        await self.send_event(event)
+        self._logger.debug("Handling data='%s'", data)
+        await self.send_data(data)
 
-    async def send_event(self, event) -> None:
+    async def send_data(self, data) -> None:
         """Sends an event with the appropriate 'tx' method."""
         if hasattr(self.writer, "send"):
-            await self.writer.send(event)
+            await self.writer.send(data)
         else:
-            self.writer.write(event)
+            self.writer.write(data)
             if hasattr(self.writer, "drain"):
                 await self.writer.drain()
             if hasattr(self.writer, "flush"):
                 self.writer.flush()
 
 
-class MessageWorker(Worker):  # pylint: disable=too-few-public-methods
+class RXWorker(Worker):  # pylint: disable=too-few-public-methods
+    """
+    Async receive (input) queue worker. Reads events from a
+    `pytak.protocol_factory()` reader and adds them to an `rx_queue`.
+
+    Most implementations use this to drain an RX buffer on a socket.
+
+    pytak([asyncio.Protocol]->[pytak.EventReceiver]->[queue.Queue])
+    """
+
+    def __init__(self, queue: asyncio.Queue, config: dict, reader: asyncio.Protocol) -> None:
+        super().__init__(queue, config)
+        self.reader: asyncio.Protocol = reader
+
+    async def run(self) -> None:
+        self._logger.info("Running %s", self.__class__)
+
+        while 1:
+            data = await self.queue.get()
+            self._logger.debug("data='%s'", data)
+
+
+class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
     """
     Reads/gets Messages (!COT) from an `asyncio.Protocol` or similar async
     network client, serializes it as COT, and puts it onto an `asyncio.Queue`.
 
-    Implementations should handle serializing Messages as COT Events, and
+    Implementations should handle serializing messages as COT Events, and
     putting them onto the `event_queue`.
 
     The `event_queue` is handled by the `pytak.EventWorker` Class.
@@ -141,37 +162,15 @@ class MessageWorker(Worker):  # pylint: disable=too-few-public-methods
     pytak([asyncio.Protocol]->[pytak.MessageWorker]->[asyncio.Queue])
     """
 
-    def __init__(self, event_queue: asyncio.Queue, config: dict) -> None:
-        super().__init__(event_queue, config)
+    def __init__(self, queue: asyncio.Queue, config: dict) -> None:
+        super().__init__(queue, config)
 
-    async def _put_event_queue(self, event: str) -> None:
-        """Puts Event onto the COT Event Queue."""
+    async def put_queue(self, data: bytes) -> None:
+        """Puts Data onto the COT Event Queue."""
         try:
-            await self.event_queue.put(event)
+            await self.queue.put(data)
         except queue.Full:
-            self._logger.warning("Lost COT Event (queue full): '%s'", event)
-
-
-class EventReceiver(Worker):  # pylint: disable=too-few-public-methods
-    """
-    Async receive (input) queue worker. Reads events from a
-    `pytak.protocol_factory` reader and adds them to an `rx_queue`.
-
-    Most implementations use this to drain an RX buffer on a socket.
-
-    pytak([asyncio.Protocol]->[pytak.EventReceiver]->[queue.Queue])
-    """
-
-    def __init__(self, rx_queue: asyncio.Queue, config: dict, reader: asyncio.Protocol) -> None:
-        super().__init__(rx_queue, config)
-        self.reader: asyncio.Protocol = reader
-
-    async def run(self) -> None:
-        self._logger.info("Running EventReceiver")
-
-        while 1:
-            rx_event = await self.event_queue.get()
-            self._logger.debug("rx_event='%s'", rx_event)
+            self._logger.warning("Lost Data (queue full): '%s'", data)
 
 
 class CLITool:
@@ -195,10 +194,10 @@ class CLITool:
         self.config = config
 
     async def setup(self):
-        # Create our COT Event Queue Worker
+        # Create our TX & RX Protocol Worker
         reader, writer = await pytak.protocol_factory(self.config)
-        write_worker = pytak.EventWorker(self.tx_queue, self.config, writer)
-        read_worker = pytak.EventReceiver(self.rx_queue, self.config, reader)
+        write_worker = pytak.TXWorker(self.tx_queue, self.config, writer)
+        read_worker = pytak.RXWorker(self.rx_queue, self.config, reader)
         self.add_task(write_worker)
         self.add_task(read_worker)
 

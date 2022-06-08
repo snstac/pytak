@@ -5,9 +5,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +14,6 @@
 # limitations under the License.
 #
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2022 Greg Albrecht
-# License:: Apache License, Version 2.0
 #
 
 """PyTAK Functions."""
@@ -68,7 +64,7 @@ async def create_udp_client(url: ParseResult) -> pytak.asyncio_dgram.DatagramCli
     pytak.asyncio_dgram.DatagramClient
         An async UDP network stream client.
     """
-    host, port = pytak.parse_cot_url(url)
+    host, port = pytak.parse_url(url)
     stream: pytak.asyncio_dgram.DatagramClient = await pytak.asyncio_dgram.connect(
         (host, port)
     )
@@ -127,10 +123,10 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
     scheme: str = cot_url.scheme.lower()
 
     if scheme in ["tcp"]:
-        host, port = pytak.parse_cot_url(cot_url)
+        host, port = pytak.parse_url(cot_url)
         reader, writer = await asyncio.open_connection(host, port)
     elif scheme in ["tls", "ssl"]:
-        host, port = pytak.parse_cot_url(cot_url)
+        host, port = pytak.parse_url(cot_url)
         tls_config: dict = get_tls_config()
 
         client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
@@ -282,7 +278,7 @@ def cli(app_name: str, main_func: str = "main") -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-c", "--CONFIG_FILE", dest="CONFIG_FILE", default="config.ini", type=str
+        "-c", "--CONFIG_FILE", dest="CONFIG_FILE", default="config.ini", type=str, help="Optional configuration file. Default: config.ini"
     )
     namespace = parser.parse_args()
     cli_args = {k: v for k, v in vars(namespace).items() if v is not None}

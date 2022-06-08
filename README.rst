@@ -4,11 +4,11 @@ pytak - Python Team Awareness Kit (PyTAK) Module.
    :alt: Screenshot of ADS-B PLI in ATAK.
    :target: https://github.com/ampledata/adsbxcot/blob/main/docs/Screenshot_20201026-142037_ATAK.jpg
 
-**IF YOU HAVE AN URGENT OPERATIONAL NEED**: Email ops@undef.net or call/sms +1-415-598-8226
+**Tech Support**: Email support@undef.net or Signal/WhatsApp +1-310-621-9598
 
-PyTAK is a Python Module for creating TAK clients & servers.
+PyTAK is a Python Module for creating TAK clients, servers & gateways.
 
-This module include Classes for handling Cursor-On-Target (COT) Events & 
+This module include classes for handling Cursor-On-Target (COT) Events & 
 non-COT Messages, as well as functions for serializing COT Events.
 
 PyTAK has been tested with and is compatible with many SA & COP systems:
@@ -74,32 +74,26 @@ are expected to be serialized XML COT::
     #!/usr/bin/env python3
 
     import asyncio
-    import urllib
+    from configparser import ConfigParser
     import pytak
 
-    cot_url = urllib.parse.urlparse('tcp://takserver.example.com:8087')
+    class MyWorker(pytak.QueueWorker):
+        async def run(self):
+            while 1:
+                await self.read_queue()
 
-    async def main():
-        # Create TX & RX queues
-        tx_queue = asyncio.Queue()
-        rx_queue = asyncio.Queue()
 
-        # Create network reader & writer
-        rx_proto, tx_proto = await pytak.protocol_factory(cot_url)
-        
-        # Create Event queue workers
-        writer = pytak.EventTransmitter(tx_queue, tx_proto)
-        reader = pytak.EventReceiver(rx_queue, rx_proto)
 
-        # Create your custom Msg->COT serializer (see 'PyTAK Gateways' above)
-        message_worker = MyCustomSerializer(tx_queue)
+    config = ConfigParser()["DEFAULT"]
+    config.set("COT_URL", "tcp://takserver.example.com:8087")
 
-        done, pending = await asyncio.wait(
-            {message_worker.run(), reader.run(), writer.run()},
-            return_when=asyncio.FIRST_COMPLETED)
+    clitool = pytak.CLITool(config)
+    await clitool.setup()
 
-        for task in done:
-            print(f"Task completed: {task}")
+    # Create your custom Msg->COT serializer:
+    clitool.add_tasks(set([MyCustomSerializer(clitool.tx_queue, config)]))
+
+    await clitool.run()
 
 
 
