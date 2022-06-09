@@ -72,7 +72,7 @@ using TCP. Events are put onto the Queue by the Message Worker (QED). Events
 are expected to be serialized XML COT::
 
     #!/usr/bin/env python3
-
+    
     import asyncio
     from configparser import ConfigParser
     import pytak
@@ -81,8 +81,6 @@ are expected to be serialized XML COT::
         async def run(self):
             while 1:
                 await self.read_queue()
-
-
 
     config = ConfigParser()["DEFAULT"]
     config.set("COT_URL", "tcp://takserver.example.com:8087")

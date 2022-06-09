@@ -164,6 +164,7 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
 
     def __init__(self, queue: asyncio.Queue, config: dict) -> None:
         super().__init__(queue, config)
+        self._logger.info("Using COT Dest.: %s", self.config.get("COT_URL"))
 
     async def put_queue(self, data: bytes) -> None:
         """Puts Data onto the COT Event Queue."""
