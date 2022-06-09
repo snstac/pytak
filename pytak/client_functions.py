@@ -127,7 +127,7 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
         reader, writer = await asyncio.open_connection(host, port)
     elif scheme in ["tls", "ssl"]:
         host, port = pytak.parse_url(cot_url)
-        tls_config: dict = get_tls_config()
+        tls_config: dict = get_tls_config(config)
 
         client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
         client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
@@ -137,11 +137,11 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
         #  Also available in FIPS: DEFAULT_FIPS_CIPHERS
         client_ciphers = tls_config.get("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
 
-        # If the cert's CN doesn't match the hostname, set this:
-        dont_check_hostname = bool(tls_config.get("PYTAK_TLS_DONT_CHECK_HOSTNAME"))
-
         # If the cert's CA isn't in our trust chain, set this:
-        dont_verify = bool(tls_config.get("PYTAK_TLS_DONT_VERIFY"))
+        dont_verify = tls_config.get("PYTAK_TLS_DONT_VERIFY").lower() in pytak.BOOLEAN_TRUTH
+
+        # If the cert's CN doesn't match the hostname, set this:
+        dont_check_hostname = dont_verify or tls_config.get("PYTAK_TLS_DONT_CHECK_HOSTNAME").lower() in pytak.BOOLEAN_TRUTH
 
         # SSL Context setup:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -159,15 +159,6 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
         if client_cafile:
             ssl_ctx.load_verify_locations(cafile=client_cafile)
 
-        # Default to verifying cert:
-        if dont_verify:
-            dont_check_hostname = True
-            print(
-                "WARN: pytak TLS Certificate Verification DISABLED by "
-                "PYTAK_TLS_DONT_VERIFY environment."
-            )
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-
         # Default to checking hostnames:
         if dont_check_hostname:
             print(
@@ -175,6 +166,14 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
                 "PYTAK_TLS_DONT_CHECK_HOSTNAME environment."
             )
             ssl_ctx.check_hostname = False
+
+        # Default to verifying cert:
+        if dont_verify:
+            print(
+                "WARN: pytak TLS Certificate Verification DISABLED by "
+                "PYTAK_TLS_DONT_VERIFY environment."
+            )
+            ssl_ctx.verify_mode = ssl.CERT_NONE
 
         reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
     elif "udp" in scheme:
