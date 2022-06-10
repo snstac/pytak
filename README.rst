@@ -5,10 +5,18 @@ pytak - Python Team Awareness Kit (PyTAK) Module.
    :target: https://github.com/ampledata/adsbxcot/blob/main/docs/Screenshot_20201026-142037_ATAK.jpg
 
 
-PyTAK is a Python Module for creating TAK clients, servers & gateways.
+PyTAK is a Python Module for creating TAK clients, servers & gateways and include 
+classes for handling Cursor-On-Target (COT) Events & non-COT Messages, as well 
+as functions for serializing COT Events.
 
-This module include classes for handling Cursor-On-Target (COT) Events & 
-non-COT Messages, as well as functions for serializing COT Events.
+PyTAK supports the following network protocols:
+
+* TCP Unicast: ``tcp://host:port``
+* TLS Unicast: ``tls://host:port`` (see 'TLS Support' section below)
+* UDP Unicast: ``udp://host:port``
+* UDP Broadcast: ``udp+broadcast://network:port``
+* UDP Mulicast: ``udp://group:port``
+* STDOUT/STDERR: ``log://stdout`` or ``log://stderr``
 
 PyTAK has been tested and is compatible with many SA & COP systems.
 
@@ -38,14 +46,6 @@ PyTAK is used by many COT gateways:
 * `inrcot <https://github.com/ampledata/inrcot>`_: Garmin inReach to COT Gateway. Transforms inReach satellite position messages to COT PLI Events.
 * `zellocot <https://github.com/ampledata/zellocot>`_: ZelloWork to COT Gateway. Transforms ZelloWork user locations to COT PLI Events.
 
-PyTAK supports the following network protocols:
-
-* TCP Unicast: ``tcp://host:port``
-* TLS Unicast: ``tls://host:port`` (see 'TLS Support' section below)
-* UDP Unicast: ``udp://host:port``
-* UDP Broadcast: ``udp+broadcast://network:port``
-* UDP Mulicast: ``udp://group:port``
-* STDOUT/STDERR: ``log://stdout`` or ``log://stderr``
 
 Support Development
 ===================
@@ -91,7 +91,6 @@ are expected to be serialized XML COT::
     clitool.add_tasks(set([MyCustomSerializer(clitool.tx_queue, config)]))
 
     await clitool.run()
-
 
 
 Requirements
@@ -143,7 +142,10 @@ Install PyTAK from this source tree::
 Configuration Parameters
 ========================
 
-* ``COT_URL``: (*optional*) Destination for Cursor-On-Target messages. Default: udp://239.2.3.1:6969 (ATAK Multicast UDP Default)
+All configuration parameters can be specified either as environment variables or 
+within an INI-style configuration file.
+
+* ``COT_URL``: (*optional*) Destination for Cursor-On-Target messages. Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP Default)
 * ``DEBUG``: (*optional*) Sets debug-level logging.
 * ``FTS_COMPAT``: (*optional*) If set, implements random-sleep period to avoid FTS DoS protections.
 * ``PYTAK_SLEEP``: (*optional*) If set, implements given sleep period between emitting COT Events.
@@ -155,7 +157,7 @@ TLS Support
 TLS Support for connections to TAK destinations is configured with two 
 settings:
 
-1) Specify 'tls://' in the CoT Destination URL, for example: 'tls://takserver.example.com:8089'
+1) Specify ``tls://`` in the CoT Destination URL, for example: ``tls://takserver.example.com:8089``
 2) Specify the TLS Cert and other configuration parameters.
 
 Client Certificates, Client Key, CA Certificate & Key must be specified in PEM format.
@@ -175,7 +177,8 @@ Client Certificates, Client Key, CA Certificate & Key must be specified in PEM f
 * ``PYTAK_TLS_CLIENT_CIPHERS``: Colon (":") seperated list of TLS Cipher Suites.
 
 For example, if you're using 'adsbxcot' and want to send CoT to a TAK Server
-listening for TLS connections on port 8089::
+listening for TLS connections on port 8089, specifying configuration parameters 
+as environment variables::
 
     $ export PYTAK_TLS_CLIENT_CERT=client.cert.pem 
     $ export PYTAK_TLS_CLIENT_KEY=client.key.pem
