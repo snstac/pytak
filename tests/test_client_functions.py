@@ -86,7 +86,7 @@ async def test_rxworker_factory_udp():
 def test_get_tls_config():
     base_config: dict = {
         "PYTAK_TLS_CLIENT_CERT": "test_get_tls_config",
-        "PYTAK_TLS_DONT_CHECK_HOSTNAME": 1,
+        "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",
     }
     config_p = ConfigParser(base_config)
     config_p.add_section("pytak")
