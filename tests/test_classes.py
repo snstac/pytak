@@ -102,7 +102,7 @@ async def test_eventworker():
     loop = asyncio.get_event_loop()
     writer = asyncio.StreamWriter(transport, protocol, None, loop)
 
-    worker: pytak.Worker = pytak.EventWorker(event_queue, {}, writer)
+    worker: pytak.Worker = pytak.TXWorker(event_queue, {}, writer)
 
     await worker.run(1)
     remaining_event = await event_queue.get()

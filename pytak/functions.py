@@ -24,8 +24,7 @@ import xml.etree.ElementTree as ET
 
 from urllib.parse import ParseResult, urlparse
 
-import pytak
-import pytak.asyncio_dgram
+import pytak  # pylint: disable=cyclic-import
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2022 Greg Albrecht"
@@ -64,7 +63,21 @@ def parse_url(url: str) -> tuple:
     return host, int(port)
 
 
-def cot_time(cot_stale: int = None):
+def cot_time(cot_stale: int = None) -> datetime.datetime:
+    """
+    Returns the current time UTC in ISO-8601 format.
+
+    Parameters
+    ----------
+    cot_stale : `int`
+        Time in seconds to add to the current time, for use with Cursor-On-Target
+        'stale' attributes.
+
+    Returns
+    -------
+    `datetime.datetime`
+        Current time UTC in ISO-8601 Format
+    """
     time = datetime.datetime.now(datetime.timezone.utc)
     if cot_stale:
         time = time + datetime.timedelta(seconds=int(cot_stale))
@@ -73,7 +86,6 @@ def cot_time(cot_stale: int = None):
 
 def hello_event(uid: str = None) -> str:
     """Generates a Hello COT Event."""
-    time = datetime.datetime.now(datetime.timezone.utc)
     uid: str = uid or f"pytak@{platform.node()}"
 
     root = ET.Element("event")
@@ -81,8 +93,8 @@ def hello_event(uid: str = None) -> str:
     root.set("type", "t-x-d-d")
     root.set("uid", uid)
     root.set("how", "m-g")
-    root.set("time", time.strftime(pytak.ISO_8601_UTC))
-    root.set("start", time.strftime(pytak.ISO_8601_UTC))
-    root.set("stale", (time + datetime.timedelta(hours=1)).strftime(pytak.ISO_8601_UTC))
+    root.set("time", cot_time())
+    root.set("start", cot_time())
+    root.set("stale", cot_time(3600))
 
     return ET.tostring(root)

@@ -36,7 +36,7 @@ __license__ = "Apache License, Version 2.0"
 def test_parse_cot_url_https_noport():
     test_url1: str = "https://www.example.com/"
     cot_url1: urllib.parse.ParseResult = urllib.parse.urlparse(test_url1)
-    host1, port1 = pytak.parse_cot_url(cot_url1)
+    host1, port1 = pytak.parse_url(cot_url1)
     assert "www.example.com" == host1
     assert 8087 == port1
 
@@ -44,7 +44,7 @@ def test_parse_cot_url_https_noport():
 def test_parse_cot_url_tls_noport():
     test_url1: str = "tls://www.example.com"
     cot_url1: urllib.parse.ParseResult = urllib.parse.urlparse(test_url1)
-    host1, port1 = pytak.parse_cot_url(cot_url1)
+    host1, port1 = pytak.parse_url(cot_url1)
     assert "www.example.com" == host1
     assert 8087 == port1
 
@@ -52,7 +52,7 @@ def test_parse_cot_url_tls_noport():
 def test_parse_cot_url_udp_port():
     test_url1: str = "udp://www.example.com:9999"
     cot_url1: urllib.parse.ParseResult = urllib.parse.urlparse(test_url1)
-    host1, port1 = pytak.parse_cot_url(cot_url1)
+    host1, port1 = pytak.parse_url(cot_url1)
     assert "www.example.com" == host1
     assert 9999 == port1
 
@@ -60,7 +60,7 @@ def test_parse_cot_url_udp_port():
 def test_parse_cot_url_udp_broadcast():
     test_url1: str = "udp+broadcast://www.example.com"
     cot_url1: urllib.parse.ParseResult = urllib.parse.urlparse(test_url1)
-    host1, port1 = pytak.parse_cot_url(cot_url1)
+    host1, port1 = pytak.parse_url(cot_url1)
     assert "www.example.com" == host1
     assert 6969 == port1
 

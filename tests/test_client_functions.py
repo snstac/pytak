@@ -24,15 +24,13 @@
 
 
 import asyncio
-import configparser
-
 from cmath import isnan
-from urllib.parse import ParseResult, urlparse
 
+from configparser import ConfigParser, SectionProxy
+from urllib.parse import ParseResult, urlparse
 from unittest import mock
 
 import pytest
-
 import pytak
 
 
@@ -51,27 +49,52 @@ def gen_url(request) -> ParseResult:
 @pytest.mark.asyncio
 async def test_protocol_factory_udp():
     test_url1: str = "udp://localhost"
-    config: dict = {"COT_URL": urlparse(test_url1)}
+    config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
     assert reader == None
     assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
 
 
 @pytest.mark.asyncio
-async def test_eventworker_factory_udp():
+async def test_txworker_factory_udp():
     test_url1: str = "udp://localhost"
-    config: dict = {"COT_URL": urlparse(test_url1)}
-    event_queue: asyncio.Queue = asyncio.Queue()
-    worker = await pytak.eventworker_factory(config, event_queue)
-    assert isinstance(worker, pytak.classes.EventWorker)
+
+    config_p = ConfigParser()
+    config_p.add_section("pytak")
+    config = config_p["pytak"]
+    config.setdefault("COT_URL", test_url1)
+
+    queue: asyncio.Queue = asyncio.Queue()
+    worker = await pytak.txworker_factory(queue, config)
+    assert isinstance(worker, pytak.classes.TXWorker)
+
+
+@pytest.mark.asyncio
+async def test_rxworker_factory_udp():
+    test_url1: str = "udp://localhost"
+
+    config_p = ConfigParser()
+    config_p.add_section("pytak")
+    config = config_p["pytak"]
+    config.setdefault("COT_URL", test_url1)
+
+    queue: asyncio.Queue = asyncio.Queue()
+    worker = await pytak.rxworker_factory(queue, config)
+    assert isinstance(worker, pytak.classes.RXWorker)
 
 
 def test_get_tls_config():
-    base_config: dict = {"PYTAK_TLS_CLIENT_CERT": "TEST"}
-    config_p = configparser.ConfigParser(base_config)
+    base_config: dict = {
+        "PYTAK_TLS_CLIENT_CERT": "test_get_tls_config",
+        "PYTAK_TLS_DONT_CHECK_HOSTNAME": 1,
+    }
+    config_p = ConfigParser(base_config)
     config_p.add_section("pytak")
     config = config_p["pytak"]
-    tls_config: dict = pytak.client_functions.get_tls_config(config)
+    tls_config: ConfigParser = pytak.client_functions.get_tls_config(config)
     print(tls_config)
-    assert isinstance(tls_config, dict)
 
+    assert isinstance(tls_config, SectionProxy)
+    assert tls_config.get("PYTAK_TLS_CLIENT_CERT") == "test_get_tls_config"
+    assert not tls_config.getboolean("PYTAK_TLS_DONT_VERIFY")
+    assert tls_config.getboolean("PYTAK_TLS_DONT_CHECK_HOSTNAME")

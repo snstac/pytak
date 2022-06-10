@@ -20,8 +20,6 @@
 
 import argparse
 import asyncio
-import configparser
-import json
 import importlib
 import logging
 import os
@@ -29,45 +27,48 @@ import platform
 import socket
 import ssl
 import sys
-import urllib
-import urllib.request
 
+from configparser import ConfigParser, SectionProxy
 from urllib.parse import ParseResult, urlparse
-
-from typing import Any, Tuple, Union
+from typing import Any
 
 import pytak
-import pytak.asyncio_dgram
+
+from pytak.asyncio_dgram import (
+    DatagramClient,
+    connect as dgconnect,
+)
 
 # Python 3.6 support:
 if sys.version_info[:2] >= (3, 7):
     from asyncio import get_running_loop
 else:
-    from asyncio import _get_running_loop as get_running_loop
+    from asyncio import (  # pylint: disable=no-name-in-module
+        _get_running_loop as get_running_loop,
+    )
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2022 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
-async def create_udp_client(url: ParseResult) -> pytak.asyncio_dgram.DatagramClient:
+async def create_udp_client(url: ParseResult) -> DatagramClient:
     """
-    Creates an async UDP network client, Unicast, Broadcast & Multicast.
+    Creates an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
     Parameters
     ----------
-    url : ParseResult
-        A parsed fully-qualified URL, for example: udp://tak.example.com:4242
+    url : `ParseResult`
+        A parsed fully-qualified URL parsed with `urllib.parse.urlparse()`.
+        For example: udp://tak.example.com:4242
 
     Returns
     -------
-    pytak.asyncio_dgram.DatagramClient
-        An async UDP network stream client.
+    `DatagramClient`
+        An AsyncIO UDP network stream client.
     """
     host, port = pytak.parse_url(url)
-    stream: pytak.asyncio_dgram.DatagramClient = await pytak.asyncio_dgram.connect(
-        (host, port)
-    )
+    stream: DatagramClient = await dgconnect((host, port))
 
     if "broadcast" in url.scheme:
         sock = stream.socket
@@ -76,44 +77,56 @@ async def create_udp_client(url: ParseResult) -> pytak.asyncio_dgram.DatagramCli
     return stream
 
 
-def get_tls_config(config: Union[dict, configparser.ConfigParser]) -> dict:
+def get_tls_config(config: SectionProxy) -> SectionProxy:
     """
     Gets the TLS config and ensures required TLS params are set.
 
     Parameters
     ----------
-    config : dict, configparser.ConfigParser
-        A dict of configuration parameters & values.
+    config : `SectionProxy`
+        Configuration parameters & values.
 
     Returns
     -------
-    dict
-        A TLS configuration.
+    `SectionProxy`
+        A PyTAK TLS configuration.
     """
-    tls_config_req: dict = dict(zip(pytak.DEFAULT_TLS_PARAMS_REQ, [config.get(x) for x in pytak.DEFAULT_TLS_PARAMS_REQ]))
+    tls_config_req: dict = dict(
+        zip(
+            pytak.DEFAULT_TLS_PARAMS_REQ,
+            [config.get(x) for x in pytak.DEFAULT_TLS_PARAMS_REQ],
+        )
+    )
 
     if None in tls_config_req.values():
-        raise Exception("Not all TLS Params specified: %s", pytak.DEFAULT_TLS_PARAMS_REQ)
-    
-    tls_config_opt: dict = dict(zip(pytak.DEFAULT_TLS_PARAMS_OPT, [config.get(x) for x in pytak.DEFAULT_TLS_PARAMS_OPT]))    
+        raise Exception(f"Not all TLS Params specified: {pytak.DEFAULT_TLS_PARAMS_REQ}")
+
+    tls_config_opt: dict = dict(
+        zip(
+            pytak.DEFAULT_TLS_PARAMS_OPT,
+            [config.get(x) for x in pytak.DEFAULT_TLS_PARAMS_OPT],
+        )
+    )
 
     tls_config_req.update(tls_config_opt)
-    return tls_config_req
+    return ConfigParser(dict(filter(lambda x: x[1], tls_config_req.items())))["DEFAULT"]
 
 
-async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> Any:
+async def protocol_factory(  # pylint: disable=too-many-locals,too-many-branches
+    config: SectionProxy,
+) -> Any:
     """
-    Creates a network connection class instances for the protocol specified by 
+    Creates a network connection class instances for the protocol specified by
     the COT_URL parameter in the config object.
 
     Parameters
     ----------
-    config : dict, configparser.ConfigParser
-        A dict of configuration parameters & values.
+    config : `SectionProxy`
+        Configuration parameters & values.
 
     Returns
     -------
-    Any
+    `Any`
         Return value depends on the network protocol.
     """
     reader = None
@@ -127,7 +140,7 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
         reader, writer = await asyncio.open_connection(host, port)
     elif scheme in ["tls", "ssl"]:
         host, port = pytak.parse_url(cot_url)
-        tls_config: dict = get_tls_config(config)
+        tls_config: ConfigParser = get_tls_config(config)
 
         client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
         client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
@@ -138,10 +151,12 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
         client_ciphers = tls_config.get("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
 
         # If the cert's CA isn't in our trust chain, set this:
-        dont_verify = tls_config.get("PYTAK_TLS_DONT_VERIFY").lower() in pytak.BOOLEAN_TRUTH
+        dont_verify = tls_config.getboolean("PYTAK_TLS_DONT_VERIFY")
 
         # If the cert's CN doesn't match the hostname, set this:
-        dont_check_hostname = dont_verify or tls_config.get("PYTAK_TLS_DONT_CHECK_HOSTNAME").lower() in pytak.BOOLEAN_TRUTH
+        dont_check_hostname = dont_verify or tls_config.getboolean(
+            "PYTAK_TLS_DONT_CHECK_HOSTNAME"
+        )
 
         # SSL Context setup:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -179,7 +194,8 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
     elif "udp" in scheme:
         writer = await pytak.create_udp_client(cot_url)
     elif "http" in scheme:
-        writer = await pytak.create_tc_client(cot_url)
+        raise Exception("TeamConnect / Sit(x) Support comming soon.")
+        # writer = await pytak.create_tc_client(cot_url)
     elif "log" in scheme:
         dest: str = cot_url.hostname.lower()
         if "stderr" in dest:
@@ -194,90 +210,72 @@ async def protocol_factory(config: Union[dict, configparser.ConfigParser]) -> An
     return reader, writer
 
 
-async def eventworker_factory(config: dict, event_queue: asyncio.Queue) -> pytak.Worker:
+async def txworker_factory(
+    queue: asyncio.Queue, config: SectionProxy
+) -> pytak.TXWorker:
     """
-    Creates a COT Event Worker based on URL parameters.
+    Creates a PyTAK TXWorker based on URL parameters.
 
     :param cot_url: URL to COT Destination.
     :param event_queue: asyncio.Queue worker to get events from.
     :return: EventWorker or asyncio Protocol
     """
-    reader, writer = await protocol_factory(config)
-    return pytak.EventWorker(event_queue, config, writer)
+    _, writer = await protocol_factory(config)
+    return pytak.TXWorker(queue, config, writer)
 
 
-def tc_get_auth(
-    client_id: str, client_secret: str, scope_url: str = ".bridge-both"
-) -> dict:
+async def rxworker_factory(
+    queue: asyncio.Queue, config: SectionProxy
+) -> pytak.RXWorker:
     """
-    Authenticates against the Team Connect API.
+    Creates a PyTAK TXWorker based on URL parameters.
 
-    Returns the complete auth payload, including `access_token`
+    :param cot_url: URL to COT Destination.
+    :param event_queue: asyncio.Queue worker to get events from.
+    :return: EventWorker or asyncio Protocol
     """
-    payload: dict = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "scope": scope_url,
-    }
-    payload: str = json.dumps(payload)
-    url: str = pytak.DEFAULT_TC_TOKEN_URL
-
-    req: urllib.request.Request = urllib.request.Request(
-        url=url, data=bytes(payload.encode("utf-8")), method="POST"
-    )
-    req.add_header("Content-type", "application/json; charset=UTF-8")
-
-    with urllib.request.urlopen(req) as resp:
-        if resp.status == 200:
-            response_data = json.loads(resp.read().decode("utf-8"))
-            return response_data
-    return {}
+    reader, _ = await protocol_factory(config)
+    return pytak.RXWorker(queue, config, reader)
 
 
-async def main(app_name: str, config: Union[dict, configparser.ConfigParser]) -> None:
+async def main(app_name: str, config: SectionProxy) -> None:
     """
     Abstract implementation of an async main function.
-    
+
     Parameters
     ----------
-    app_name : str
+    app_name : `str`
         Name of the app calling this function.
-    config : dict, configparser.ConfigParser
+    config : `SectionProxy`
         A dict of configuration parameters & values.
-
-    Returns
-    -------
-    None
     """
     app = importlib.__import__(app_name)
-    clitool = pytak.CLITool(config)
+    clitool: pytak.CLITool = pytak.CLITool(config)
     create_tasks = getattr(app, "create_tasks")
     await clitool.setup()
     clitool.add_tasks(create_tasks(config, clitool))
     await clitool.run()
 
 
-def cli(app_name: str, main_func: str = "main") -> None:
+def cli(app_name: str) -> None:
     """
     Abstract implementation of a Command Line Interface (CLI).
 
     Parameters
     ----------
-    app_name : str
+    app_name : `str`
         Name of the app calling this function.
-    main_func : str
-        Name of the main function to call within the app.
-
-    Returns
-    -------
-    None
     """
     app = importlib.__import__(app_name)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-c", "--CONFIG_FILE", dest="CONFIG_FILE", default="config.ini", type=str, help="Optional configuration file. Default: config.ini"
+        "-c",
+        "--CONFIG_FILE",
+        dest="CONFIG_FILE",
+        default="config.ini",
+        type=str,
+        help="Optional configuration file. Default: config.ini",
     )
     namespace = parser.parse_args()
     cli_args = {k: v for k, v in vars(namespace).items() if v is not None}
@@ -287,7 +285,7 @@ def cli(app_name: str, main_func: str = "main") -> None:
     env_vars["COT_URL"] = env_vars.get("COT_URL", pytak.DEFAULT_COT_URL)
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"
     env_vars["COT_STALE"] = getattr(app, "DEFAULT_COT_STALE", pytak.DEFAULT_COT_STALE)
-    config = configparser.ConfigParser(env_vars)
+    config: ConfigParser = ConfigParser(env_vars)
 
     config_file = cli_args.get("CONFIG_FILE")
     if os.path.exists(config_file):
@@ -296,11 +294,12 @@ def cli(app_name: str, main_func: str = "main") -> None:
     else:
         config.add_section(app_name)
 
-    config = config[app_name]
+    config: SectionProxy = config[app_name]
 
     debug = config.getboolean("DEBUG")
     if debug:
-        import pprint
+        import pprint  # pylint: disable=import-outside-toplevel
+
         print("Showing Config: %s", config_file)
         print("=" * 10)
         pprint.pprint(config)
@@ -314,3 +313,34 @@ def cli(app_name: str, main_func: str = "main") -> None:
             loop.run_until_complete(main(app_name, config))
         finally:
             loop.close()
+
+
+# TeamConnect / Sit(x) Support TK:
+#
+# def tc_get_auth(
+#     client_id: str, client_secret: str, scope_url: str = ".bridge-both"
+# ) -> dict:
+#     """
+#     Authenticates against the Team Connect API.
+
+#     Returns the complete auth payload, including `access_token`
+#     """
+#     payload: dict = {
+#         "grant_type": "client_credentials",
+#         "client_id": client_id,
+#         "client_secret": client_secret,
+#         "scope": scope_url,
+#     }
+#     payload: str = json.dumps(payload)
+#     url: str = pytak.DEFAULT_TC_TOKEN_URL
+
+#     req: urllib.request.Request = urllib.request.Request(
+#         url=url, data=bytes(payload.encode("utf-8")), method="POST"
+#     )
+#     req.add_header("Content-type", "application/json; charset=UTF-8")
+
+#     with urllib.request.urlopen(req) as resp:
+#         if resp.status == 200:
+#             response_data = json.loads(resp.read().decode("utf-8"))
+#             return response_data
+#     return {}

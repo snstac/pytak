@@ -19,12 +19,10 @@
 """PyTAK Class Definitions."""
 
 import asyncio
-import configparser
 import logging
-import queue
 import random
 
-from urllib.parse import ParseResult, urlparse
+from configparser import ConfigParser
 
 import pytak
 
@@ -46,12 +44,12 @@ class Worker:  # pylint: disable=too-few-public-methods
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, queue: asyncio.Queue, config: dict=None) -> None:
+    def __init__(self, queue: asyncio.Queue, config: ConfigParser = None) -> None:
         self.queue: asyncio.Queue = queue
         if config:
             self.config = config
         else:
-            config_p = configparser.ConfigParser({})
+            config_p = ConfigParser({})
             config_p.add_section("pytak")
             self.config = config_p["pytak"]
 
@@ -64,22 +62,22 @@ class Worker:  # pylint: disable=too-few-public-methods
         """
         pytak_sleep: int = self.config.get("PYTAK_SLEEP", 0)
         if self.config.getboolean("FTS_COMPAT") or pytak_sleep:
-            sleep_period: int = int(pytak_sleep or (pytak.DEFAULT_SLEEP * random.random())
+            sleep_period: int = int(
+                pytak_sleep or (pytak.DEFAULT_SLEEP * random.random())
             )
             self._logger.debug("COMPAT: Sleeping for %ss", sleep_period)
             await asyncio.sleep(sleep_period)
 
     async def handle_data(self, data: bytes) -> None:
         """Placeholder handle_data Method for this Class."""
+        del data
         self._logger.warning("Overwrite this method!")
 
     async def run(self, number_of_iterations=-1):
         """
-        Runs EventWorker Thread, reads in CoT Event Queue & passes COT Events
-        to COT Event Handler.
+        Runs this Thread, reads Data from Queue & passes data to next Handler.
         """
         self._logger.info("Running %s", self.__class__)
-
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
@@ -93,17 +91,17 @@ class Worker:  # pylint: disable=too-few-public-methods
 
 class TXWorker(Worker):  # pylint: disable=too-few-public-methods
     """
-    EventWorker handles getting Cursor on Target Events from a queue, and
-    passing them off to a Transport Worker.
+    Gets Data from a Queue from a queue and hands it off to a Protocol Worker.
 
-    You should create an EventWorker Instance using the
-    `pytak.eventworker_factory` Function.
+    You should create an TXWorker Instance using the `pytak.txworker_factory()`
+    Function.
 
-    CoT Events are put onto the CoT Event Queue using `pytak.MessageWorker`
-    Class.
+    Data is put onto the Queue using a `pytak.QueueWorker()` instance.
     """
 
-    def __init__(self, queue: asyncio.Queue, config: dict, writer: asyncio.Protocol) -> None:
+    def __init__(
+        self, queue: asyncio.Queue, config: ConfigParser, writer: asyncio.Protocol
+    ) -> None:
         super().__init__(queue, config)
         self.writer: asyncio.Protocol = writer
 
@@ -115,8 +113,8 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
         self._logger.debug("Handling data='%s'", data)
         await self.send_data(data)
 
-    async def send_data(self, data) -> None:
-        """Sends an event with the appropriate 'tx' method."""
+    async def send_data(self, data: bytes) -> None:
+        """Sends Data using the appropriate AsyncIO Protocol method."""
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
         else:
@@ -137,15 +135,17 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     pytak([asyncio.Protocol]->[pytak.EventReceiver]->[queue.Queue])
     """
 
-    def __init__(self, queue: asyncio.Queue, config: dict, reader: asyncio.Protocol) -> None:
+    def __init__(
+        self, queue: asyncio.Queue, config: dict, reader: asyncio.Protocol
+    ) -> None:
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
 
-    async def run(self) -> None:
+    async def run(self, number_of_iterations=-1) -> None:
         self._logger.info("Running %s", self.__class__)
 
         while 1:
-            data = await self.queue.get()
+            data: bytes = await self.queue.get()
             self._logger.debug("data='%s'", data)
 
 
@@ -167,10 +167,10 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
         self._logger.info("Using COT Dest.: %s", self.config.get("COT_URL"))
 
     async def put_queue(self, data: bytes) -> None:
-        """Puts Data onto the COT Event Queue."""
+        """Puts Data onto the Queue."""
         try:
             await self.queue.put(data)
-        except queue.Full:
+        except asyncio.QueueFull:
             self._logger.warning("Lost Data (queue full): '%s'", data)
 
 
@@ -187,14 +187,21 @@ class CLITool:
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, config):
+    def __init__(self, config: ConfigParser) -> None:
         self.tasks = set()
         self.running_tasks = set()
         self.tx_queue: asyncio.Queue = asyncio.Queue()
         self.rx_queue: asyncio.Queue = asyncio.Queue()
         self.config = config
 
-    async def setup(self):
+        if self.config.getboolean("DEBUG", False):
+            _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
+
+    async def setup(self) -> None:
+        """
+        Sets up CLITool, creates protocols, queue workers and adds them to
+        our task list.
+        """
         # Create our TX & RX Protocol Worker
         reader, writer = await pytak.protocol_factory(self.config)
         write_worker = pytak.TXWorker(self.tx_queue, self.config, writer)
@@ -203,32 +210,40 @@ class CLITool:
         self.add_task(read_worker)
 
     async def hello_event(self):
+        """Sends a 'hello world' style event to the Queue."""
         await self.tx_queue.put(pytak.hello_event(self.config.get("COT_HOST_ID")))
 
     def add_task(self, task):
+        """Adds the given task to our coroutine task list."""
         self._logger.debug("Adding Task: %s", task)
         self.tasks.add(task)
 
     def add_tasks(self, tasks):
+        """Adds the given list or set of tasks to our couroutine task list."""
         for task in tasks:
             self.add_task(task)
 
     def run_task(self, task):
+        """Runs the given coroutine task."""
         self._logger.debug("Running Task: %s", task)
         self.running_tasks.add(asyncio.ensure_future(task.run()))
 
     def run_tasks(self, tasks=None):
+        """Runs the given list or set of couroutine tasks."""
         tasks = tasks or self.tasks
         for task in tasks:
             self.run_task(task)
 
     async def run(self):
-        self._logger.info("Running CLITool")
+        """Runs this Thread and its associated coroutine tasks."""
+        self._logger.info("Running %s", self.__class__)
+
         await self.hello_event()
         self.run_tasks()
+
         done, _ = await asyncio.wait(
             self.running_tasks, return_when=asyncio.FIRST_COMPLETED
         )
 
         for task in done:
-            self._logger.info(f"Completed Task: {task}")
+            self._logger.info("Completed Task: %s", task)

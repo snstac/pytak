@@ -70,13 +70,7 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_CLIENT_CAFILE",
     "PYTAK_TLS_CLIENT_CIPHERS",
     "PYTAK_TLS_DONT_CHECK_HOSTNAME",
-    "PYTAK_TLS_DONT_VERIFY"
+    "PYTAK_TLS_DONT_VERIFY",
 ]
 
-BOOLEAN_TRUTH: list = [
-    "true",
-    "yes",
-    "y",
-    "on",
-    "1"
-]
+BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
