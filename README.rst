@@ -15,7 +15,7 @@ PyTAK supports the following network protocols:
 * TLS Unicast: ``tls://host:port`` (see 'TLS Support' section below)
 * UDP Unicast: ``udp://host:port``
 * UDP Broadcast: ``udp+broadcast://network:port``
-* UDP Mulicast: ``udp://group:port``
+* UDP Multicast: ``udp://group:port``
 * STDOUT/STDERR: ``log://stdout`` or ``log://stderr``
 
 PyTAK has been tested and is compatible with many SA & COP systems.
