@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Debian/Apt bdist_deb
         run: |
-          export REPO_NAME=$(echo ${github.repository} | awk -F"/" '{print $2}')
+          export REPO_NAME=$(echo ${{ github.repository }} | awk -F"/" '{print $2}')
           python3 setup.py --command-packages=stdeb.command bdist_deb
           ls -al deb_dist/
           cp deb_dist/python3-${REPO_NAME}_*_all.deb deb_dist/python3-${REPO_NAME}_latest_all.deb
