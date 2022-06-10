@@ -130,7 +130,16 @@ async def protocol_factory(  # pylint: disable=too-many-locals,too-many-branches
     reader = None
     writer = None
 
-    cot_url: ParseResult = urlparse(config.get("COT_URL"))
+    _cot_url: str = config.get("COT_URL")
+
+    if "://" not in _cot_url:
+        print("ERROR: Invalid COT_URL: %s", _cot_url)
+        raise Exception(
+            "Please specify COT_URL as a full URL, including '://', for "
+            "example: tcp://tak.example.com:1234"
+        )
+
+    cot_url: ParseResult = urlparse(_cot_url)
     scheme: str = cot_url.scheme.lower()
 
     if scheme in ["tcp"]:
