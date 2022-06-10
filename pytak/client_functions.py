@@ -43,9 +43,7 @@ from pytak.asyncio_dgram import (
 if sys.version_info[:2] >= (3, 7):
     from asyncio import get_running_loop
 else:
-    from asyncio import (  # pylint: disable=no-name-in-module
-        _get_running_loop as get_running_loop,
-    )
+    from asyncio import get_event_loop as get_running_loop
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2022 Greg Albrecht"
