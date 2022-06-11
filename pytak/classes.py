@@ -145,9 +145,12 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self._logger.info("Running %s", self.__class__)
 
         while 1:
-            data: bytes = await self.queue.get()
+            data = await self.reader.readuntil(separator=b'</event>')
             self._logger.debug("data='%s'", data)
-
+            try:
+                await self.queue.put(data)
+            except asyncio.QueueFull:
+                self._logger.warning("Lost Data (queue full): '%s'", data)
 
 class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
     """
@@ -172,6 +175,12 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
             await self.queue.put(data)
         except asyncio.QueueFull:
             self._logger.warning("Lost Data (queue full): '%s'", data)
+
+    async def run(self) -> None:
+        # extend this class and implement your whatever-to-cot serialization here
+        data = b'<event>invalid</event>'
+        await self.put_queue(data)
+        self._logger.warning("Overwrite this method!")
 
 
 class CLITool:
