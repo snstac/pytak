@@ -105,7 +105,7 @@ async def test_eventworker():
     transport.is_closing = mock.Mock()
     protocol._drain_helper = make_mocked_coro()
 
-    loop = asyncio.get_running_loop()
+    loop = get_running_loop()
     writer = asyncio.StreamWriter(transport, protocol, None, loop)
 
     worker: pytak.Worker = pytak.TXWorker(event_queue, {}, writer)
