@@ -28,12 +28,18 @@ Some methods borrowed from https://github.com/aio-libs/aiohttp"""
 import asyncio
 import enum
 import inspect
-
+import sys
 from unittest import mock
 
 import pytest
 
 import pytak
+
+# Python 3.6 support:
+if sys.version_info[:2] >= (3, 7):
+    from asyncio import get_running_loop
+else:
+    from asyncio import get_event_loop as get_running_loop
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
@@ -99,7 +105,7 @@ async def test_eventworker():
     transport.is_closing = mock.Mock()
     protocol._drain_helper = make_mocked_coro()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     writer = asyncio.StreamWriter(transport, protocol, None, loop)
 
     worker: pytak.Worker = pytak.TXWorker(event_queue, {}, writer)

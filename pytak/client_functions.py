@@ -147,7 +147,7 @@ async def protocol_factory(  # pylint: disable=too-many-locals,too-many-branches
         reader, writer = await asyncio.open_connection(host, port)
     elif scheme in ["tls", "ssl"]:
         host, port = pytak.parse_url(cot_url)
-        tls_config: ConfigParser = get_tls_config(config)
+        tls_config: SectionProxy = get_tls_config(config)
 
         client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
         client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
@@ -224,8 +224,8 @@ async def txworker_factory(
     Creates a PyTAK TXWorker based on URL parameters.
 
     :param cot_url: URL to COT Destination.
-    :param event_queue: asyncio.Queue worker to get events from.
-    :return: EventWorker or asyncio Protocol
+    :param queue: asyncio.Queue worker to get events from.
+    :return: TXWorker or asyncio Protocol
     """
     _, writer = await protocol_factory(config)
     return pytak.TXWorker(queue, config, writer)
@@ -235,11 +235,11 @@ async def rxworker_factory(
     queue: asyncio.Queue, config: SectionProxy
 ) -> pytak.RXWorker:
     """
-    Creates a PyTAK TXWorker based on URL parameters.
+    Creates a PyTAK RXWorker based on URL parameters.
 
-    :param cot_url: URL to COT Destination.
-    :param event_queue: asyncio.Queue worker to get events from.
-    :return: EventWorker or asyncio Protocol
+    :param cot_url: URL of COT Source.
+    :param queue: asyncio.Queue worker to put received events.
+    :return: RXWorker or asyncio Protocol
     """
     reader, _ = await protocol_factory(config)
     return pytak.RXWorker(queue, config, reader)

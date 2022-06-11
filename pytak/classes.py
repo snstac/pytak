@@ -22,7 +22,7 @@ import asyncio
 import logging
 import random
 
-from configparser import ConfigParser
+from configparser import SectionProxy
 
 import pytak
 
@@ -44,7 +44,7 @@ class Worker:  # pylint: disable=too-few-public-methods
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, queue: asyncio.Queue, config: ConfigParser = None) -> None:
+    def __init__(self, queue: asyncio.Queue, config: SectionProxy = None) -> None:
         self.queue: asyncio.Queue = queue
         if config:
             self.config = config
@@ -100,7 +100,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
     """
 
     def __init__(
-        self, queue: asyncio.Queue, config: ConfigParser, writer: asyncio.Protocol
+        self, queue: asyncio.Queue, config: SectionProxy, writer: asyncio.Protocol
     ) -> None:
         super().__init__(queue, config)
         self.writer: asyncio.Protocol = writer
@@ -124,7 +124,6 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
             if hasattr(self.writer, "flush"):
                 self.writer.flush()
 
-
 class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     """
     Async receive (input) queue worker. Reads events from a
@@ -132,7 +131,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     Most implementations use this to drain an RX buffer on a socket.
 
-    pytak([asyncio.Protocol]->[pytak.EventReceiver]->[queue.Queue])
+    pytak([asyncio.Protocol]->[pytak.RXWorker]->[queue.Queue])
     """
 
     def __init__(
@@ -158,11 +157,11 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
     network client, serializes it as COT, and puts it onto an `asyncio.Queue`.
 
     Implementations should handle serializing messages as COT Events, and
-    putting them onto the `event_queue`.
+    putting them onto the `queue`.
 
-    The `event_queue` is handled by the `pytak.EventWorker` Class.
+    The `queue` is handled by the `pytak.TXWorker` Class.
 
-    pytak([asyncio.Protocol]->[pytak.MessageWorker]->[asyncio.Queue])
+    pytak([asyncio.Protocol]->[pytak.QueueWorker]->[asyncio.Queue])
     """
 
     def __init__(self, queue: asyncio.Queue, config: dict) -> None:
@@ -196,7 +195,7 @@ class CLITool:
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, config: ConfigParser) -> None:
+    def __init__(self, config: SectionProxy) -> None:
         self.tasks = set()
         self.running_tasks = set()
         self.tx_queue: asyncio.Queue = asyncio.Queue()

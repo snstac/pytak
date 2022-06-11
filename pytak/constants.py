@@ -72,5 +72,3 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_DONT_CHECK_HOSTNAME",
     "PYTAK_TLS_DONT_VERIFY",
 ]
-
-BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]

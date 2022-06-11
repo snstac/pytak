@@ -3,6 +3,12 @@ import pathlib
 import socket
 import warnings
 
+# Python 3.6 support:
+if sys.version_info[:2] >= (3, 7):
+    from asyncio import get_running_loop
+else:
+    from asyncio import get_event_loop as get_running_loop
+
 __all__ = ("TransportClosed", "bind", "connect", "from_socket", "DatagramClient")
 
 
@@ -221,7 +227,7 @@ async def bind(addr):
                   abstract sockets).
     @return     - A DatagramServer instance
     """
-    loop = asyncio.get_event_loop()
+    loop = get_running_loop()
     recvq = asyncio.Queue()
     excq = asyncio.Queue()
     drained = asyncio.Event()
@@ -254,7 +260,7 @@ async def connect(addr):
                   for abstract sockets).
     @return     - A DatagramClient instance
     """
-    loop = asyncio.get_event_loop()
+    loop = get_running_loop()
     recvq = asyncio.Queue()
     excq = asyncio.Queue()
     drained = asyncio.Event()
@@ -287,7 +293,7 @@ async def from_socket(sock):
     @return     - A DatagramClient for connected sockets, otherwise a
                   DatagramServer.
     """
-    loop = asyncio.get_event_loop()
+    loop = get_running_loop()
     recvq = asyncio.Queue()
     excq = asyncio.Queue()
     drained = asyncio.Event()
