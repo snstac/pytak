@@ -2,6 +2,7 @@ import asyncio
 import pathlib
 import socket
 import warnings
+import sys
 
 # Python 3.6 support:
 if sys.version_info[:2] >= (3, 7):
