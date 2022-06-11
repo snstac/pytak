@@ -22,7 +22,7 @@ import asyncio
 import logging
 import random
 
-from configparser import SectionProxy
+from configparser import ConfigParser, SectionProxy
 
 import pytak
 
