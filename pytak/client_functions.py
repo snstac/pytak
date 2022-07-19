@@ -306,7 +306,7 @@ def cli(app_name: str) -> None:
     debug = config.getboolean("DEBUG")
     if debug:
         import pprint  # pylint: disable=import-outside-toplevel
-
+        # FIXME: This doesn't work with weird bash escape stuff.
         print("Showing Config: %s", config_file)
         print("=" * 10)
         pprint.pprint(config)

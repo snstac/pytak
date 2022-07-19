@@ -50,7 +50,7 @@ clean:
 		*/__pycache__
 
 pep8:
-	flake8 --max-line-length=88 --extend-ignore=E203 --exit-zero $(this_app)/*.py
+	flake8 --max-line-length=88 --extend-ignore=E203,E231 --exit-zero $(this_app)/*.py
 
 flake8: pep8
 
