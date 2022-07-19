@@ -66,7 +66,7 @@ Usage
 =====
 
 The following Python 3.7+ code example creates a TAK Client that generates ``takPong`` 
-Cursor-On-Target Events every 20 seconds and sends them to a TAK Server at ``localhost:8087``, 
+Cursor-On-Target Events every 20 seconds and sends them to a TAK Server at ``takserver.example.com:8087``, 
 without TLS. (If you'd like to do the same with TLS see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ below.)::
 
     #!/usr/bin/env python3
