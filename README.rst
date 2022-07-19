@@ -65,10 +65,9 @@ efforts is greatly appreciated.
 Usage
 =====
 
-The following Python 3.7+ code example creates a Cursor-On-Target Client that
-gets events from an Event Queue and transmits them to our destination URL
-using TCP. Events are put onto the Queue by the Message Worker (QED). Events
-are expected to be serialized XML COT::
+The following Python 3.7+ code example creates a TAK Client that generates ``takPong`` 
+Cursor-On-Target Events every 20 seconds and sends them to a TAK Server at ``localhost:8087``, 
+without TLS. (If you'd like to do the same with TLS see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ below.)::
 
     #!/usr/bin/env python3
 
@@ -120,13 +119,11 @@ are expected to be serialized XML COT::
 
     async def main():
         """
-        The main definition of your program, sets config params and 
+        The main definition of your program, sets config params and
         adds your serializer to the asyncio task list.
         """
         config = ConfigParser()
-        config["mycottool"] = {
-            "COT_URL": "tcp://takserver.example.com:8087"
-        }
+        config["mycottool"] = {"COT_URL": "tcp://takserver.example.com:8087"}
         config = config["mycottool"]
 
         # Initializes worker queues and tasks.
@@ -140,8 +137,9 @@ are expected to be serialized XML COT::
         await clitool.run()
 
 
-    if __name__ == '__main__':
+    if __name__ == "__main__":
         asyncio.run(main())
+
 
 
 
