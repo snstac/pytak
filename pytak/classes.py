@@ -77,7 +77,7 @@ class Worker:  # pylint: disable=too-few-public-methods
         """
         Runs this Thread, reads Data from Queue & passes data to next Handler.
         """
-        self._logger.info("Running %s", self.__class__)
+        self._logger.info("Run: %s", self.__class__)
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
@@ -110,7 +110,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
         COT Event Handler, accepts COT Events from the COT Event Queue and
         processes them for writing.
         """
-        self._logger.debug("Handling data='%s'", data)
+        self._logger.debug("TX: %s", data)
         await self.send_data(data)
 
     async def send_data(self, data: bytes) -> None:
@@ -141,12 +141,19 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
 
+    async def readcot(self):
+        return await self.reader.readuntil("</event>".encode("UTF-8"))
+
     async def run(self, number_of_iterations=-1) -> None:
-        self._logger.info("Running %s", self.__class__)
+        self._logger.info("Run: %s", self.__class__)
 
         while 1:
-            data: bytes = await self.queue.get()
-            self._logger.debug("data='%s'", data)
+            if self.reader:
+                data: bytes = await self.readcot()
+                self._logger.debug("RX: %s", data)
+                self.queue.put_nowait(data)
+            else:
+                await asyncio.sleep(0.01)
 
 
 class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
@@ -164,7 +171,7 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
 
     def __init__(self, queue: asyncio.Queue, config: dict) -> None:
         super().__init__(queue, config)
-        self._logger.info("Using COT Dest.: %s", self.config.get("COT_URL"))
+        self._logger.info("COT Dest: %s", self.config.get("COT_URL"))
 
     async def put_queue(self, data: bytes) -> None:
         """Puts Data onto the Queue."""
@@ -215,7 +222,7 @@ class CLITool:
 
     def add_task(self, task):
         """Adds the given task to our coroutine task list."""
-        self._logger.debug("Adding Task: %s", task)
+        self._logger.debug("Add: %s", task)
         self.tasks.add(task)
 
     def add_tasks(self, tasks):
@@ -225,7 +232,7 @@ class CLITool:
 
     def run_task(self, task):
         """Runs the given coroutine task."""
-        self._logger.debug("Running Task: %s", task)
+        self._logger.debug("Run: %s", task)
         self.running_tasks.add(asyncio.ensure_future(task.run()))
 
     def run_tasks(self, tasks=None):
@@ -236,7 +243,7 @@ class CLITool:
 
     async def run(self):
         """Runs this Thread and its associated coroutine tasks."""
-        self._logger.info("Running %s", self.__class__)
+        self._logger.info("Run: %s", self.__class__)
 
         await self.hello_event()
         self.run_tasks()
@@ -246,4 +253,4 @@ class CLITool:
         )
 
         for task in done:
-            self._logger.info("Completed Task: %s", task)
+            self._logger.info("Complete: %s", task)
