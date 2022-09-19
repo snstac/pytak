@@ -74,3 +74,4 @@ DEFAULT_TLS_PARAMS_OPT: list = [
 ]
 
 BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
+DEFAULT_COT_VAL: str = "9999999.0"
