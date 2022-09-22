@@ -6,8 +6,8 @@ pytak - Python Team Awareness Kit (PyTAK) Module.
 
 
 PyTAK is a Python Module for creating TAK clients, servers & gateways and include 
-classes for handling Cursor-On-Target (COT) Events & non-COT Messages, as well 
-as functions for serializing COT Events.
+classes for handling Cursor on Target (CoT) Events & non-CoT Messages, as well 
+as functions for serializing CoT Events.
 
 PyTAK supports the following network protocols:
 
@@ -16,9 +16,9 @@ PyTAK supports the following network protocols:
 * UDP Unicast: ``udp://host:port``
 * UDP Broadcast: ``udp+broadcast://network:port``
 * UDP Multicast: ``udp://group:port``
-* STDOUT/STDERR: ``log://stdout`` or ``log://stderr``
+* stdout or stderr: ``log://stdout`` or ``log://stderr``
 
-PyTAK has been tested and is compatible with many SA & COP systems.
+PyTAK has been tested and is compatible with many situational awareness & common operating picture systems (SA & COP).
 
 Servers:
 
@@ -35,7 +35,7 @@ Clients:
 * RaptorX
 * COPERS
 
-PyTAK is used by many COT gateways:
+PyTAK is used by many CoT & TAK gateways:
 
 * `aiscot <https://github.com/ampledata/aiscot>`_: Automatic Identification System (AIS) to COT Gateway. Transforms marine AIS position messages to COT PLI Events.
 * `adsbcot <https://github.com/ampledata/adsbcot>`_: Automatic Dependent Surveillance-Broadcast (ADS-B) to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
@@ -196,10 +196,10 @@ Configuration Parameters
 All configuration parameters can be specified either as environment variables or 
 within an INI-style configuration file.
 
-* ``COT_URL``: (*optional*) Destination for Cursor-On-Target messages. Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP Default)
+* ``COT_URL``: (*optional*) Destination for Cursor on Target messages. Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP Default)
 * ``DEBUG``: (*optional*) Sets debug-level logging.
 * ``FTS_COMPAT``: (*optional*) If set, implements random-sleep period to avoid FTS DoS protections.
-* ``PYTAK_SLEEP``: (*optional*) If set, implements given sleep period between emitting COT Events.
+* ``PYTAK_SLEEP``: (*optional*) If set, implements given sleep period between emitting CoT Events.
 
 
 TLS Support
@@ -239,27 +239,18 @@ FreeTAKServer Support
 =====================
 
 FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which 
-restricts the number of COT Events a client can send to a listening TCP Port. 
+restricts the number of CoT Events a client can send to a listening TCP Port. 
 Currently this FTS feature cannot be disabled or changed, so clients must 
 meter their input speed.
 
-To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` Environment 
-Variable to ``1``. This will cause the PyTAK client to sleep a random number of 
-seconds between transmitting CoT to a FTS server::
+To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` configuration parameter to ``True``
+This will cause the PyTAK client to sleep a random number of seconds between transmitting CoT to a FTS server::
 
-    export FTS_COMPAT=1
-    aprscot ...
+    FTS_COMPAT = True
 
-Or, inline::
+Alternatively you can specify a static sleep period by setting ``PYTAK_SLEEP`` to an integer number of seconds::
 
-    FTS_COMPAT=1 aprscot
-
-
-Alternatively you can specify a static sleep period by setting ``PYTAK_SLEEP`` to 
-an integer number of seconds::
-
-    export PYTAK_SLEEP=3
-    spotcot ...
+    PYTAK_SLEEP = 3
 
 
 Source
@@ -301,7 +292,4 @@ limitations under the License.
 
 Style
 =====
-1. Prefer double-quotes over single quotes.
-2. Prefer spaces over tabs.
-3. Follow PEP-8.
-4. Follow Google Python Style.
+Python Black, otherwise Google, then PEP-8.

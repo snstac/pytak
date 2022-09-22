@@ -20,7 +20,11 @@
 
 import asyncio
 import logging
+import multiprocessing as mp
+import queue
 import random
+
+from typing import Union
 
 from configparser import ConfigParser
 
@@ -44,8 +48,10 @@ class Worker:  # pylint: disable=too-few-public-methods
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, queue: asyncio.Queue, config: ConfigParser = None) -> None:
-        self.queue: asyncio.Queue = queue
+    def __init__(
+        self, queue: Union[asyncio.Queue, mp.Queue], config: ConfigParser = None
+    ) -> None:
+        self.queue: Union[asyncio.Queue, mp.Queue] = queue
         if config:
             self.config = config
         else:
@@ -78,14 +84,25 @@ class Worker:  # pylint: disable=too-few-public-methods
         Runs this Thread, reads Data from Queue & passes data to next Handler.
         """
         self._logger.info("Run: %s", self.__class__)
+
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
-            data = await self.queue.get()
+            await asyncio.sleep(0)
+
+            data = None
+
+            try:
+                data = self.queue.get_nowait()
+            except (asyncio.QueueEmpty, queue.Empty):
+                continue
+
             if not data:
                 continue
+
             await self.handle_data(data)
             await self.fts_compat()
+
             number_of_iterations -= 1
 
 
@@ -114,7 +131,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
         await self.send_data(data)
 
     async def send_data(self, data: bytes) -> None:
-        """Sends Data using the appropriate AsyncIO Protocol method."""
+        """Sends Data using the appropriate Protocol method."""
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
         else:
@@ -122,6 +139,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
             if hasattr(self.writer, "drain"):
                 await self.writer.drain()
             if hasattr(self.writer, "flush"):
+                # FIXME: This should be an asyncio.Future?:
                 self.writer.flush()
 
 
@@ -148,12 +166,11 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self._logger.info("Run: %s", self.__class__)
 
         while 1:
+            await asyncio.sleep(0)
             if self.reader:
                 data: bytes = await self.readcot()
                 self._logger.debug("RX: %s", data)
                 self.queue.put_nowait(data)
-            else:
-                await asyncio.sleep(0.01)
 
 
 class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
@@ -194,12 +211,18 @@ class CLITool:
         _logger.propagate = False
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
-    def __init__(self, config: ConfigParser) -> None:
+    def __init__(
+        self,
+        config: ConfigParser,
+        tx_queue: Union[asyncio.Queue, None] = None,
+        rx_queue: Union[asyncio.Queue, None] = None,
+    ) -> None:
         self.tasks = set()
         self.running_tasks = set()
-        self.tx_queue: asyncio.Queue = asyncio.Queue()
-        self.rx_queue: asyncio.Queue = asyncio.Queue()
+
         self.config = config
+        self.tx_queue: Union[asyncio.Queue, None] = tx_queue or asyncio.Queue()
+        self.rx_queue: Union[asyncio.Queue, None] = rx_queue or asyncio.Queue()
 
         if self.config.getboolean("DEBUG", False):
             _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
@@ -218,11 +241,13 @@ class CLITool:
 
     async def hello_event(self):
         """Sends a 'hello world' style event to the Queue."""
-        await self.tx_queue.put(pytak.hello_event(self.config.get("COT_HOST_ID")))
+        hello = pytak.hello_event(self.config.get("COT_HOST_ID"))
+        if hello:
+            self.tx_queue.put_nowait(hello)
 
     def add_task(self, task):
         """Adds the given task to our coroutine task list."""
-        self._logger.debug("Add: %s", task)
+        self._logger.debug("Add Task: %s", task)
         self.tasks.add(task)
 
     def add_tasks(self, tasks):
@@ -232,7 +257,7 @@ class CLITool:
 
     def run_task(self, task):
         """Runs the given coroutine task."""
-        self._logger.debug("Run: %s", task)
+        self._logger.debug("Run Task: %s", task)
         self.running_tasks.add(asyncio.ensure_future(task.run()))
 
     def run_tasks(self, tasks=None):
