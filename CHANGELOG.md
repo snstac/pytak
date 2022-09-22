@@ -1,3 +1,8 @@
+PyTAK 5.2.1b1
+-----
+Readme cleanup.
+
+
 PyTAK 5.2.0
 -----
 New Features:

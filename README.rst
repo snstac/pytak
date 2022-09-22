@@ -1,15 +1,15 @@
-pytak - Python Team Awareness Kit (PyTAK) Module.
-*************************************************
+Python Team Awareness Kit (PyTAK)
+*********************************
+
 .. image:: https://raw.githubusercontent.com/ampledata/adsbxcot/main/docs/Screenshot_20201026-142037_ATAK-25p.jpg
    :alt: Screenshot of ADS-B PLI in ATAK.
    :target: https://github.com/ampledata/adsbxcot/blob/main/docs/Screenshot_20201026-142037_ATAK.jpg
 
 
-PyTAK is a Python Module for creating TAK clients, servers & gateways and include 
-classes for handling Cursor on Target (CoT) Events & non-CoT Messages, as well 
-as functions for serializing CoT Events.
+PyTAK is a Python Module for creating TAK clients, servers & gateways and includes classes for handling 
+Cursor-on-Target (CoT) & non-CoT data, as well as functions for serializing CoT data.
 
-PyTAK supports the following network protocols:
+PyTAK supports the following I/O & network protocols:
 
 * TCP Unicast: ``tcp://host:port``
 * TLS Unicast: ``tls://host:port`` (see 'TLS Support' section below)
@@ -65,10 +65,13 @@ efforts is greatly appreciated.
 Usage
 =====
 
-The following Python 3.7+ code example creates a TAK Client that generates ``takPong`` 
-Cursor-On-Target Events every 20 seconds and sends them to a TAK Server at ``takserver.example.com:8087``, 
-without TLS. (If you'd like to do the same with TLS see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ below.). 
-To run this example as-is, save the following code-block out to a file named 'example.py' and run ``python3 example.py``::
+The following Python 3.7+ code example creates a TAK Client that generates ``takPong`` CoT every 20 seconds, and sends 
+them to a TAK Server at ``tcp://takserver.example.com:8087`` (plain / clear TCP).
+
+* For secure TLS, see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ below. 
+
+To run this example as-is, save the following code-block out to a file named ``example.py`` and run the command 
+``python3 example.py``::
 
     #!/usr/bin/env python3
 
@@ -147,15 +150,14 @@ To run this example as-is, save the following code-block out to a file named 'ex
 Requirements
 ============
 
-PyTAK requires Python 3.6 or above and WILL NOT work on Python versions 
-below 3.6 (that means no Python 2 support).
+PyTAK requires Python 3.6 or above and WILL NOT work on Python versions below 3.6. It should run on almost any platform 
+that supports Python 3.6+, including Linux, Windows, Raspberry Pi, Android, et al.
 
 
 Installation
 ============
 
-PyTAK is available as a Debian ``.deb`` package. This is the preferred way to 
-install PyTAK as it will pull in all of the required OS-level dependencies::
+PyTAK is available as a Debian ``.deb`` package. This is the preferred method to install PyTAK::
 
     $ wget https://github.com/ampledata/pytak/releases/latest/download/python3-pytak_latest_all.deb
     $ sudo apt install -f ./python3-pytak_latest_all.deb
@@ -164,26 +166,23 @@ install PyTAK as it will pull in all of the required OS-level dependencies::
 Alternative Installation
 ========================
 
-You can install from PyPI or from source. Both of these methods will require 
-additional OS libraries.
+You can install from PyPI or from source. Both of these methods will require manual installation of additional 
+libraries.
 
-Install LibFFI on Ubuntu::
+1a. Debian, Ubuntu, Raspberry Pi: Install `LibFFI <https://sourceware.org/libffi/>`_::
 
-  $ sudo apt-get install libffi-dev
+    $ sudo apt update -y
+    $ sudo apt install libffi-dev
 
-Install LibFFI on RedHat, Fedora, CentOS::
+1b. RedHat, CentOS: Install `LibFFI <https://sourceware.org/libffi/>`_::
 
-  $ sudo yum install libffi-devel
-  # or
-  $ sudo dnf install libffi-devel
+    $ sudo yum install libffi-devel
 
-
-Install PyTAK from the Python Package Index::
+2a. Install PyTAK from the Python Package Index::
 
     $ python3 -m pip install pytak
 
-
-Install PyTAK from this source tree::
+2b. Install PyTAK from source::
 
     $ git clone https://github.com/ampledata/pytak.git
     $ cd pytak/
@@ -193,8 +192,7 @@ Install PyTAK from this source tree::
 Configuration Parameters
 ========================
 
-All configuration parameters can be specified either as environment variables or 
-within an INI-style configuration file.
+All configuration parameters can be specified either as environment variables or within an INI-style configuration file.
 
 * ``COT_URL``: (*optional*) Destination for Cursor on Target messages. Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP Default)
 * ``DEBUG``: (*optional*) Sets debug-level logging.
@@ -238,9 +236,8 @@ For example, to send COT to a TAK Server listening for TLS connections on port
 FreeTAKServer Support
 =====================
 
-FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which 
-restricts the number of CoT Events a client can send to a listening TCP Port. 
-Currently this FTS feature cannot be disabled or changed, so clients must 
+FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which restricts the number of CoT Events a 
+client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must 
 meter their input speed.
 
 To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` configuration parameter to ``True``
