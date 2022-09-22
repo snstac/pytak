@@ -2,6 +2,10 @@
     :alt: Sponsor this project on GitHub sponsors.
     :target: https://github.com/sponsors/ampledata
 
+.. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
+    :target: https://www.buymeacoffee.com/ampledata
+    :alt: Support Development: Buy me a coffee!
+    
 Python Team Awareness Kit (PyTAK)
 *********************************
 
@@ -53,6 +57,13 @@ PyTAK is used by many CoT & TAK gateways:
 
 Support Development
 ===================
+.. image:: https://img.shields.io/github/sponsors/ampledata?label=Sponsor&logo=GitHub
+    :alt: Sponsor this project on GitHub sponsors.
+    :target: https://github.com/sponsors/ampledata
+
+.. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
+    :target: https://www.buymeacoffee.com/ampledata
+    :alt: Support Development: Buy me a coffee!
 
 **Tech Support**: Email support@undef.net or Signal/WhatsApp: +1-310-621-9598
 
@@ -60,10 +71,6 @@ This tool has been developed for the Disaster Response, Public Safety and
 Frontline Healthcare community. This software is currently provided at no-cost
 to users. Any contribution you can make to further this project's development
 efforts is greatly appreciated.
-
-.. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
-    :target: https://www.buymeacoffee.com/ampledata
-    :alt: Support Development: Buy me a coffee!
 
 
 Usage
