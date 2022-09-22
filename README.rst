@@ -1,5 +1,8 @@
 Python Team Awareness Kit (PyTAK)
 *********************************
+.. image:: https://img.shields.io/github/sponsors/ampledata?label=Sponsor&logo=GitHub
+    :alt: Sponsor this project on GitHub sponsors.
+    :target: https://github.com/sponsors/ampledata
 
 .. image:: https://raw.githubusercontent.com/ampledata/adsbxcot/main/docs/Screenshot_20201026-142037_ATAK-25p.jpg
    :alt: Screenshot of ADS-B PLI in ATAK.
