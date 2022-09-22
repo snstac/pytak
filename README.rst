@@ -1,11 +1,7 @@
 .. image:: https://img.shields.io/github/sponsors/ampledata?label=Sponsor&logo=GitHub
-    :alt: Sponsor this project on GitHub sponsors.
+    :alt: Support Development: Sponsor this project on GitHub sponsors.
     :target: https://github.com/sponsors/ampledata
 
-.. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
-    :target: https://www.buymeacoffee.com/ampledata
-    :alt: Support Development: Buy me a coffee!
-    
 Python Team Awareness Kit (PyTAK)
 *********************************
 
@@ -58,12 +54,16 @@ PyTAK is used by many CoT & TAK gateways:
 Support Development
 ===================
 .. image:: https://img.shields.io/github/sponsors/ampledata?label=Sponsor&logo=GitHub
-    :alt: Sponsor this project on GitHub sponsors.
+    :alt: Support Development: Sponsor this project on GitHub sponsors.
     :target: https://github.com/sponsors/ampledata
 
 .. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
     :target: https://www.buymeacoffee.com/ampledata
     :alt: Support Development: Buy me a coffee!
+
+.. image:: https://cdn.ko-fi.com/cdn/kofi1.png?v=3
+    :target: https://ko-fi.com/T6T3D6Z9G
+    :alt: Support Development: Buy Me a Coffee at ko-fi.com
 
 **Tech Support**: Email support@undef.net or Signal/WhatsApp: +1-310-621-9598
 
