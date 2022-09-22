@@ -12,7 +12,7 @@ Cursor-on-Target (CoT) & non-CoT data, as well as functions for serializing CoT 
 PyTAK supports the following I/O & network protocols:
 
 * TCP Unicast: ``tcp://host:port``
-* TLS Unicast: ``tls://host:port`` (see 'TLS Support' section below)
+* TLS Unicast: ``tls://host:port`` (see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ section below)
 * UDP Unicast: ``udp://host:port``
 * UDP Broadcast: ``udp+broadcast://network:port``
 * UDP Multicast: ``udp://group:port``
