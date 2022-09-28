@@ -1,4 +1,4 @@
-PyTAK 5.3.0
+PyTAK 5.3.1
 -----
 Readme cleanup.
 
