@@ -57,10 +57,11 @@ class Worker:  # pylint: disable=too-few-public-methods
         else:
             config_p = ConfigParser({})
             config_p.add_section("pytak")
-            self.config = config_p["pytak"]
-
+            self.config = config_p["pytak"] 
         if self.config.getboolean("DEBUG", False):
             _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
+
+        self.min_period=0.1
 
     async def fts_compat(self) -> None:
         """
@@ -88,7 +89,7 @@ class Worker:  # pylint: disable=too-few-public-methods
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
-            await asyncio.sleep(0)
+            await asyncio.sleep(self.min_period)
 
             data = None
 
@@ -166,7 +167,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self._logger.info("Run: %s", self.__class__)
 
         while 1:
-            await asyncio.sleep(0)
+            await asyncio.sleep(self.min_period)
             if self.reader:
                 data: bytes = await self.readcot()
                 self._logger.debug("RX: %s", data)
