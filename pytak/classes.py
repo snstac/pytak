@@ -61,7 +61,7 @@ class Worker:  # pylint: disable=too-few-public-methods
         if self.config.getboolean("DEBUG", False):
             _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
 
-        self.min_period = 0.1
+        self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
 
     async def fts_compat(self) -> None:
         """
