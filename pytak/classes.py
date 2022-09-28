@@ -57,11 +57,11 @@ class Worker:  # pylint: disable=too-few-public-methods
         else:
             config_p = ConfigParser({})
             config_p.add_section("pytak")
-            self.config = config_p["pytak"] 
+            self.config = config_p["pytak"]
         if self.config.getboolean("DEBUG", False):
             _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
 
-        self.min_period=0.1
+        self.min_period = 0.1
 
     async def fts_compat(self) -> None:
         """

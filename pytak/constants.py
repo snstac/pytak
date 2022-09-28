@@ -75,3 +75,8 @@ DEFAULT_TLS_PARAMS_OPT: list = [
 
 BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
 DEFAULT_COT_VAL: str = "9999999.0"
+
+# await asyncio.sleep(0) should allow co-routines to yield, but they end up
+# eating 100% CPU. @PeterQFR found bumping this to 0.1 solved the high CPU
+# issue. See: https://github.com/ampledata/pytak/pull/22
+DEFAULT_MIN_ASYNC_SLEEP: float = 0.1

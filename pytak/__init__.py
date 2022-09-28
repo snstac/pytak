@@ -43,6 +43,7 @@ from .constants import (  # NOQA
     DEFAULT_TLS_PARAMS_REQ,
     DEFAULT_HOST_ID,
     BOOLEAN_TRUTH,
+    DEFAULT_MIN_ASYNC_SLEEP,
 )
 
 from .classes import (  # NOQA
