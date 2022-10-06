@@ -1,3 +1,7 @@
+PyTAK 5.4.1
+-----------
+Fixes #24, const as bytes not str.
+
 PyTAK 5.4.0
 -----------
 Added CoT XML Declaration constant, should be included with all output XML CoT.
