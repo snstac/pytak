@@ -44,6 +44,7 @@ from .constants import (  # NOQA
     DEFAULT_HOST_ID,
     BOOLEAN_TRUTH,
     DEFAULT_MIN_ASYNC_SLEEP,
+    DEFAULT_XML_DECLARATION
 )
 
 from .classes import (  # NOQA

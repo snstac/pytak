@@ -80,3 +80,6 @@ DEFAULT_COT_VAL: str = "9999999.0"
 # eating 100% CPU. @PeterQFR found bumping this to 0.1 solved the high CPU
 # issue. See: https://github.com/ampledata/pytak/pull/22
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
+
+# Python <3.8 has no way of including XML Declaration in ET.tostring():
+DEFAULT_XML_DECLARATION: str = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
