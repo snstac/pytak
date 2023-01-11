@@ -26,6 +26,7 @@ import os
 import platform
 import socket
 import ssl
+import struct
 import sys
 
 from configparser import ConfigParser, SectionProxy
@@ -37,6 +38,7 @@ import pytak
 from pytak.asyncio_dgram import (
     DatagramClient,
     connect as dgconnect,
+    bind as dgbind
 )
 
 # Python 3.6 support:
@@ -66,13 +68,25 @@ async def create_udp_client(url: ParseResult) -> DatagramClient:
         An AsyncIO UDP network stream client.
     """
     host, port = pytak.parse_url(url)
-    stream: DatagramClient = await dgconnect((host, port))
+    reader: DatagramClient = await dgbind((host, port))
+    writer: DatagramClient = await dgconnect((host, port))
 
     if "broadcast" in url.scheme:
-        sock = stream.socket
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    return stream
+        wsock = writer.socket
+        wsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        wsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        rsock = reader.socket
+        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    
+    if "239.2.3.1" in host:
+        print("MULTICAST!")
+        rsock = reader.socket
+        group = socket.inet_aton(host)
+        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+        rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+
+    return reader, writer
 
 
 def get_tls_config(config: SectionProxy) -> SectionProxy:
@@ -199,7 +213,7 @@ async def protocol_factory(  # pylint: disable=too-many-locals,too-many-branches
 
         reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
     elif "udp" in scheme:
-        writer = await pytak.create_udp_client(cot_url)
+        reader, writer = await pytak.create_udp_client(cot_url)
     elif "http" in scheme:
         raise Exception("TeamConnect / Sit(x) Support comming soon.")
         # writer = await pytak.create_tc_client(cot_url)

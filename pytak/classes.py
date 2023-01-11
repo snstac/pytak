@@ -159,9 +159,14 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     ) -> None:
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
+        self.reader_queue: asyncio.Queue = asyncio.Queue
 
     async def readcot(self):
-        return await self.reader.readuntil("</event>".encode("UTF-8"))
+        if hasattr(self.reader, 'readuntil'):
+            return await self.reader.readuntil("</event>".encode("UTF-8"))
+        elif hasattr(self.reader, 'recv'):
+            buf, src = await self.reader.recv()
+            return buf
 
     async def run(self, number_of_iterations=-1) -> None:
         self._logger.info("Run: %s", self.__class__)
