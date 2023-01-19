@@ -29,6 +29,7 @@ import asyncio
 import enum
 import inspect
 
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -45,10 +46,12 @@ _SENTINEL = enum.Enum("_SENTINEL", "sentinel")
 sentinel = _SENTINEL.sentinel
 
 
-def make_mocked_coro(return_value=sentinel, raise_exception=sentinel):
+def make_mocked_coro(
+    return_value: Any = sentinel, raise_exception: Any = sentinel
+) -> Any:
     """Creates a coroutine mock."""
 
-    async def mock_coro(*args, **kwargs):
+    async def mock_coro(*args: Any, **kwargs: Any) -> Any:
         if raise_exception is not sentinel:
             raise raise_exception
         if not inspect.isawaitable(return_value):

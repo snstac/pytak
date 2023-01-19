@@ -10,8 +10,9 @@ Python Team Awareness Kit (PyTAK)
    :target: https://github.com/ampledata/adsbxcot/blob/main/docs/Screenshot_20201026-142037_ATAK.jpg
 
 
-PyTAK is a Python Module for creating TAK clients, servers & gateways and includes classes for handling 
-Cursor-on-Target (CoT) & non-CoT data, as well as functions for serializing CoT data.
+PyTAK is a Python Module for creating TAK clients, servers & gateways and includes 
+classes for handling Cursor on Target (CoT) & non-CoT data, as well as functions for 
+serializing CoT data, and sending and receiving CoT data over a network.
 
 PyTAK supports the following I/O & network protocols:
 
@@ -22,7 +23,8 @@ PyTAK supports the following I/O & network protocols:
 * UDP Multicast: ``udp://group:port``
 * stdout or stderr: ``log://stdout`` or ``log://stderr``
 
-PyTAK has been tested and is compatible with many situational awareness & common operating picture systems (SA & COP).
+PyTAK has been tested and is compatible with many situational awareness & common 
+operating picture systems (SA & COP).
 
 Servers:
 
@@ -65,7 +67,7 @@ Support Development
     :target: https://ko-fi.com/T6T3D6Z9G
     :alt: Support Development: Buy Me a Coffee at ko-fi.com
 
-**Tech Support**: Email support@undef.net or Signal/WhatsApp: +1-310-621-9598
+**Tech Support**: Email takhelp@undef.net or `Signal <https://signal.org/>`_: +1-310-621-9598
 
 This tool has been developed for the Disaster Response, Public Safety and
 Frontline Healthcare community. This software is currently provided at no-cost
@@ -76,13 +78,14 @@ efforts is greatly appreciated.
 Usage
 =====
 
-The following Python 3.7+ code example creates a TAK Client that generates ``takPong`` CoT every 20 seconds, and sends 
-them to a TAK Server at ``tcp://takserver.example.com:8087`` (plain / clear TCP).
+The following Python 3.7+ code example creates a TAK Client that generates ``takPong`` 
+CoT every 20 seconds, and sends them to a TAK Server at 
+``tcp://takserver.example.com:8087`` (plain / clear TCP).
 
 * For secure TLS, see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ below. 
 
-To run this example as-is, save the following code-block out to a file named ``example.py`` and run the command 
-``python3 example.py``::
+To run this example as-is, save the following code-block out to a file named 
+``example.py`` and run the command ``python3 example.py``::
 
     #!/usr/bin/env python3
 
@@ -156,13 +159,12 @@ To run this example as-is, save the following code-block out to a file named ``e
         asyncio.run(main())
 
 
-
-
 Requirements
 ============
 
-PyTAK requires Python 3.6 or above and WILL NOT work on Python versions below 3.6. It should run on almost any platform 
-that supports Python 3.6+, including Linux, Windows, Raspberry Pi, Android, et al.
+PyTAK requires Python 3.6 or above and WILL NOT work on Python versions below 3.6. It 
+should run on almost any platform that supports Python 3.6+, including Linux, Windows, 
+Raspberry Pi, Android, et al.
 
 
 Installation
@@ -177,8 +179,8 @@ PyTAK is available as a Debian ``.deb`` package. This is the preferred method to
 Alternative Installation
 ========================
 
-You can install from PyPI or from source. Both of these methods will require manual installation of additional 
-libraries.
+You can install from PyPI or from source. Both of these methods will require manual 
+installation of additional libraries.
 
 1a. Debian, Ubuntu, Raspberry Pi: Install `LibFFI <https://sourceware.org/libffi/>`_::
 
@@ -203,12 +205,25 @@ libraries.
 Configuration Parameters
 ========================
 
-All configuration parameters can be specified either as environment variables or within an INI-style configuration file.
+All configuration parameters can be specified either as environment variables or 
+within an INI-style configuration file.
 
 * ``COT_URL``: (*optional*) Destination for Cursor on Target messages. Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP Default)
 * ``DEBUG``: (*optional*) Sets debug-level logging.
 * ``FTS_COMPAT``: (*optional*) If set, implements random-sleep period to avoid FTS DoS protections.
 * ``PYTAK_SLEEP``: (*optional*) If set, implements given sleep period between emitting CoT Events.
+
+
+Data Package / Pref Package Support
+===================================
+
+PyTAK 5.5.0+ supports importing TAK Data Packages containing TAK Server connection 
+settings, TLS certificates, etc. To use a .zip file with PyTAK, set the 
+``PREF_PACKAGE`` config parameter to the path of the .zip file.
+
+For example, in the ``config.ini`` file: ``PREF_PACKAGE=ADSB3_FIRE.zip``
+
+Or on the command line: ``mycoolcotutil -p ADSB3_FIRE.zip``
 
 
 TLS Support
@@ -247,18 +262,95 @@ For example, to send COT to a TAK Server listening for TLS connections on port
 FreeTAKServer Support
 =====================
 
-FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which restricts the number of CoT Events a 
-client can send to a listening TCP Port. Currently this FTS feature cannot be disabled or changed, so clients must 
-meter their input speed.
+FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which 
+restricts the number of CoT Events a client can send to a listening TCP Port. 
+Currently this FTS feature cannot be disabled or changed, so clients must meter 
+their input speed.
 
-To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` configuration parameter to ``True``
-This will cause the PyTAK client to sleep a random number of seconds between transmitting CoT to a FTS server::
+To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` configuration parameter 
+to ``True``. This will cause the PyTAK client to sleep a random number of seconds 
+between transmitting CoT to a FTS server::
 
     FTS_COMPAT = True
 
-Alternatively you can specify a static sleep period by setting ``PYTAK_SLEEP`` to an integer number of seconds::
+Alternatively you can specify a static sleep period by setting ``PYTAK_SLEEP`` to an 
+integer number of seconds::
 
     PYTAK_SLEEP = 3
+
+
+TAK Protocol Payload - Version 1 (Protobuf) Support
+===================================================
+
+    Version 1 of the TAK Protocol Payload is a Google Protocol Buffer based
+    payload.  Each Payload consists of one (and only one)
+    atakmap::commoncommo::v1::TakMessage message which is serialized using
+    Google protocol buffers version 3.
+
+    Source: https://github.com/deptofdefense/AndroidTacticalAssaultKit-CIV/blob/master/commoncommo/core/impl/protobuf/protocol.txt
+
+PyTAK natively sends and receives "TAK Protocol Payload - Version 0", aka plain XML. If 
+you'd like to receive & decode "Version 1" protobuf with PyTAK, install the 
+`takproto <https://github.com/ampledata/takproto>`_ Python module::
+
+    $ python3 -m pip install takproto
+
+Here is an example of receiving & decoding "Version 1" using ``takproto``. 
+
+N.B. The data type returned from this implementation differs from that of the 
+"Version 0" implementation (``bytes`` vs ``object``)::
+
+    #!/usr/bin/env python3
+
+    import asyncio
+
+    from configparser import ConfigParser
+
+    import takproto
+
+    import pytak
+
+
+    class MyRXWorker(pytak.RXWorker):
+        async def readcot(self):
+            if hasattr(self.reader, 'readuntil'):
+                cot = await self.reader.readuntil("</event>".encode("UTF-8"))
+            elif hasattr(self.reader, 'recv'):
+                cot, src = await self.reader.recv()
+            tak_v1 = takproto.parse_proto(cot)
+            if tak_v1 != -1:
+                cot = tak_v1
+            return cot
+
+
+    async def my_setup(clitool) -> None:
+        reader, writer = await pytak.protocol_factory(clitool.config)
+        write_worker = pytak.TXWorker(clitool.tx_queue, clitool.config, writer)
+        read_worker = MyRXWorker(clitool.rx_queue, clitool.config, reader)
+        clitool.add_task(write_worker)
+        clitool.add_task(read_worker)
+
+
+    async def main():
+        """
+        The main definition of your program, sets config params and
+        adds your serializer to the asyncio task list.
+        """
+        config = ConfigParser()
+        config["mycottool"] = {"COT_URL": "udp://239.2.3.1:6969"}
+        config = config["mycottool"]
+
+        # Initializes worker queues and tasks.
+        clitool = pytak.CLITool(config)
+        await my_setup(clitool)
+
+        # Start all tasks.
+        await clitool.run()
+
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+
 
 
 Source
@@ -276,14 +368,14 @@ https://ampledata.org/
 Copyright
 =========
 
-* PyTAK is Copyright 2022 Greg Albrecht
+* PyTAK is Copyright 2023 Greg Albrecht
 * asyncio_dgram is Copyright (c) 2019 Justin Bronder
 
 
 License
 =======
 
-Copyright 2022 Greg Albrecht <oss@undef.net>
+Copyright 2023 Greg Albrecht <oss@undef.net>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

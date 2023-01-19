@@ -1,0 +1,12 @@
+<MissionPackageManifest version="2">
+  <Configuration>
+     <Parameter name="uid" value="123"/>
+     <Parameter name="name" value="test_pref_package.zip"/>
+     <Parameter name="onReceiveDelete" value="true"/>
+  </Configuration>
+  <Contents>
+     <Content ignore="false" zipEntry="test_user_cert.p12"/>
+     <Content ignore="false" zipEntry="test_truststore-root.p12"/>
+     <Content ignore="false" zipEntry="test_pref.pref"/>
+  </Contents>
+</MissionPackageManifest>

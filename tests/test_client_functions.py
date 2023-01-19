@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2022 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <oss@undef.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,31 +16,32 @@
 # limitations under the License.
 #
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2022 Greg Albrecht
+# Copyright:: Copyright 2023 Greg Albrecht
 # License:: Apache License, Version 2.0
 #
 
-"""Python Team Awareness Kit (PyTAK) Module Tests."""
+"""PyTAK Tests."""
 
 
 import asyncio
-from cmath import isnan
 
 from configparser import ConfigParser, SectionProxy
-from urllib.parse import ParseResult, urlparse
+import io
 from unittest import mock
+from urllib.parse import ParseResult, urlparse
 
 import pytest
 import pytak
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2022 Greg Albrecht"
+__copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
 @pytest.fixture(params=["tcp", "udp"])
 def gen_url(request) -> ParseResult:
+    """Generate a Parsed URL for tests fixtures."""
     test_url1: str = f"{request.param}://localhost"
     parsed_url1: ParseResult = urlparse(test_url1)
     return parsed_url1
@@ -48,10 +49,11 @@ def gen_url(request) -> ParseResult:
 
 @pytest.mark.asyncio
 async def test_protocol_factory_udp():
+    """Test creating a UDP reader & writer with `pytak.protocol_factory()`."""
     test_url1: str = "udp://localhost"
     config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
-    assert reader == None
+    assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)
     assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
 
 
@@ -84,6 +86,7 @@ async def test_rxworker_factory_udp():
 
 
 def test_get_tls_config():
+    """Test creating a TLS config."""
     base_config: dict = {
         "PYTAK_TLS_CLIENT_CERT": "test_get_tls_config",
         "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",
@@ -92,9 +95,98 @@ def test_get_tls_config():
     config_p.add_section("pytak")
     config = config_p["pytak"]
     tls_config: ConfigParser = pytak.client_functions.get_tls_config(config)
-    print(tls_config)
 
     assert isinstance(tls_config, SectionProxy)
     assert tls_config.get("PYTAK_TLS_CLIENT_CERT") == "test_get_tls_config"
     assert not tls_config.getboolean("PYTAK_TLS_DONT_VERIFY")
     assert tls_config.getboolean("PYTAK_TLS_DONT_CHECK_HOSTNAME")
+
+
+def test_get_tls_config_incomplete():
+    """Test creating an incomplete TLS config."""
+    base_config: dict = {
+        "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",
+    }
+    config_p = ConfigParser(base_config)
+    config_p.add_section("pytak")
+    config = config_p["pytak"]
+    with pytest.raises(Exception):
+        pytak.client_functions.get_tls_config(config)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_udp_broadcast():
+    """Test creating a broadcast UDP reader & writer with `pytak.protocol_factory()`."""
+    test_url1: str = "udp+broadcast://localhost"
+    config: dict = {"COT_URL": test_url1}
+    reader, writer = await pytak.protocol_factory(config)
+    assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)
+    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_udp_multicast():
+    """Test creating a multicast UDP reader & writer with `pytak.protocol_factory()`."""
+    test_url1: str = "udp://239.2.3.1"
+    config: dict = {"COT_URL": test_url1}
+    reader, writer = await pytak.protocol_factory(config)
+    assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)
+    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_bad_url():
+    """Test calling `pytak.protocol_factory()` with a bad URL."""
+    test_url1: str = "udp:localhost"
+    config: dict = {"COT_URL": test_url1}
+    with pytest.raises(Exception):
+        await pytak.protocol_factory(config)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_tcp():
+    """Test creating a TCP reader & writer with `pytak.protocol_factory()`."""
+    test_url1: str = "tcp://localhost"
+    config: dict = {"COT_URL": test_url1}
+    with mock.patch("socket.socket.connect"):
+        reader, writer = await pytak.protocol_factory(config)
+        assert isinstance(reader, asyncio.StreamReader)
+        assert isinstance(writer, asyncio.StreamWriter)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_http_url():
+    """Test calling `pytak.protocol_factory()` with an HTTP URL."""
+    test_url1: str = "http://localhost"
+    config: dict = {"COT_URL": test_url1}
+    with pytest.raises(Exception):
+        await pytak.protocol_factory(config)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_log_stdout_url():
+    """Test calling `pytak.protocol_factory()` with an HTTP URL."""
+    test_url1: str = "log://stdout"
+    config: dict = {"COT_URL": test_url1}
+    reader, writer = await pytak.protocol_factory(config)
+    assert reader is None
+    assert isinstance(writer, io.FileIO)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_log_stderr_url():
+    """Test calling `pytak.protocol_factory()` with an HTTP URL."""
+    test_url1: str = "log://stderr"
+    config: dict = {"COT_URL": test_url1}
+    reader, writer = await pytak.protocol_factory(config)
+    assert reader is None
+    assert isinstance(writer, io.FileIO)
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_unknown_url():
+    """Test calling `pytak.protocol_factory()` with an HTTP URL."""
+    test_url1: str = "foo://bar"
+    config: dict = {"COT_URL": test_url1}
+    with pytest.raises(Exception):
+        await pytak.protocol_factory(config)

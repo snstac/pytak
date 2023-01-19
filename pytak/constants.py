@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2022 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <oss@undef.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,27 +24,27 @@ import platform
 
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2022 Greg Albrecht"
+__copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
+LOG_LEVEL: int = logging.INFO
+LOG_FORMAT: logging.Formatter = logging.Formatter(
+    ("%(asctime)s pytak %(levelname)s - %(message)s")
+)
+
 if bool(os.environ.get("DEBUG")):
-    LOG_LEVEL: int = logging.DEBUG
-    LOG_FORMAT: logging.Formatter = logging.Formatter(
+    LOG_LEVEL = logging.DEBUG
+    LOG_FORMAT = logging.Formatter(
         (
             "%(asctime)s pytak %(levelname)s %(name)s.%(funcName)s:%(lineno)d - "
             "%(message)s"
         )
     )
     logging.debug("pytak Debugging Enabled via DEBUG Environment Variable.")
-else:
-    LOG_LEVEL: int = logging.INFO
-    LOG_FORMAT: logging.Formatter = logging.Formatter(
-        ("%(asctime)s pytak %(levelname)s - %(message)s")
-    )
 
 DEFAULT_COT_URL: str = "udp://239.2.3.1:6969"  # ATAK Default multicast
-DEFAULT_COT_STALE: int = "120"
+DEFAULT_COT_STALE: str = "120"  # Config wants all values as strings, we'll cast later.
 DEFAULT_HOST_ID: str = f"pytak@{platform.node()}"
 
 DEFAULT_COT_PORT: int = 8087

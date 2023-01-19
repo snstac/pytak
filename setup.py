@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2022 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <oss@undef.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 Setup for the Python Team Awareness Kit (PyTAK) Module.
 
 :author: Greg Albrecht W2GMD <oss@undef.net>
-:copyright: Copyright 2022 Greg Albrecht
+:copyright: Copyright 2023 Greg Albrecht
 :license: Apache License, Version 2.0
 :source: <https://github.com/ampledata/pytak>
 """
@@ -33,12 +33,12 @@ import setuptools
 __title__ = "pytak"
 __version__ = "5.5.0b1"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2022 Greg Albrecht"
+__copyright__ = "Copyright 20232 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
 def publish():
-    """Function for publishing package to pypi."""
+    """Publish this package to pypi."""
     if sys.argv[-1] == "publish":
         os.system("python setup.py sdist")
         os.system("twine upload dist/*")
@@ -73,8 +73,9 @@ setuptools.setup(
     zip_safe=False,
     include_package_data=True,
     classifiers=[
-        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
     ],
-    keywords=["Cursor on Target", "ATAK", "TAK", "CoT"],
+    keywords=["Cursor on Target", "ATAK", "TAK", "CoT", "WinTAK", "iTAK", "TAK Server"],
 )

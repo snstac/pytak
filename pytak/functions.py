@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2022 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <oss@undef.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,23 +19,33 @@
 """PyTAK Functions."""
 
 import datetime
-import platform
+import warnings
 import xml.etree.ElementTree as ET
+import tempfile
+import zipfile
+import os
 
+from cryptography.hazmat.backends.openssl.rsa import _RSAPrivateKey
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.x509 import Certificate
+
+from pathlib import Path
+from typing import List, Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
 import pytak  # pylint: disable=cyclic-import
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2022 Greg Albrecht"
+__copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
-def split_host(host, port: int = None) -> tuple:
-    """Given a host:port and/or port, returns host, port."""
+def split_host(host: str, port: Union[int, None] = None) -> Tuple[str, int]:
+    """Split a host:port string or host, port params into a host,port tuple."""
     if ":" in host:
-        addr, port = host.split(":")
-        port = int(port)
+        addr, _port = host.split(":")
+        port = int(_port)
     elif port:
         addr = host
         port = int(port)
@@ -45,38 +55,48 @@ def split_host(host, port: int = None) -> tuple:
     return addr, int(port)
 
 
-def parse_url(url: str) -> tuple:
-    """Parses a COT destination URL."""
+def parse_url(url: Union[str, ParseResult]) -> Tuple[str, int]:
+    """Parse a CoT destination URL."""
     if isinstance(url, str):
-        url: ParseResult = urlparse(url)
+        _url: ParseResult = urlparse(url)
+    elif isinstance(url, ParseResult):
+        _url = url
 
-    if ":" in url.netloc:
-        host, port = url.netloc.split(":")
+    assert isinstance(_url, ParseResult)
+
+    port: Union[int, str] = pytak.DEFAULT_BROADCAST_PORT
+    host: str = _url.netloc
+
+    if ":" in _url.netloc:
+        host, port = _url.netloc.split(":")
     else:
-        host = url.netloc
-        if "broadcast" in url.scheme:
+        if "broadcast" in _url.scheme:
             port = pytak.DEFAULT_BROADCAST_PORT
-        elif "multicast" in url.scheme:
+        elif "multicast" in _url.scheme:
+            warnings.warn(
+                "You no longer need to specify '+multicast' in the COT_URL.",
+                DeprecationWarning
+            )
             port = pytak.DEFAULT_BROADCAST_PORT
         else:
             port = pytak.DEFAULT_COT_PORT
+
     return host, int(port)
 
 
-def cot_time(cot_stale: int = None) -> datetime.datetime:
-    """
-    Returns the current time UTC in ISO-8601 format.
+def cot_time(cot_stale: Union[int, None] = None) -> str:
+    """Get the current UTC datetime in ISO-8601 format.
 
     Parameters
     ----------
-    cot_stale : `int`
-        Time in seconds to add to the current time, for use with Cursor-On-Target
+    cot_stale : `Union[int, None]`
+        Time in seconds to add to the current time, for use with Cursor on Target
         'stale' attributes.
 
     Returns
     -------
-    `datetime.datetime`
-        Current time UTC in ISO-8601 Format
+    `str`
+        Current UTC datetime in ISO-8601 format.
     """
     time = datetime.datetime.now(datetime.timezone.utc)
     if cot_stale:
@@ -84,9 +104,9 @@ def cot_time(cot_stale: int = None) -> datetime.datetime:
     return time.strftime(pytak.ISO_8601_UTC)
 
 
-def hello_event(uid: str = None) -> str:
-    """Generates a Hello COT Event."""
-    uid: str = uid or f"pytak@{platform.node()}"
+def hello_event(uid: Union[str, None] = None) -> bytes:
+    """Generate a Hello CoT Event."""
+    uid = uid or pytak.DEFAULT_HOST_ID
 
     root = ET.Element("event")
     root.set("version", "2.0")
@@ -98,3 +118,111 @@ def hello_event(uid: str = None) -> str:
     root.set("stale", cot_time(3600))
 
     return ET.tostring(root)
+
+
+def unzip_file(zip_src: str, zip_dest: Union[str, None] = None) -> str:
+    """Unzips a given zip file, returning the destination path."""
+    _zip_dest: str = zip_dest or tempfile.mkdtemp(prefix="pytak_dp_")
+    with zipfile.ZipFile(zip_src, "r") as zip_ref:
+        zip_ref.extractall(_zip_dest)
+    assert os.path.exists(_zip_dest)
+    return _zip_dest
+
+
+def find_file(search_dir: str, glob: str) -> str:
+    """Find the first file for a given glob in the search directory."""
+    try:
+        files = list(Path(search_dir).rglob(glob))
+        assert len(files) > 0
+        return str(files[0])
+    except Exception as exc:
+        raise Exception(f"Could not find file: {glob}") from exc
+
+
+def find_cert(search_dir: str, cert_path: str) -> str:
+    """Find a cert file within a search dir after extracting the basename."""
+    cert_file: str = os.path.basename(cert_path)
+    assert cert_file
+    return find_file(search_dir, cert_file)
+
+
+def load_preferences(pref_path: str, search_dir: str):
+    """Load preferences file into a dict."""
+    with open(pref_path, "rb+") as pref_fd:
+        pref_data = pref_fd.read()
+
+    root = ET.fromstring(pref_data)
+    entries = root.findall(".//entry")
+
+    prefs = {
+        "connect_string": None,
+        "client_password": None,
+        "certificate_location": None
+    }
+
+    # Determine the COT URL, client certificate and password
+    for entry in entries:
+        if entry.attrib["key"] == "connectString0":
+            prefs["connect_string"] = entry.text
+        if entry.attrib["key"] == "clientPassword":
+            prefs["client_password"] = entry.text
+        if entry.attrib["key"] == "certificateLocation":
+            prefs["certificate_location"] = find_cert(search_dir, entry.text)
+
+    return prefs
+
+
+def cs2url(conn_str: str) -> str:
+    """Convert a TAK-style connectString into a URL."""
+    uri_parts = conn_str.split(":")
+    return f"{uri_parts[2]}://{uri_parts[0]}:{uri_parts[1]}"
+
+
+def load_cert(cert_path: str, cert_pass: str): # -> List[_RSAPrivateKey, Certificate, Certificate]:
+    with open(cert_path, "br+") as cp_fd:
+        p12_data = cp_fd.read()
+
+    res = pkcs12.load_key_and_certificates(p12_data, str.encode(cert_pass))
+    assert len(res) == 3
+    return res
+
+
+def save_pem(pem: bytes, dest: Union[str, None] = None) -> str:
+    """Save PEM data to dest."""
+    pem_fd, pem_path = dest or tempfile.mkstemp(suffix=".pem")
+    with os.fdopen(pem_fd, "wb+") as pfd:
+        pfd.write(pem)
+    assert os.path.exists(pem_path)
+    return pem_path
+
+
+def convert_cert(cert_path: str, cert_pass: str) -> dict:
+    """Convert a P12 cert to PEM."""
+    cert_paths = {
+        "pk_pem_path": None,
+        "cert_pem_path": None,
+        "ca_pem_path": None,
+    }
+
+    res = load_cert(cert_path, cert_pass)
+
+    private_key: _RSAPrivateKey = res[0]
+    cert: Certificate = res[1]
+    ca_cert: Certificate = res[2][0]
+
+    # Load privkey
+    pk_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    cert_paths["pk_pem_path"] = save_pem(pk_pem)
+
+    cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
+    cert_paths["cert_pem_path"] = save_pem(cert_pem)
+
+    ca_pem = ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
+    cert_paths["ca_pem_path"] = save_pem(ca_pem)
+
+    assert all(cert_paths)
+    return cert_paths

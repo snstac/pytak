@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2022 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <oss@undef.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,17 +21,17 @@
 import asyncio
 import logging
 import multiprocessing as mp
-import queue
+import queue as _queue
 import random
 
-from typing import Union
+from typing import Set, Union
 
 from configparser import ConfigParser
 
 import pytak
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2022 Greg Albrecht"
+__copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -49,8 +49,11 @@ class Worker:  # pylint: disable=too-few-public-methods
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
     def __init__(
-        self, queue: Union[asyncio.Queue, mp.Queue], config: ConfigParser = None
+        self,
+        queue: Union[asyncio.Queue, mp.Queue], 
+        config: ConfigParser = None
     ) -> None:
+        """Initialize a Worker instance."""
         self.queue: Union[asyncio.Queue, mp.Queue] = queue
         if config:
             self.config = config
@@ -64,8 +67,10 @@ class Worker:  # pylint: disable=too-few-public-methods
         self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
 
     async def fts_compat(self) -> None:
-        """
-        If FTS_COMPAT or PYTAK_SLEEP are set, sleeps for a given or random time.
+        """Apply FreeTAKServer (FTS) compatibility.
+
+        If the FTS_COMPAT (or PYTAK_SLEEP) config options are set, will async sleep for
+        either a given (PYTAK_SLEEP) or random (FTS_COMPAT) time.
         """
         pytak_sleep: int = self.config.get("PYTAK_SLEEP", 0)
         if self.config.getboolean("FTS_COMPAT") or pytak_sleep:
@@ -76,14 +81,12 @@ class Worker:  # pylint: disable=too-few-public-methods
             await asyncio.sleep(sleep_period)
 
     async def handle_data(self, data: bytes) -> None:
-        """Placeholder handle_data Method for this Class."""
+        """Handle data (placeholder method, please override)."""
         del data
-        self._logger.warning("Overwrite this method!")
+        self._logger.warning("Override this method!")
 
     async def run(self, number_of_iterations=-1):
-        """
-        Runs this Thread, reads Data from Queue & passes data to next Handler.
-        """
+        """Run this Thread, reads Data from Queue & passes data to next Handler."""
         self._logger.info("Run: %s", self.__class__)
 
         # We're instantiating the while loop this way, and using get_nowait(),
@@ -95,7 +98,7 @@ class Worker:  # pylint: disable=too-few-public-methods
 
             try:
                 data = self.queue.get_nowait()
-            except (asyncio.QueueEmpty, queue.Empty):
+            except (asyncio.QueueEmpty, _queue.Empty):
                 continue
 
             if not data:
@@ -108,8 +111,7 @@ class Worker:  # pylint: disable=too-few-public-methods
 
 
 class TXWorker(Worker):  # pylint: disable=too-few-public-methods
-    """
-    Gets Data from a Queue from a queue and hands it off to a Protocol Worker.
+    """Works data queue and hands off to Protocol Workers.
 
     You should create an TXWorker Instance using the `pytak.txworker_factory()`
     Function.
@@ -120,19 +122,17 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
     def __init__(
         self, queue: asyncio.Queue, config: ConfigParser, writer: asyncio.Protocol
     ) -> None:
+        """Initialize a TXWorker instance."""
         super().__init__(queue, config)
         self.writer: asyncio.Protocol = writer
 
     async def handle_data(self, data: bytes) -> None:
-        """
-        COT Event Handler, accepts COT Events from the COT Event Queue and
-        processes them for writing.
-        """
+        """Accept CoT event from CoT event queue and process for writing."""
         self._logger.debug("TX: %s", data)
         await self.send_data(data)
 
     async def send_data(self, data: bytes) -> None:
-        """Sends Data using the appropriate Protocol method."""
+        """Send Data using the appropriate Protocol method."""
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
         else:
@@ -145,9 +145,10 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
 
 class RXWorker(Worker):  # pylint: disable=too-few-public-methods
-    """
-    Async receive (input) queue worker. Reads events from a
-    `pytak.protocol_factory()` reader and adds them to an `rx_queue`.
+    """Async receive (input) queue worker.
+    
+    Reads events from a `pytak.protocol_factory()` reader and adds them to 
+    an `rx_queue`.
 
     Most implementations use this to drain an RX buffer on a socket.
 
@@ -157,6 +158,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     def __init__(
         self, queue: asyncio.Queue, config: dict, reader: asyncio.Protocol
     ) -> None:
+        """Initialize a RXWorker instance."""
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
         self.reader_queue: asyncio.Queue = asyncio.Queue
@@ -165,7 +167,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         if hasattr(self.reader, 'readuntil'):
             return await self.reader.readuntil("</event>".encode("UTF-8"))
         elif hasattr(self.reader, 'recv'):
-            buf, src = await self.reader.recv()
+            buf, _ = await self.reader.recv()
             return buf
 
     async def run(self, number_of_iterations=-1) -> None:
@@ -180,9 +182,10 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
 
 
 class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
-    """
-    Reads/gets Messages (!COT) from an `asyncio.Protocol` or similar async
-    network client, serializes it as COT, and puts it onto an `asyncio.Queue`.
+    """Read non-CoT Messages from an async network client.
+
+    (`asyncio.Protocol` or similar async network client)
+    Serializes it as COT, and puts it onto an `asyncio.Queue`.
 
     Implementations should handle serializing messages as COT Events, and
     putting them onto the `event_queue`.
@@ -194,10 +197,10 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
 
     def __init__(self, queue: asyncio.Queue, config: dict) -> None:
         super().__init__(queue, config)
-        self._logger.info("COT Dest: %s", self.config.get("COT_URL"))
+        self._logger.info("CoT_URL Dest: %s", self.config.get("COT_URL"))
 
     async def put_queue(self, data: bytes) -> None:
-        """Puts Data onto the Queue."""
+        """Put Data onto the Queue."""
         try:
             await self.queue.put(data)
         except asyncio.QueueFull:
@@ -220,23 +223,25 @@ class CLITool:
     def __init__(
         self,
         config: ConfigParser,
-        tx_queue: Union[asyncio.Queue, None] = None,
-        rx_queue: Union[asyncio.Queue, None] = None,
+        tx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
+        rx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
     ) -> None:
-        self.tasks = set()
-        self.running_tasks = set()
+        """Initialize CLITool instance."""
+        self.tasks: Set = set()
+        self.running_tasks: Set = set()
 
         self.config = config
-        self.tx_queue: Union[asyncio.Queue, None] = tx_queue or asyncio.Queue()
-        self.rx_queue: Union[asyncio.Queue, None] = rx_queue or asyncio.Queue()
+        self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
+        self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
 
         if self.config.getboolean("DEBUG", False):
-            _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
+            for handler in self._logger.handlers:
+                handler.setLevel(logging.DEBUG)
 
     async def setup(self) -> None:
-        """
-        Sets up CLITool, creates protocols, queue workers and adds them to
-        our task list.
+        """Set up CLITool.
+
+        Creates protocols, queue workers and adds them to our task list.
         """
         # Create our TX & RX Protocol Worker
         reader, writer = await pytak.protocol_factory(self.config)
@@ -246,34 +251,34 @@ class CLITool:
         self.add_task(read_worker)
 
     async def hello_event(self):
-        """Sends a 'hello world' style event to the Queue."""
+        """Send a 'hello world' style event to the Queue."""
         hello = pytak.hello_event(self.config.get("COT_HOST_ID"))
         if hello:
             self.tx_queue.put_nowait(hello)
 
     def add_task(self, task):
-        """Adds the given task to our coroutine task list."""
+        """Add the given task to our coroutine task list."""
         self._logger.debug("Add Task: %s", task)
         self.tasks.add(task)
 
     def add_tasks(self, tasks):
-        """Adds the given list or set of tasks to our couroutine task list."""
+        """Add the given list or set of tasks to our couroutine task list."""
         for task in tasks:
             self.add_task(task)
 
     def run_task(self, task):
-        """Runs the given coroutine task."""
+        """Run the given coroutine task."""
         self._logger.debug("Run Task: %s", task)
         self.running_tasks.add(asyncio.ensure_future(task.run()))
 
     def run_tasks(self, tasks=None):
-        """Runs the given list or set of couroutine tasks."""
+        """Run the given list or set of couroutine tasks."""
         tasks = tasks or self.tasks
         for task in tasks:
             self.run_task(task)
 
     async def run(self):
-        """Runs this Thread and its associated coroutine tasks."""
+        """Run this Thread and its associated coroutine tasks."""
         self._logger.info("Run: %s", self.__class__)
 
         await self.hello_event()

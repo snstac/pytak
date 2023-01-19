@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <oss@undef.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 # Author:: Greg Albrecht W2GMD <oss@undef.net>
-# Copyright:: Copyright 2022 Greg Albrecht
+# Copyright:: Copyright 2023 Greg Albrecht
 # License:: Apache License, Version 2.0
 #
 
@@ -72,7 +72,7 @@ pytest:
 test: editable install_test_requirements pytest
 
 test_cov:
-	pytest --cov=$(this_app)
+	pytest --cov=$(this_app) --cov-report term-missing
 
 black:
 	black .

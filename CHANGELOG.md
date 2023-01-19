@@ -1,3 +1,16 @@
+PyTAK 5.5.0
+-----------
+New Features:
+- Added multicast receive support.
+- Added pref package / data package .zip support.
+
+Other:
+- Code cleanup.
+- Documentation & README updates.
+- 2023 copyright updates.
+- Ramped up code coverage to at least 50% on most files.
+- Added example of takproto support.
+
 PyTAK 5.4.1
 -----------
 Fixes #24, const as bytes not str.
