@@ -65,6 +65,7 @@ from .client_functions import (  # NOQA
 
 from . import asyncio_dgram  # NOQA
 
+from . import crypto_functions
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2023 Greg Albrecht"
