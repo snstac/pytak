@@ -27,7 +27,7 @@ import pprint
 
 import pytest
 import pytak
-import pytak.crypto_functions
+
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2023 Greg Albrecht"
