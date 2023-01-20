@@ -58,7 +58,7 @@ __copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
-async def create_udp_client(url: ParseResult) -> Tuple[DatagramClient, DatagramClient]:
+async def create_udp_client(url: ParseResult) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
     Parameters
@@ -80,7 +80,7 @@ async def create_udp_client(url: ParseResult) -> Tuple[DatagramClient, DatagramC
         reader = await dgbind((host, port))
     writer: DatagramClient = await dgconnect((host, port))
 
-    if "broadcast" in url.scheme:
+    if reader and "broadcast" in url.scheme:
         wsock = writer.socket
         wsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         wsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -95,10 +95,10 @@ async def create_udp_client(url: ParseResult) -> Tuple[DatagramClient, DatagramC
         # It's probably not an ip address...
         pass
 
-    if is_multicast and not write_only:
+    if reader and is_multicast and not write_only:
         rsock = reader.socket
         group = socket.inet_aton(host)
-        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+        mreq = struct.pack("4sL", group, socket.INADDR_ANY)
         rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
     return reader, writer

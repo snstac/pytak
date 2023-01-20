@@ -1,3 +1,12 @@
+PyTAK 5.6.0
+-----------
+New Features:
+- Made cryptography an install extras: You'll need this to use data packages! To install: `python3 -m pip install pytak[with_crypto]`
+- Added write-only socket option to UDP sockets. Add `+wo` to the URL schema, as in: `udp+wo://239.2.3.1:6969`.
+
+Bug Fixes:
+- Fixed bad parsing of env var '%' characters on config import.
+
 PyTAK 5.5.0
 -----------
 New Features:
