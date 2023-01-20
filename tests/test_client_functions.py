@@ -135,6 +135,16 @@ async def test_protocol_factory_udp_multicast():
 
 
 @pytest.mark.asyncio
+async def test_protocol_factory_udp_multicast_wo():
+    """Test creating a multicast UDP writer only with `pytak.protocol_factory()`."""
+    test_url1: str = "udp+wo://239.2.3.1"
+    config: dict = {"COT_URL": test_url1}
+    reader, writer = await pytak.protocol_factory(config)
+    assert reader == None
+    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+
+
+@pytest.mark.asyncio
 async def test_protocol_factory_bad_url():
     """Test calling `pytak.protocol_factory()` with a bad URL."""
     test_url1: str = "udp:localhost"

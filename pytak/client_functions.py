@@ -34,7 +34,7 @@ import warnings
 
 from configparser import ConfigParser, SectionProxy
 from urllib.parse import ParseResult, urlparse
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 
 import pytak
 
@@ -73,7 +73,11 @@ async def create_udp_client(url: ParseResult) -> Tuple[DatagramClient, DatagramC
         An AsyncIO UDP network stream client.
     """
     host, port = pytak.parse_url(url)
-    reader: DatagramClient = await dgbind((host, port))
+    write_only: bool = "+wo" in url.scheme
+
+    reader: Union[DatagramClient, None] = None
+    if not write_only:
+        reader = await dgbind((host, port))
     writer: DatagramClient = await dgconnect((host, port))
 
     if "broadcast" in url.scheme:
@@ -91,7 +95,7 @@ async def create_udp_client(url: ParseResult) -> Tuple[DatagramClient, DatagramC
         # It's probably not an ip address...
         pass
 
-    if is_multicast:
+    if is_multicast and not write_only:
         rsock = reader.socket
         group = socket.inet_aton(host)
         mreq = struct.pack('4sL', group, socket.INADDR_ANY)
