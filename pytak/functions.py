@@ -25,13 +25,8 @@ import tempfile
 import zipfile
 import os
 
-from cryptography.hazmat.backends.openssl.rsa import _RSAPrivateKey
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.x509 import Certificate
-
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
 import pytak  # pylint: disable=cyclic-import
@@ -178,51 +173,3 @@ def cs2url(conn_str: str) -> str:
     return f"{uri_parts[2]}://{uri_parts[0]}:{uri_parts[1]}"
 
 
-def load_cert(cert_path: str, cert_pass: str): # -> List[_RSAPrivateKey, Certificate, Certificate]:
-    with open(cert_path, "br+") as cp_fd:
-        p12_data = cp_fd.read()
-
-    res = pkcs12.load_key_and_certificates(p12_data, str.encode(cert_pass))
-    assert len(res) == 3
-    return res
-
-
-def save_pem(pem: bytes, dest: Union[str, None] = None) -> str:
-    """Save PEM data to dest."""
-    pem_fd, pem_path = dest or tempfile.mkstemp(suffix=".pem")
-    with os.fdopen(pem_fd, "wb+") as pfd:
-        pfd.write(pem)
-    assert os.path.exists(pem_path)
-    return pem_path
-
-
-def convert_cert(cert_path: str, cert_pass: str) -> dict:
-    """Convert a P12 cert to PEM."""
-    cert_paths = {
-        "pk_pem_path": None,
-        "cert_pem_path": None,
-        "ca_pem_path": None,
-    }
-
-    res = load_cert(cert_path, cert_pass)
-
-    private_key: _RSAPrivateKey = res[0]
-    cert: Certificate = res[1]
-    ca_cert: Certificate = res[2][0]
-
-    # Load privkey
-    pk_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    cert_paths["pk_pem_path"] = save_pem(pk_pem)
-
-    cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
-    cert_paths["cert_pem_path"] = save_pem(cert_pem)
-
-    ca_pem = ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
-    cert_paths["ca_pem_path"] = save_pem(ca_pem)
-
-    assert all(cert_paths)
-    return cert_paths

@@ -311,7 +311,8 @@ def read_pref_package(pref_package: str) -> dict:
     client_password: str = prefs.get("client_password", "")
     assert client_password
 
-    pem_certs: dict = pytak.functions.convert_cert(cert_location, client_password)
+    from pytak.crypto_functions import convert_cert
+    pem_certs: dict = convert_cert(cert_location, client_password)
     pref_config["PYTAK_TLS_CLIENT_CERT"] = pem_certs.get("cert_pem_path")
     pref_config["PYTAK_TLS_CLIENT_KEY"] = pem_certs.get("pk_pem_path")
     pref_config["PYTAK_TLS_CLIENT_CAFILE"] = pem_certs.get("ca_pem_path")
@@ -352,31 +353,18 @@ def cli(app_name: str) -> None:
 
     # Read config:
     env_vars = os.environ
-    
-    # I blame myself for this:
-    env_vars["PS1"] = ""
-    env_vars["PS2"] = ""
-    env_vars["PS3"] = ""
-    env_vars["_PSA"] = ""
-    env_vars["_PSB"] = ""
-    env_vars["_PSC"] = ""
-    env_vars["_PSD"] = ""
-    env_vars["_PSE"] = ""
-    env_vars["C1"] = ""
-    env_vars["C2"] = ""
-    env_vars["CBG"] = ""
-    env_vars["CEND"] = ""
-    env_vars["_PSPre"] = ""
-    env_vars["USERHOST"] = ""
-    env_vars["TMUX_PANE"] = ""
-    env_vars["HISTTIMEFORMAT"] = ""
+
+    # Remove env vars that contain '%s', which ConfigParser or pprint barf on:
+    env_vars = {key: val for key,
+                val in env_vars.items() if "%" not in val}
 
     env_vars["COT_URL"] = env_vars.get("COT_URL", pytak.DEFAULT_COT_URL)
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"
     env_vars["COT_STALE"] = getattr(app, "DEFAULT_COT_STALE", pytak.DEFAULT_COT_STALE)
+
     _config: ConfigParser = ConfigParser(env_vars)
 
-    config_file = cli_args.get("CONFIG_FILE")
+    config_file = cli_args.get("CONFIG_FILE", "")
     if os.path.exists(config_file):
         logging.info("Reading configuration from %s", config_file)
         _config.read(config_file)
@@ -392,7 +380,7 @@ def cli(app_name: str) -> None:
 
     debug = config.getboolean("DEBUG")
     if debug:
-        print("Showing Config: %s", config_file)
+        print(f"Showing Config: {config_file}")
         print("=" * 10)
         pprint.pprint(dict(config))
         print("=" * 10)

@@ -27,6 +27,7 @@ import pprint
 
 import pytest
 import pytak
+import pytak.crypto_functions
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2023 Greg Albrecht"
@@ -51,7 +52,7 @@ def test_load_cs2url():
 
 
 def test_load_cert():
-    cert: list = pytak.functions.load_cert("tests/data/test_user_cert.p12", "atakatak")
+    cert: list = pytak.crypto_functions.load_cert("tests/data/test_user_cert.p12", "atakatak")
     assert len(cert) == 3
 
 
@@ -66,7 +67,7 @@ def test_load_convert_cert():
     certificate_location: str = prefs.get("certificate_location")
     assert os.path.exists(certificate_location)
 
-    pem_certs: dict = pytak.functions.convert_cert(certificate_location, client_password)
+    pem_certs: dict = pytak.crypto_functions.convert_cert(certificate_location, client_password)
     print(pem_certs)
 
     pk_pem_path: str = pem_certs.get("pk_pem_path")

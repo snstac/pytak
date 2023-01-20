@@ -31,7 +31,7 @@ import sys
 import setuptools
 
 __title__ = "pytak"
-__version__ = "5.5.0"
+__version__ = "5.6.0b1"
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 20232 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
@@ -78,5 +78,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     keywords=["Cursor on Target", "ATAK", "TAK", "CoT", "WinTAK", "iTAK", "TAK Server"],
-    install_requires=["cryptography >= 39.0.0"]
+    extras_require={"with_crypto": "cryptography >= 39.0.0"},
 )

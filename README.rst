@@ -173,10 +173,15 @@ Installation
 PyTAK is available as a Debian ``.deb`` package. This is the preferred method to 
 install PyTAK on Debian-based (Ubuntu, Debian, Raspberry Pi) systems::
 
-    $ sudo apt install -y python3-cryptography
     $ wget https://github.com/ampledata/pytak/releases/latest/download/python3-pytak_latest_all.deb
     $ sudo apt install -f ./python3-pytak_latest_all.deb
 
+**N.B.** If you wish to use TAK Data Packages / Pref Packages you **must** install the 
+Python cryptography module. If you're installing on a Debian-based OS::
+
+    $ sudo apt install -y python3-cryptography
+
+See also: https://cryptography.io/en/latest/installation/
 
 Alternative Installation
 ========================
@@ -195,7 +200,7 @@ installation of additional libraries.
 
 2a. Install PyTAK from the Python Package Index::
 
-    $ python3 -m pip install pytak
+    $ python3 -m pip install pytak[with_crypto]
 
 2b. Install PyTAK from source::
 
