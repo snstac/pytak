@@ -311,8 +311,8 @@ def read_pref_package(pref_package: str) -> dict:
     client_password: str = prefs.get("client_password", "")
     assert client_password
 
-    import pytak.crypto
-    pem_certs: dict = pytak.crypto.convert_cert(cert_location, client_password)
+    import pytak.crypto_functions
+    pem_certs: dict = pytak.crypto_functions.convert_cert(cert_location, client_password)
     pref_config["PYTAK_TLS_CLIENT_CERT"] = pem_certs.get("cert_pem_path")
     pref_config["PYTAK_TLS_CLIENT_KEY"] = pem_certs.get("pk_pem_path")
     pref_config["PYTAK_TLS_CLIENT_CAFILE"] = pem_certs.get("ca_pem_path")

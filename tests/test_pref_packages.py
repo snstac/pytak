@@ -25,7 +25,6 @@
 import os
 
 import pytak
-import pytak.crypto
 
 __author__ = "Greg Albrecht W2GMD <oss@undef.net>"
 __copyright__ = "Copyright 2023 Greg Albrecht"
