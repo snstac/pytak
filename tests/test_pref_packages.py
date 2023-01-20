@@ -23,9 +23,9 @@
 """PyTAK DPConnect tests."""
 
 import os
-import pprint
 
-import pytest
+from pytak.crypto_functions import *
+
 import pytak
 
 
@@ -67,7 +67,7 @@ def test_load_convert_cert():
     certificate_location: str = prefs.get("certificate_location")
     assert os.path.exists(certificate_location)
 
-    pem_certs: dict = pytak.crypto_functions.convert_cert(certificate_location, client_password)
+    pem_certs: dict = convert_cert(certificate_location, client_password)
     print(pem_certs)
 
     pk_pem_path: str = pem_certs.get("pk_pem_path")
