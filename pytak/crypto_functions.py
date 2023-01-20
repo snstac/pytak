@@ -24,7 +24,6 @@ import warnings
 
 from typing import Union
 
-import pytak
 
 INSTALL_MSG = (
     "Python cryptography module not installed. Install with: "

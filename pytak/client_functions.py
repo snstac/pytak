@@ -37,6 +37,8 @@ from urllib.parse import ParseResult, urlparse
 from typing import Any, Tuple
 
 import pytak
+import pytak.functions
+import pytak.crypto_functions
 
 from pytak.asyncio_dgram import (
     DatagramClient,
