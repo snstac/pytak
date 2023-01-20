@@ -49,7 +49,7 @@ def test_load_cs2url():
 
 
 def test_load_cert():
-    cert: list = cfunc.load_cert("tests/data/test_user_cert.p12", "atakatak")
+    cert: list = pytak.crypto_functions.load_cert("tests/data/test_user_cert.p12", "atakatak")
     assert len(cert) == 3
 
 
@@ -64,7 +64,7 @@ def test_load_convert_cert():
     certificate_location: str = prefs.get("certificate_location")
     assert os.path.exists(certificate_location)
 
-    pem_certs: dict = cfunc.convert_cert(certificate_location, client_password)
+    pem_certs: dict = pytak.crypto_functions.convert_cert(certificate_location, client_password)
     print(pem_certs)
 
     pk_pem_path: str = pem_certs.get("pk_pem_path")
