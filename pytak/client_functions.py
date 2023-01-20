@@ -37,8 +37,8 @@ from urllib.parse import ParseResult, urlparse
 from typing import Any, Tuple
 
 import pytak
-import pytak.functions
-import pytak.crypto_functions
+
+from pytak.functions import unzip_file, find_file, load_preferences, cs2url
 
 from pytak.asyncio_dgram import (
     DatagramClient,
@@ -299,13 +299,13 @@ def read_pref_package(pref_package: str) -> dict:
         "PYTAK_TLS_CLIENT_CAFILE": None
     }
 
-    dp_path: str = pytak.functions.unzip_file(pref_package)
-    pref_file: str = pytak.functions.find_file(dp_path, "*.pref")
-    prefs: dict = pytak.functions.load_preferences(pref_file, dp_path)
+    dp_path: str = unzip_file(pref_package)
+    pref_file: str = find_file(dp_path, "*.pref")
+    prefs: dict = load_preferences(pref_file, dp_path)
 
     connect_string: str = prefs.get("connect_string", "")
     assert connect_string
-    pref_config["COT_URL"] = pytak.functions.cs2url(connect_string)
+    pref_config["COT_URL"] = cs2url(connect_string)
 
     cert_location: str = prefs.get("certificate_location", "")
     assert os.path.exists(cert_location)

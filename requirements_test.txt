@@ -3,3 +3,4 @@ pytest-cov
 pylint
 flake8
 black
+cryptography
