@@ -1,3 +1,7 @@
+PyTAK 5.6.1
+-----------
+Exported `read_pref_package()` from client_functions.
+
 PyTAK 5.6.0
 -----------
 New Features:

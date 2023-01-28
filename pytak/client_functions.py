@@ -360,7 +360,7 @@ def cli(app_name: str) -> None:
     # Read config:
     env_vars = os.environ
 
-    # Remove env vars that contain '%s', which ConfigParser or pprint barf on:
+    # Remove env vars that contain '%', which ConfigParser or pprint barf on:
     env_vars = {key: val for key,
                 val in env_vars.items() if "%" not in val}
 
@@ -368,16 +368,16 @@ def cli(app_name: str) -> None:
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"
     env_vars["COT_STALE"] = getattr(app, "DEFAULT_COT_STALE", pytak.DEFAULT_COT_STALE)
 
-    _config: ConfigParser = ConfigParser(env_vars)
+    orig_config: ConfigParser = ConfigParser(env_vars)
 
     config_file = cli_args.get("CONFIG_FILE", "")
     if os.path.exists(config_file):
         logging.info("Reading configuration from %s", config_file)
-        _config.read(config_file)
+        orig_config.read(config_file)
     else:
-        _config.add_section(app_name)
+        orig_config.add_section(app_name)
 
-    config: SectionProxy = _config[app_name]
+    config: SectionProxy = orig_config[app_name]
 
     pref_package: str = config.get("PREF_PACKAGE", cli_args.get("PREF_PACKAGE"))
     if pref_package and os.path.exists(pref_package):

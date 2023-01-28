@@ -61,6 +61,7 @@ from .client_functions import (  # NOQA
     txworker_factory,
     rxworker_factory,
     cli,
+    read_pref_package,
 )
 
 from . import asyncio_dgram  # NOQA
