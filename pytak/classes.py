@@ -223,20 +223,54 @@ class CLITool:
     def __init__(
         self,
         config: ConfigParser,
+        full_config: ConfigParser,
         tx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
         rx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
     ) -> None:
         """Initialize CLITool instance."""
         self.tasks: Set = set()
         self.running_tasks: Set = set()
-
-        self.config = config
+        self._config = config
+        self.queues = []
+        self.full_config = full_config
         self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
         self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
 
-        if self.config.getboolean("DEBUG", False):
+        if self._config.getboolean("DEBUG", False):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
+    
+    @property
+    def config(self):
+        return self._config
+    
+    @config.setter
+    def config(self, v):
+        self._config = v
+
+    async def create_workers(self, i_config):
+        """Creates and runs queue workers with specified config parameter.
+        
+        Parameters
+        ----------
+        i_config : `configparser.SectionProxy`
+            Configuration options & values.
+        """
+        try:
+            reader, writer = await pytak.protocol_factory(i_config)
+            tx_queue = asyncio.Queue()
+            rx_queue = asyncio.Queue()
+            if len(self.queues) == 0:
+                # If the queue list is empty, make this the default.
+                self.tx_queue = tx_queue  
+                self.rx_queue = rx_queue
+            write_worker = pytak.TXWorker(tx_queue, i_config, writer)
+            read_worker = pytak.RXWorker(rx_queue, i_config, reader)
+            self.queues.append({i_config.name: {'tx_queue': tx_queue, 'rx_queue': rx_queue}})
+            self.add_task(write_worker)
+            self.add_task(read_worker)
+        except:
+            self._logger.warn(f"Unable to create workers from {i_config.name}")
 
     async def setup(self) -> None:
         """Set up CLITool.
@@ -276,6 +310,7 @@ class CLITool:
         tasks = tasks or self.tasks
         for task in tasks:
             self.run_task(task)
+        self.tasks.clear()
 
     async def run(self):
         """Run this Thread and its associated coroutine tasks."""

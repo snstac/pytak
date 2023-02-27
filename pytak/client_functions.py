@@ -275,7 +275,7 @@ async def rxworker_factory(
     return pytak.RXWorker(queue, config, reader)
 
 
-async def main(app_name: str, config: SectionProxy) -> None:
+async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -> None:
     """
     Abstract implementation of an async main function.
 
@@ -285,11 +285,20 @@ async def main(app_name: str, config: SectionProxy) -> None:
         Name of the app calling this function.
     config : `SectionProxy`
         A dict of configuration parameters & values.
+    full_config : `ConfigParser`
+        A full dict of configuration parameters & values.
     """
     app = importlib.__import__(app_name)
-    clitool: pytak.CLITool = pytak.CLITool(config)
+    clitool: pytak.CLITool = pytak.CLITool(config, full_config)
     create_tasks = getattr(app, "create_tasks")
-    await clitool.setup()
+    await clitool.create_workers(config)
+    if config.get("IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS):
+        try:
+            for i in full_config.sections()[1:]:
+                await clitool.create_workers(full_config[i])
+        except:
+            logging.warn("No more configs to create workers for!")
+    #await clitool.setup()
     clitool.add_tasks(create_tasks(config, clitool))
     await clitool.run()
 
@@ -378,6 +387,7 @@ def cli(app_name: str) -> None:
         orig_config.add_section(app_name)
 
     config: SectionProxy = orig_config[app_name]
+    full_config: ConfigParser = orig_config
 
     pref_package: str = config.get("PREF_PACKAGE", cli_args.get("PREF_PACKAGE"))
     if pref_package and os.path.exists(pref_package):
@@ -392,11 +402,11 @@ def cli(app_name: str) -> None:
         print("=" * 10)
 
     if sys.version_info[:2] >= (3, 7):
-        asyncio.run(main(app_name, config), debug=debug)
+        asyncio.run(main(app_name, config, full_config), debug=debug)
     else:
         loop = get_running_loop()
         try:
-            loop.run_until_complete(main(app_name, config))
+            loop.run_until_complete(main(app_name, config, full_config))
         finally:
             loop.close()
 
