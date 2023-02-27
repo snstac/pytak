@@ -49,9 +49,7 @@ class Worker:  # pylint: disable=too-few-public-methods
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
     def __init__(
-        self,
-        queue: Union[asyncio.Queue, mp.Queue], 
-        config: ConfigParser = None
+        self, queue: Union[asyncio.Queue, mp.Queue], config: ConfigParser = None
     ) -> None:
         """Initialize a Worker instance."""
         self.queue: Union[asyncio.Queue, mp.Queue] = queue
@@ -146,8 +144,8 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
 class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     """Async receive (input) queue worker.
-    
-    Reads events from a `pytak.protocol_factory()` reader and adds them to 
+
+    Reads events from a `pytak.protocol_factory()` reader and adds them to
     an `rx_queue`.
 
     Most implementations use this to drain an RX buffer on a socket.
@@ -164,9 +162,9 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self.reader_queue: asyncio.Queue = asyncio.Queue
 
     async def readcot(self):
-        if hasattr(self.reader, 'readuntil'):
+        if hasattr(self.reader, "readuntil"):
             return await self.reader.readuntil("</event>".encode("UTF-8"))
-        elif hasattr(self.reader, 'recv'):
+        elif hasattr(self.reader, "recv"):
             buf, _ = await self.reader.recv()
             return buf
 
@@ -239,18 +237,18 @@ class CLITool:
         if self._config.getboolean("DEBUG", False):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
-    
+
     @property
     def config(self):
         return self._config
-    
+
     @config.setter
     def config(self, v):
         self._config = v
 
     async def create_workers(self, i_config):
         """Creates and runs queue workers with specified config parameter.
-        
+
         Parameters
         ----------
         i_config : `configparser.SectionProxy`
@@ -262,11 +260,13 @@ class CLITool:
             rx_queue = asyncio.Queue()
             if len(self.queues) == 0:
                 # If the queue list is empty, make this the default.
-                self.tx_queue = tx_queue  
+                self.tx_queue = tx_queue
                 self.rx_queue = rx_queue
             write_worker = pytak.TXWorker(tx_queue, i_config, writer)
             read_worker = pytak.RXWorker(rx_queue, i_config, reader)
-            self.queues.append({i_config.name: {'tx_queue': tx_queue, 'rx_queue': rx_queue}})
+            self.queues.append(
+                {i_config.name: {"tx_queue": tx_queue, "rx_queue": rx_queue}}
+            )
             self.add_task(write_worker)
             self.add_task(read_worker)
         except:

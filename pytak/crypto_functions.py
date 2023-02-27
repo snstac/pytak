@@ -62,7 +62,9 @@ def save_pem(pem: bytes, dest: Union[str, None] = None) -> str:
     return pem_path
 
 
-def load_cert(cert_path: str, cert_pass: str): # -> Set[_RSAPrivateKey, Certificate, Certificate]:
+def load_cert(
+    cert_path: str, cert_pass: str
+):  # -> Set[_RSAPrivateKey, Certificate, Certificate]:
     """Load RSA Keys & Certs from a pkcs12 ().p12) file."""
     if not USE_CRYPTOGRAPHY:
         raise Exception(INSTALL_MSG)
