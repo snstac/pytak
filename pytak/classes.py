@@ -197,10 +197,13 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
         super().__init__(queue, config)
         self._logger.info("CoT_URL Dest: %s", self.config.get("COT_URL"))
 
-    async def put_queue(self, data: bytes) -> None:
+    async def put_queue(self, data: bytes, queue_arg: asyncio.Queue = None) -> None:
         """Put Data onto the Queue."""
         try:
-            await self.queue.put(data)
+            if queue_arg == None:
+                await self.queue.put(data)
+            else:
+                queue_arg.put(data)
         except asyncio.QueueFull:
             self._logger.warning("Lost Data (queue full): '%s'", data)
 
@@ -229,7 +232,7 @@ class CLITool:
         self.tasks: Set = set()
         self.running_tasks: Set = set()
         self._config = config
-        self.queues = []
+        self.queues = {}
         self.full_config = full_config
         self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
         self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
@@ -264,9 +267,7 @@ class CLITool:
                 self.rx_queue = rx_queue
             write_worker = pytak.TXWorker(tx_queue, i_config, writer)
             read_worker = pytak.RXWorker(rx_queue, i_config, reader)
-            self.queues.append(
-                {i_config.name: {"tx_queue": tx_queue, "rx_queue": rx_queue}}
-            )
+            self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
             self.add_task(write_worker)
             self.add_task(read_worker)
         except:
