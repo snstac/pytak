@@ -126,7 +126,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def handle_data(self, data: bytes) -> None:
         """Accept CoT event from CoT event queue and process for writing."""
-        self._logger.debug("TX: %s", data)
+        self._logger.debug("TX (%s): %s", self.config.name ,data)
         await self.send_data(data)
 
     async def send_data(self, data: bytes) -> None:
@@ -175,7 +175,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
             await asyncio.sleep(self.min_period)
             if self.reader:
                 data: bytes = await self.readcot()
-                self._logger.debug("RX: %s", data)
+                #self._logger.debug("RX: %s", data)
                 self.queue.put_nowait(data)
 
 
@@ -203,7 +203,7 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
             if queue_arg == None:
                 await self.queue.put(data)
             else:
-                queue_arg.put(data)
+                await queue_arg.put(data)
         except asyncio.QueueFull:
             self._logger.warning("Lost Data (queue full): '%s'", data)
 
