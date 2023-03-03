@@ -270,8 +270,9 @@ class CLITool:
             self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
             self.add_task(write_worker)
             self.add_task(read_worker)
-        except:
+        except Exception as exc:
             self._logger.warn(f"Unable to create workers from {i_config.name}")
+            self._logger.exception(exc)
 
     async def setup(self) -> None:
         """Set up CLITool.
