@@ -82,8 +82,7 @@ class Worker:  # pylint: disable=too-few-public-methods
 
     async def handle_data(self, data: bytes) -> None:
         """Handle data (placeholder method, please override)."""
-        del data
-        self._logger.warning("Override this method!")
+        raise NotImplementedError("Subclasses need to override this method")
 
     async def run(self, number_of_iterations=-1):
         """Run this Thread, reads Data from Queue & passes data to next Handler."""
