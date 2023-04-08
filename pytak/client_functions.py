@@ -40,11 +40,7 @@ import pytak
 
 from pytak.functions import unzip_file, find_file, load_preferences, cs2url
 
-from pytak.asyncio_dgram import (
-    DatagramClient,
-    connect as dgconnect,
-    bind as dgbind
-)
+from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind
 
 # Python 3.6 support:
 if sys.version_info[:2] >= (3, 7):
@@ -58,7 +54,9 @@ __copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
 
-async def create_udp_client(url: ParseResult) -> Tuple[Union[DatagramClient, None], DatagramClient]:
+async def create_udp_client(
+    url: ParseResult,
+) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
     Parameters
@@ -124,10 +122,10 @@ def get_tls_config(config: SectionProxy) -> SectionProxy:
         )
     )
 
-
     if not all(tls_config_req.values()):
         raise Exception(
-            f"Not all required TLS Params specified: {pytak.DEFAULT_TLS_PARAMS_REQ}")
+            f"Not all required TLS Params specified: {pytak.DEFAULT_TLS_PARAMS_REQ}"
+        )
 
     tls_config_opt: dict = dict(
         zip(
@@ -215,19 +213,23 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         # Default to checking hostnames:
         if dont_check_hostname:
             warnings.warn(
-                "TLS CN/Hostname Check DISABLED by PYTAK_TLS_DONT_CHECK_HOSTNAME.")
+                "TLS CN/Hostname Check DISABLED by PYTAK_TLS_DONT_CHECK_HOSTNAME."
+            )
             ssl_ctx.check_hostname = False
 
         # Default to verifying cert:
         if dont_verify:
             warnings.warn(
-                "TLS Certificate Verification DISABLED by PYTAK_TLS_DONT_VERIFY.")
+                "TLS Certificate Verification DISABLED by PYTAK_TLS_DONT_VERIFY."
+            )
             ssl_ctx.verify_mode = ssl.CERT_NONE
 
         try:
             reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
         except ssl.SSLCertVerificationError as exc:
-            raise Exception("Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?") from exc
+            raise Exception(
+                "Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?"
+            ) from exc
     elif "udp" in scheme:
         reader, writer = await pytak.create_udp_client(cot_url)
     elif "http" in scheme:
@@ -275,7 +277,7 @@ async def rxworker_factory(
     return pytak.RXWorker(queue, config, reader)
 
 
-async def main(app_name: str, config: SectionProxy) -> None:
+async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -> None:
     """
     Abstract implementation of an async main function.
 
@@ -285,11 +287,20 @@ async def main(app_name: str, config: SectionProxy) -> None:
         Name of the app calling this function.
     config : `SectionProxy`
         A dict of configuration parameters & values.
+    full_config : `ConfigParser`
+        A full dict of configuration parameters & values.
     """
     app = importlib.__import__(app_name)
-    clitool: pytak.CLITool = pytak.CLITool(config)
+    clitool: pytak.CLITool = pytak.CLITool(config, full_config)
     create_tasks = getattr(app, "create_tasks")
-    await clitool.setup()
+    await clitool.create_workers(config)
+    if config.get("IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS):
+        try:
+            for i in full_config.sections()[1:]:
+                await clitool.create_workers(full_config[i])
+        except:
+            logging.warn("No more configs to create workers for!")
+    # await clitool.setup()
     clitool.add_tasks(create_tasks(config, clitool))
     await clitool.run()
 
@@ -300,7 +311,7 @@ def read_pref_package(pref_package: str) -> dict:
         "COT_URL": None,
         "PYTAK_TLS_CLIENT_CERT": None,
         "PYTAK_TLS_CLIENT_KEY": None,
-        "PYTAK_TLS_CLIENT_CAFILE": None
+        "PYTAK_TLS_CLIENT_CAFILE": None,
     }
 
     dp_path: str = unzip_file(pref_package)
@@ -318,7 +329,10 @@ def read_pref_package(pref_package: str) -> dict:
     assert client_password
 
     import pytak.crypto_functions
-    pem_certs: dict = pytak.crypto_functions.convert_cert(cert_location, client_password)
+
+    pem_certs: dict = pytak.crypto_functions.convert_cert(
+        cert_location, client_password
+    )
     pref_config["PYTAK_TLS_CLIENT_CERT"] = pem_certs.get("cert_pem_path")
     pref_config["PYTAK_TLS_CLIENT_KEY"] = pem_certs.get("pk_pem_path")
     pref_config["PYTAK_TLS_CLIENT_CAFILE"] = pem_certs.get("ca_pem_path")
@@ -361,8 +375,7 @@ def cli(app_name: str) -> None:
     env_vars = os.environ
 
     # Remove env vars that contain '%', which ConfigParser or pprint barf on:
-    env_vars = {key: val for key,
-                val in env_vars.items() if "%" not in val}
+    env_vars = {key: val for key, val in env_vars.items() if "%" not in val}
 
     env_vars["COT_URL"] = env_vars.get("COT_URL", pytak.DEFAULT_COT_URL)
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"
@@ -378,6 +391,7 @@ def cli(app_name: str) -> None:
         orig_config.add_section(app_name)
 
     config: SectionProxy = orig_config[app_name]
+    full_config: ConfigParser = orig_config
 
     pref_package: str = config.get("PREF_PACKAGE", cli_args.get("PREF_PACKAGE"))
     if pref_package and os.path.exists(pref_package):
@@ -392,11 +406,11 @@ def cli(app_name: str) -> None:
         print("=" * 10)
 
     if sys.version_info[:2] >= (3, 7):
-        asyncio.run(main(app_name, config), debug=debug)
+        asyncio.run(main(app_name, config, full_config), debug=debug)
     else:
         loop = get_running_loop()
         try:
-            loop.run_until_complete(main(app_name, config))
+            loop.run_until_complete(main(app_name, config, full_config))
         finally:
             loop.close()
 

@@ -46,7 +46,6 @@ if bool(os.environ.get("DEBUG")):
 DEFAULT_COT_URL: str = "udp://239.2.3.1:6969"  # ATAK Default multicast
 DEFAULT_COT_STALE: str = "120"  # Config wants all values as strings, we'll cast later.
 DEFAULT_HOST_ID: str = f"pytak@{platform.node()}"
-
 DEFAULT_COT_PORT: int = 8087
 DEFAULT_ATAK_PORT: int = 4242
 DEFAULT_BROADCAST_PORT: int = 6969
@@ -72,6 +71,8 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_DONT_CHECK_HOSTNAME",
     "PYTAK_TLS_DONT_VERIFY",
 ]
+
+DEFAULT_IMPORT_OTHER_CONFIGS: bool = False
 
 BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
 DEFAULT_COT_VAL: str = "9999999.0"

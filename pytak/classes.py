@@ -49,9 +49,7 @@ class Worker:  # pylint: disable=too-few-public-methods
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
     def __init__(
-        self,
-        queue: Union[asyncio.Queue, mp.Queue], 
-        config: ConfigParser = None
+        self, queue: Union[asyncio.Queue, mp.Queue], config: ConfigParser = None
     ) -> None:
         """Initialize a Worker instance."""
         self.queue: Union[asyncio.Queue, mp.Queue] = queue
@@ -128,7 +126,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def handle_data(self, data: bytes) -> None:
         """Accept CoT event from CoT event queue and process for writing."""
-        self._logger.debug("TX: %s", data)
+        self._logger.debug("TX (%s): %s", self.config.name, data)
         await self.send_data(data)
 
     async def send_data(self, data: bytes) -> None:
@@ -146,8 +144,8 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
 class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     """Async receive (input) queue worker.
-    
-    Reads events from a `pytak.protocol_factory()` reader and adds them to 
+
+    Reads events from a `pytak.protocol_factory()` reader and adds them to
     an `rx_queue`.
 
     Most implementations use this to drain an RX buffer on a socket.
@@ -164,9 +162,9 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self.reader_queue: asyncio.Queue = asyncio.Queue
 
     async def readcot(self):
-        if hasattr(self.reader, 'readuntil'):
+        if hasattr(self.reader, "readuntil"):
             return await self.reader.readuntil("</event>".encode("UTF-8"))
-        elif hasattr(self.reader, 'recv'):
+        elif hasattr(self.reader, "recv"):
             buf, _ = await self.reader.recv()
             return buf
 
@@ -177,7 +175,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
             await asyncio.sleep(self.min_period)
             if self.reader:
                 data: bytes = await self.readcot()
-                self._logger.debug("RX: %s", data)
+                # self._logger.debug("RX: %s", data)
                 self.queue.put_nowait(data)
 
 
@@ -199,10 +197,13 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
         super().__init__(queue, config)
         self._logger.info("CoT_URL Dest: %s", self.config.get("COT_URL"))
 
-    async def put_queue(self, data: bytes) -> None:
+    async def put_queue(self, data: bytes, queue_arg: asyncio.Queue = None) -> None:
         """Put Data onto the Queue."""
         try:
-            await self.queue.put(data)
+            if queue_arg == None:
+                await self.queue.put(data)
+            else:
+                await queue_arg.put(data)
         except asyncio.QueueFull:
             self._logger.warning("Lost Data (queue full): '%s'", data)
 
@@ -223,20 +224,55 @@ class CLITool:
     def __init__(
         self,
         config: ConfigParser,
+        full_config: ConfigParser,
         tx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
         rx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
     ) -> None:
         """Initialize CLITool instance."""
         self.tasks: Set = set()
         self.running_tasks: Set = set()
-
-        self.config = config
+        self._config = config
+        self.queues = {}
+        self.full_config = full_config
         self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
         self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
 
-        if self.config.getboolean("DEBUG", False):
+        if self._config.getboolean("DEBUG", False):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
+
+    @property
+    def config(self):
+        return self._config
+
+    @config.setter
+    def config(self, v):
+        self._config = v
+
+    async def create_workers(self, i_config):
+        """Creates and runs queue workers with specified config parameter.
+
+        Parameters
+        ----------
+        i_config : `configparser.SectionProxy`
+            Configuration options & values.
+        """
+        try:
+            reader, writer = await pytak.protocol_factory(i_config)
+            tx_queue = asyncio.Queue()
+            rx_queue = asyncio.Queue()
+            if len(self.queues) == 0:
+                # If the queue list is empty, make this the default.
+                self.tx_queue = tx_queue
+                self.rx_queue = rx_queue
+            write_worker = pytak.TXWorker(tx_queue, i_config, writer)
+            read_worker = pytak.RXWorker(rx_queue, i_config, reader)
+            self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
+            self.add_task(write_worker)
+            self.add_task(read_worker)
+        except Exception as exc:
+            self._logger.warn(f"Unable to create workers from {i_config.name}")
+            self._logger.exception(exc)
 
     async def setup(self) -> None:
         """Set up CLITool.
@@ -276,6 +312,7 @@ class CLITool:
         tasks = tasks or self.tasks
         for task in tasks:
             self.run_task(task)
+        self.tasks.clear()
 
     async def run(self):
         """Run this Thread and its associated coroutine tasks."""

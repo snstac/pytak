@@ -70,7 +70,7 @@ def parse_url(url: Union[str, ParseResult]) -> Tuple[str, int]:
         elif "multicast" in _url.scheme:
             warnings.warn(
                 "You no longer need to specify '+multicast' in the COT_URL.",
-                DeprecationWarning
+                DeprecationWarning,
             )
             port = pytak.DEFAULT_BROADCAST_PORT
         else:
@@ -152,7 +152,7 @@ def load_preferences(pref_path: str, search_dir: str):
     prefs = {
         "connect_string": None,
         "client_password": None,
-        "certificate_location": None
+        "certificate_location": None,
     }
 
     # Determine the COT URL, client certificate and password
@@ -171,5 +171,3 @@ def cs2url(conn_str: str) -> str:
     """Convert a TAK-style connectString into a URL."""
     uri_parts = conn_str.split(":")
     return f"{uri_parts[2]}://{uri_parts[0]}:{uri_parts[1]}"
-
-
