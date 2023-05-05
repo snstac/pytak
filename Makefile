@@ -24,7 +24,7 @@ this_app = pytak
 all: editable
 
 develop:
-	python3 setup.py develop
+	python3 -m pip install --use-feature=in-tree-build .
 
 editable:
 	python3 -m pip install -e .
@@ -41,7 +41,7 @@ uninstall:
 reinstall: uninstall install
 
 build:
-	python -m build
+	python3 -m build
 
 publish: dist
 	twine upload dist/*
@@ -79,3 +79,7 @@ test_cov:
 
 black:
 	black .
+
+mkdocs:
+	# python -m pip install --upgrade --no-cache-dir pip setuptools<58.3.0
+	python -m pip install --upgrade --no-cache-dir -r requirements_docs.txt
