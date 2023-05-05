@@ -37,7 +37,7 @@ PyTAK 5.3.1
 Readme cleanup.
 
 Changed behavior of while loops to sleep 0.1 instead of 0, which was causing
-high CPU. See https://github.com/ampledata/pytak/pull/22 thanks @PeterQFR.
+high CPU. See https://github.com/snstac/pytak/pull/22 thanks @PeterQFR.
 
 
 PyTAK 5.2.0

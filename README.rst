@@ -4,9 +4,9 @@
 Python Team Awareness Kit (PyTAK)
 *********************************
 
-.. image:: https://raw.githubusercontent.com/ampledata/adsbxcot/main/docs/Screenshot_20201026-142037_ATAK-25p.jpg
+.. image:: https://raw.githubusercontent.com/snstac/adsbxcot/main/docs/Screenshot_20201026-142037_ATAK-25p.jpg
    :alt: Screenshot of ADS-B PLI in ATAK.
-   :target: https://github.com/ampledata/adsbxcot/blob/main/docs/Screenshot_20201026-142037_ATAK.jpg
+   :target: https://github.com/snstac/adsbxcot/blob/main/docs/Screenshot_20201026-142037_ATAK.jpg
 
 
 PyTAK is a Python Module for creating TAK clients, servers & gateways and includes 
@@ -16,7 +16,7 @@ serializing CoT data, and sending and receiving CoT data over a network.
 PyTAK supports the following I/O & network protocols:
 
 * TCP Unicast: ``tcp://host:port``
-* TLS Unicast: ``tls://host:port`` (see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ section below)
+* TLS Unicast: ``tls://host:port`` (see `TLS Support <https://github.com/snstac/pytak#tls-support>`_ section below)
 * UDP Unicast: ``udp://host:port``
 * UDP Broadcast: ``udp+broadcast://network:port``
 * UDP Multicast: ``udp://group:port``
@@ -42,14 +42,14 @@ Clients:
 
 PyTAK is used by many CoT & TAK gateways:
 
-* `aiscot <https://github.com/ampledata/aiscot>`_: Automatic Identification System (AIS) to COT Gateway. Transforms marine AIS position messages to COT PLI Events.
-* `adsbcot <https://github.com/ampledata/adsbcot>`_: Automatic Dependent Surveillance-Broadcast (ADS-B) to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
-* `adsbxcot <https://github.com/ampledata/adsbxcot>`_: ADS-B Exchange to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
-* `stratuxcot <https://github.com/ampledata/stratuxcot>`_: Stratux ADS-B to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
-* `aprscot <https://github.com/ampledata/aprscot>`_: Automatic Packet Reporting System (APRS) to COT Gateway. Transforms APRS position messages to COT PLI Events.
-* `spotcot <https://github.com/ampledata/spotcot>`_: Globalstar SPOT to COT Gateway. Transforms Spot satellite position messages to COT PLI Events.
-* `inrcot <https://github.com/ampledata/inrcot>`_: Garmin inReach to COT Gateway. Transforms inReach satellite position messages to COT PLI Events.
-* `zellocot <https://github.com/ampledata/zellocot>`_: ZelloWork to COT Gateway. Transforms ZelloWork user locations to COT PLI Events.
+* `aiscot <https://github.com/snstac/aiscot>`_: Automatic Identification System (AIS) to COT Gateway. Transforms marine AIS position messages to COT PLI Events.
+* `adsbcot <https://github.com/snstac/adsbcot>`_: Automatic Dependent Surveillance-Broadcast (ADS-B) to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
+* `adsbxcot <https://github.com/snstac/adsbxcot>`_: ADS-B Exchange to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
+* `stratuxcot <https://github.com/snstac/stratuxcot>`_: Stratux ADS-B to COT Gateway. Transforms aircraft ADS-B position messages to COT PLI Events.
+* `aprscot <https://github.com/snstac/aprscot>`_: Automatic Packet Reporting System (APRS) to COT Gateway. Transforms APRS position messages to COT PLI Events.
+* `spotcot <https://github.com/snstac/spotcot>`_: Globalstar SPOT to COT Gateway. Transforms Spot satellite position messages to COT PLI Events.
+* `inrcot <https://github.com/snstac/inrcot>`_: Garmin inReach to COT Gateway. Transforms inReach satellite position messages to COT PLI Events.
+* `zellocot <https://github.com/snstac/zellocot>`_: ZelloWork to COT Gateway. Transforms ZelloWork user locations to COT PLI Events.
 
 
 Usage
@@ -59,7 +59,7 @@ The following Python 3.7+ code example creates a TAK Client that generates ``tak
 CoT every 20 seconds, and sends them to a TAK Server at 
 ``tcp://takserver.example.com:8087`` (plain / clear TCP).
 
-* For secure TLS, see `TLS Support <https://github.com/ampledata/pytak#tls-support>`_ below. 
+* For secure TLS, see `TLS Support <https://github.com/snstac/pytak#tls-support>`_ below. 
 
 To run this example as-is, save the following code-block out to a file named 
 ``example.py`` and run the command ``python3 example.py``::
@@ -150,7 +150,7 @@ Installation
 PyTAK is available as a Debian ``.deb`` package. This is the preferred method to 
 install PyTAK on Debian-based (Ubuntu, Debian, Raspberry Pi) systems::
 
-    $ wget https://github.com/ampledata/pytak/releases/latest/download/python3-pytak_latest_all.deb
+    $ wget https://github.com/snstac/pytak/releases/latest/download/python3-pytak_latest_all.deb
     $ sudo apt install -f ./python3-pytak_latest_all.deb
 
 
@@ -201,7 +201,7 @@ installation of additional libraries.
 
 2b. Install PyTAK from source::
 
-    $ git clone https://github.com/ampledata/pytak.git
+    $ git clone https://github.com/snstac/pytak.git
     $ cd pytak/
     $ python3 setup.py install
 
@@ -296,7 +296,7 @@ TAK Protocol Payload - Version 1 (Protobuf) Support
 
 PyTAK natively sends and receives "TAK Protocol Payload - Version 0", aka plain XML. If 
 you'd like to receive & decode "Version 1" protobuf with PyTAK, install the optional 
-`takproto <https://github.com/ampledata/takproto>`_ Python module::
+`takproto <https://github.com/snstac/takproto>`_ Python module::
 
 When installing PyTAK:
 
@@ -366,14 +366,14 @@ N.B. The data type returned from this implementation differs from that of the
 
 Source
 ======
-Github: https://github.com/ampledata/pytak
+Github: https://github.com/snstac/pytak
 
 
 Author
 ======
-Greg Albrecht W2GMD oss@undef.net
+Greg Albrecht gba@snstac.com
 
-https://ampledata.org/
+https://snstac.org/
 
 
 Copyright
@@ -386,7 +386,7 @@ Copyright
 License
 =======
 
-Copyright 2023 Greg Albrecht <oss@undef.net>
+Copyright 2023 Greg Albrecht <gba@snstac.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

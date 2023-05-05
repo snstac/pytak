@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <gba@snstac.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
+# Author:: Greg Albrecht <gba@snstac.com>
 #
 
 """PyTAK Constants."""
@@ -23,7 +23,7 @@ import os
 import platform
 
 
-__author__ = "Greg Albrecht W2GMD <oss@undef.net>"
+__author__ = "Greg Albrecht <gba@snstac.com>"
 __copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 
@@ -79,7 +79,7 @@ DEFAULT_COT_VAL: str = "9999999.0"
 
 # await asyncio.sleep(0) should allow co-routines to yield, but they end up
 # eating 100% CPU. @PeterQFR found bumping this to 0.1 solved the high CPU
-# issue. See: https://github.com/ampledata/pytak/pull/22
+# issue. See: https://github.com/snstac/pytak/pull/22
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
 
 # Python <3.8 has no way of including XML Declaration in ET.tostring():

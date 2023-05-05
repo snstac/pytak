@@ -16,7 +16,7 @@
 
 """Setup for the Python Team Awareness Kit (PyTAK) Module.
 
-:source: <https://github.com/ampledata/pytak>
+:source: <https://github.com/snstac/pytak>
 """
 
 from setuptools import setup

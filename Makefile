@@ -1,5 +1,5 @@
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <gba@snstac.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
+# Author:: Greg Albrecht <gba@snstac.com>
 # Copyright:: Copyright 2023 Greg Albrecht
 # License:: Apache License, Version 2.0
 #
