@@ -82,6 +82,9 @@ DEFAULT_COT_VAL: str = "9999999.0"
 # issue. See: https://github.com/ampledata/pytak/pull/22
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
 
+# TAK Protocol to use for CoT output, one of: 0 (XML, default), 2 (Mesh), 2 (Stream).
+DEFAULT_TAK_PROTO = 0 
+
 # Python <3.8 has no way of including XML Declaration in ET.tostring():
 DEFAULT_XML_DECLARATION: bytes = (
     b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
