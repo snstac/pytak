@@ -11,7 +11,7 @@ version = '0.1.1'
 
 # -- General configuration
 
-master_doc = 'souce/index'
+master_doc = 'index'
 
 extensions = [
     'sphinx.ext.duration',
