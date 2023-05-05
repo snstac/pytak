@@ -19,7 +19,7 @@
 """Python Team Awareness Kit (PyTAK) Module.
 
 :author: Greg Albrecht <gba@snstac.com>
-:copyright: Copyright 2023 Greg Albrecht
+:copyright: Copyright 2023 Sensors & Signals LLC
 :license: Apache License, Version 2.0
 :source: <https://github.com/snstac/pytak>
 """
@@ -73,5 +73,5 @@ from . import asyncio_dgram  # NOQA
 # from .crypto_functions import *
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"

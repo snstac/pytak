@@ -14,12 +14,17 @@ parameters and their behavior can be found in the :doc:`config`.
 
 Contents
 --------
-
 .. toctree::
-
    install
    config
    compat
    clients
    examples
    api
+
+
+Indices and tables
+==================
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
