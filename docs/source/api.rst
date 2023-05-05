@@ -1,6 +1,8 @@
 API
 ===
 
+.. autosummary::
+   :toctree: generated
 
    pytak
    pytak.Worker

@@ -20,6 +20,7 @@ Contents
    compat
    clients
    examples
+   api
 
 Indices and tables
 ==================
