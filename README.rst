@@ -1,6 +1,5 @@
-.. image:: https://img.shields.io/github/sponsors/ampledata?label=Sponsor&logo=GitHub
-    :alt: Support Development: Sponsor this project on GitHub sponsors.
-    :target: https://github.com/sponsors/ampledata
+.. image:: ./docs/pytak_logo-256x264.png
+    :alt: PyTAK Logo
 
 Python Team Awareness Kit (PyTAK)
 *********************************
@@ -51,28 +50,6 @@ PyTAK is used by many CoT & TAK gateways:
 * `spotcot <https://github.com/ampledata/spotcot>`_: Globalstar SPOT to COT Gateway. Transforms Spot satellite position messages to COT PLI Events.
 * `inrcot <https://github.com/ampledata/inrcot>`_: Garmin inReach to COT Gateway. Transforms inReach satellite position messages to COT PLI Events.
 * `zellocot <https://github.com/ampledata/zellocot>`_: ZelloWork to COT Gateway. Transforms ZelloWork user locations to COT PLI Events.
-
-
-Support Development
-===================
-.. image:: https://img.shields.io/github/sponsors/ampledata?label=Sponsor&logo=GitHub
-    :alt: Support Development: Sponsor this project on GitHub sponsors.
-    :target: https://github.com/sponsors/ampledata
-
-.. image:: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
-    :target: https://www.buymeacoffee.com/ampledata
-    :alt: Support Development: Buy me a coffee!
-
-.. image:: https://cdn.ko-fi.com/cdn/kofi1.png?v=3
-    :target: https://ko-fi.com/T6T3D6Z9G
-    :alt: Support Development: Buy Me a Coffee at ko-fi.com
-
-**Tech Support**: Email takhelp@undef.net or `Signal <https://signal.org/>`_: +1-310-621-9598
-
-This tool has been developed for the Disaster Response, Public Safety and
-Frontline Healthcare community. This software is currently provided at no-cost
-to users. Any contribution you can make to further this project's development
-efforts is greatly appreciated.
 
 
 Usage
@@ -176,12 +153,32 @@ install PyTAK on Debian-based (Ubuntu, Debian, Raspberry Pi) systems::
     $ wget https://github.com/ampledata/pytak/releases/latest/download/python3-pytak_latest_all.deb
     $ sudo apt install -f ./python3-pytak_latest_all.deb
 
-**N.B.** If you wish to use TAK Data Packages / Pref Packages you **must** install the 
-Python cryptography module. If you're installing on a Debian-based OS::
+
+Installing with Data Package Support
+------------------------------------
+
+To use TAK Data Packages / Pref Packages you **must** install the Python cryptography module. 
+
+If you're installing on a Debian-based OS::
 
     $ sudo apt install -y python3-cryptography
 
+Other OS'::
+
+    $ sudo python3 -m pip install pytak[with_crypto]
+
 See also: https://cryptography.io/en/latest/installation/
+
+
+Installing with TAK Protocol Version 1 Support
+----------------------------------------------
+
+To encode and decode TAK Protocol Version 1 (protobuf) you must install the `takproto <https://github.com/snstac/takproto`_ Python Module.
+
+Debian-based OS::
+
+    $ wget https://github.com/snstak/takproto/releases/latest/download/python3-takproto_latest_all.deb
+    $ sudo apt install -f ./python3-takproto_latest_all.deb
 
 Alternative Installation
 ========================
@@ -216,6 +213,7 @@ All configuration parameters can be specified either as environment variables or
 within an INI-style configuration file.
 
 * ``COT_URL``: (*optional*) Destination for Cursor on Target messages. Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP Default)
+* ``TAK_PROTO``: (*optional*) Sets TAK Protocol to use for CoT output, one of: 0 (XML, default), 2 (Mesh), 2 (Stream).
 * ``DEBUG``: (*optional*) Sets debug-level logging.
 * ``FTS_COMPAT``: (*optional*) If set, implements random-sleep period to avoid FTS DoS protections.
 * ``PYTAK_SLEEP``: (*optional*) If set, implements given sleep period between emitting CoT Events.
@@ -297,10 +295,16 @@ TAK Protocol Payload - Version 1 (Protobuf) Support
     Source: https://github.com/deptofdefense/AndroidTacticalAssaultKit-CIV/blob/master/commoncommo/core/impl/protobuf/protocol.txt
 
 PyTAK natively sends and receives "TAK Protocol Payload - Version 0", aka plain XML. If 
-you'd like to receive & decode "Version 1" protobuf with PyTAK, install the 
+you'd like to receive & decode "Version 1" protobuf with PyTAK, install the optional 
 `takproto <https://github.com/ampledata/takproto>`_ Python module::
 
-    $ python3 -m pip install takproto
+When installing PyTAK:
+
+    $ python3 -m pip install pytak[with_takproto]
+
+Alternative, installing from a Debian package:
+
+    $ 
 
 Here is an example of receiving & decoding "Version 1" using ``takproto``. 
 

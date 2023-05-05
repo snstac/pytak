@@ -40,14 +40,17 @@ uninstall:
 
 reinstall: uninstall install
 
-publish:
-	python3 setup.py publish
+build:
+	python -m build
+
+publish: dist
+	twine upload dist/*
 
 clean:
 	@rm -rf *.egg* build dist *.py[oc] */*.py[co] cover doctest_pypi.cfg \
 		nosetests.xml pylint.log output.xml flake8.log tests.log \
 		test-result.xml htmlcov fab.log .coverage __pycache__ \
-		*/__pycache__
+		*/__pycache__ */.mypy_cache/ .pytest_cache/
 
 pep8:
 	flake8 --max-line-length=88 --extend-ignore=E203,E231 --exit-zero $(this_app)/*.py

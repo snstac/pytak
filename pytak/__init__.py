@@ -24,6 +24,9 @@
 :source: <https://github.com/ampledata/pytak>
 """
 
+__version__ = "5.7.0b1"
+
+
 from .constants import (  # NOQA
     LOG_LEVEL,
     LOG_FORMAT,
