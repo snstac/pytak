@@ -42,6 +42,8 @@ from pytak.functions import unzip_file, find_file, load_preferences, cs2url
 
 from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind, from_socket
 
+from pytak.crypto_functions import convert_cert
+
 # Python 3.6 support:
 if sys.version_info[:2] >= (3, 7):
     from asyncio import get_running_loop
@@ -189,6 +191,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
         client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
         client_cafile = tls_config.get("PYTAK_TLS_CLIENT_CAFILE")
+        client_password = tls_config.get("PYTAK_TLS_CLIENT_PASSWORD")
 
         # Default cipher suite: ALL.
         #  Also available in FIPS: DEFAULT_FIPS_CIPHERS
@@ -209,6 +212,11 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         ssl_ctx.set_ciphers(client_ciphers)
         ssl_ctx.check_hostname = True
         ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+
+        if client_cert.endswith(".p12"):
+            cert_paths = convert_cert(client_cert, client_password)
+            client_cert = cert_paths["cert_pem_path"]
+            client_key = cert_paths["pk_pem_path"]
 
         if client_key:
             ssl_ctx.load_cert_chain(client_cert, keyfile=client_key)
