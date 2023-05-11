@@ -40,7 +40,7 @@ import pytak
 
 from pytak.functions import unzip_file, find_file, load_preferences, cs2url
 
-from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind
+from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind, from_socket
 
 # Python 3.6 support:
 if sys.version_info[:2] >= (3, 7):
@@ -71,21 +71,8 @@ async def create_udp_client(
         An AsyncIO UDP network stream client.
     """
     host, port = pytak.parse_url(url)
-    write_only: bool = "+wo" in url.scheme
-
-    reader: Union[DatagramClient, None] = None
-    if not write_only:
-        reader = await dgbind((host, port))
-    writer: DatagramClient = await dgconnect((host, port))
-
-    if reader and "broadcast" in url.scheme:
-        wsock = writer.socket
-        wsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        wsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        rsock = reader.socket
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
+    is_write_only: bool = "+wo" in url.scheme
+    is_broadcast = "broadcast" in url.scheme
     is_multicast: bool = False
     try:
         is_multicast = ipaddress.ip_address(host).is_multicast
@@ -93,12 +80,33 @@ async def create_udp_client(
         # It's probably not an ip address...
         pass
 
-    if reader and is_multicast and not write_only:
-        rsock = reader.socket
+    rsock: Union[DatagramClient, None] = None
+    if not is_write_only:
+        rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        bindall = True if sys.platform == 'win32' else False
+        rsock.bind(('' if bindall else host, port))
+        reader = await from_socket(rsock)
+    writer: DatagramClient = await dgconnect((host, port))
+
+    if is_broadcast:
+        writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        #writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if reader:
+            reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    if reader and (is_broadcast or is_multicast):
+        reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass # Some systems don't support SO_REUSEPORT
+
+    if reader and is_multicast:
         group = socket.inet_aton(host)
         mreq = struct.pack("4sL", group, socket.INADDR_ANY)
-        rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-
+        reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
+        
     return reader, writer
 
 
@@ -159,7 +167,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     reader: Any = None
     writer: Any = None
 
-    _cot_url: str = config.get("COT_URL", "")
+    _cot_url: str = config.get("COT_URL", pytak.DEFAULT_COT_URL)
 
     if "://" not in _cot_url:
         warnings.warn(f"Invalid COT_URL: '{_cot_url}'", SyntaxWarning)
