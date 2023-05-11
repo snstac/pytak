@@ -58,6 +58,7 @@ __license__ = "Apache License, Version 2.0"
 
 async def create_udp_client(
     url: ParseResult,
+    iface:str = None
 ) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
@@ -247,7 +248,8 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
                 "Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?"
             ) from exc
     elif "udp" in scheme:
-        reader, writer = await pytak.create_udp_client(cot_url)
+        iface = config.get("PYTAK_MULTICAST_IFACE")
+        reader, writer = await pytak.create_udp_client(cot_url, iface)
     elif "http" in scheme:
         raise Exception("TeamConnect / Sit(x) Support comming soon.")
         # writer = await pytak.create_tc_client(cot_url)
