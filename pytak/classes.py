@@ -224,7 +224,6 @@ class CLITool:
     def __init__(
         self,
         config: ConfigParser,
-        full_config: ConfigParser,
         tx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
         rx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
     ) -> None:
@@ -233,7 +232,6 @@ class CLITool:
         self.running_tasks: Set = set()
         self._config = config
         self.queues = {}
-        self.full_config = full_config
         self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
         self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
 
