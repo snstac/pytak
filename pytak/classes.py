@@ -71,6 +71,19 @@ class Worker:  # pylint: disable=too-few-public-methods
 
         self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
 
+        tak_proto_version = config.getint("TAK_PROTO", pytak.DEFAULT_TAK_PROTO)
+
+        if tak_proto_version > 0 and importlib.util.find_spec("takproto") is None:
+            self._logger.error("Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]")
+
+        self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec("takproto")
+        self._parse_proto = None
+        self._xml2proto = None
+        
+        if self.use_protobuf:
+            self._parse_proto = lambda cot: takproto.parse_proto(cot)
+            self._xml2proto = lambda cot: takproto.xml2proto(cot)
+        
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
 
@@ -87,8 +100,7 @@ class Worker:  # pylint: disable=too-few-public-methods
 
     async def handle_data(self, data: bytes) -> None:
         """Handle data (placeholder method, please override)."""
-        del data
-        self._logger.warning("Override this method!")
+        raise NotImplementedError("Subclasses need to override this method")
 
     async def run(self, number_of_iterations=-1):
         """Run this Thread, reads Data from Queue & passes data to next Handler."""
@@ -138,9 +150,10 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
-        if importlib.util.find_spec("takproto") and self.config.get("TAK_PROTO", pytak.constants.DEFAULT_TAK_PROTO) == 1:
+        if self.use_protobuf:
             host, _ = pytak.parse_url(self.config.get("COT_URL"))
             is_multicast: bool = False
+            
             try:
                 is_multicast = ipaddress.ip_address(host).is_multicast
             except ValueError:
@@ -148,9 +161,9 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
                 pass
 
             if is_multicast:
-                data = takproto.xml2proto(data, takproto.TAKProtoVer.MESH)
+                data = self._xml2proto(data, takproto.TAKProtoVer.MESH)
             else:
-                data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
+                data = self._xml2proto(data, takproto.TAKProtoVer.STREAM)
 
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
@@ -183,11 +196,19 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self.reader_queue: asyncio.Queue = asyncio.Queue
 
     async def readcot(self):
-        if hasattr(self.reader, "readuntil"):
-            return await self.reader.readuntil("</event>".encode("UTF-8"))
-        elif hasattr(self.reader, "recv"):
-            buf, _ = await self.reader.recv()
-            return buf
+        try:
+            if hasattr(self.reader, 'readuntil'):
+                cot = await self.reader.readuntil("</event>".encode("UTF-8"))
+            elif hasattr(self.reader, 'recv'):
+                cot, src = await self.reader.recv()
+
+            if self.use_protobuf and self._parse_proto:
+                tak_v1 = self._parse_proto(cot)
+                if tak_v1 != -1:
+                    cot = tak_v1#.SerializeToString()
+            return cot
+        except asyncio.exceptions.IncompleteReadError:
+            return None
 
     async def run(self, number_of_iterations=-1) -> None:
         self._logger.info("Run: %s", self.__class__)
@@ -196,8 +217,9 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
             await asyncio.sleep(self.min_period)
             if self.reader:
                 data: bytes = await self.readcot()
-                # self._logger.debug("RX: %s", data)
-                self.queue.put_nowait(data)
+                if data:
+                    self._logger.debug("RX: %s", data)
+                    self.queue.put_nowait(data)
 
 
 class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
@@ -245,7 +267,6 @@ class CLITool:
     def __init__(
         self,
         config: ConfigParser,
-        full_config: ConfigParser,
         tx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
         rx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
     ) -> None:
@@ -254,7 +275,6 @@ class CLITool:
         self.running_tasks: Set = set()
         self._config = config
         self.queues = {}
-        self.full_config = full_config
         self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
         self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
 

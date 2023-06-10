@@ -88,11 +88,7 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
         "ca_pem_path": None,
     }
 
-    res = load_cert(cert_path, cert_pass)
-
-    private_key: _RSAPrivateKey = res[0]
-    cert: Certificate = res[1]
-    ca_cert: Certificate = res[2][0]
+    private_key, cert, additional_certificates = load_cert(cert_path, cert_pass)
 
     # Load privkey
     pk_pem = private_key.private_bytes(
@@ -105,6 +101,7 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
     cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
     cert_paths["cert_pem_path"] = save_pem(cert_pem)
 
+    ca_cert: Certificate = additional_certificates[0]
     ca_pem = ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
     cert_paths["ca_pem_path"] = save_pem(ca_pem)
 

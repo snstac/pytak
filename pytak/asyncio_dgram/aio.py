@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import pathlib
 import socket
@@ -292,7 +293,9 @@ async def from_socket(sock):
     excq = asyncio.Queue()
     drained = asyncio.Event()
 
-    supported_families = tuple((socket.AF_INET, socket.AF_INET6, socket.AF_UNIX))
+    supported_families = tuple((socket.AF_INET, socket.AF_INET6))
+    if not sys.platform == 'win32':
+        supported_families += (socket.AF_UNIX,)
 
     if sock.family not in supported_families:
         raise TypeError(

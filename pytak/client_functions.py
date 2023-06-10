@@ -40,7 +40,9 @@ import pytak
 
 from pytak.functions import unzip_file, find_file, load_preferences, cs2url
 
-from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind
+from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind, from_socket
+
+from pytak.crypto_functions import convert_cert
 
 # Python 3.6 support:
 if sys.version_info[:2] >= (3, 7):
@@ -56,6 +58,7 @@ __license__ = "Apache License, Version 2.0"
 
 async def create_udp_client(
     url: ParseResult,
+    iface:str = None
 ) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
@@ -71,21 +74,8 @@ async def create_udp_client(
         An AsyncIO UDP network stream client.
     """
     host, port = pytak.parse_url(url)
-    write_only: bool = "+wo" in url.scheme
-
-    reader: Union[DatagramClient, None] = None
-    if not write_only:
-        reader = await dgbind((host, port))
-    writer: DatagramClient = await dgconnect((host, port))
-
-    if reader and "broadcast" in url.scheme:
-        wsock = writer.socket
-        wsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        wsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        rsock = reader.socket
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
+    is_write_only: bool = "+wo" in url.scheme
+    is_broadcast = "broadcast" in url.scheme
     is_multicast: bool = False
     try:
         is_multicast = ipaddress.ip_address(host).is_multicast
@@ -93,12 +83,33 @@ async def create_udp_client(
         # It's probably not an ip address...
         pass
 
-    if reader and is_multicast and not write_only:
-        rsock = reader.socket
+    rsock: Union[DatagramClient, None] = None
+    if not is_write_only:
+        rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        bindall = True if sys.platform == 'win32' else False
+        rsock.bind(('' if bindall else host, port))
+        reader = await from_socket(rsock)
+    writer: DatagramClient = await dgconnect((host, port))
+
+    if is_broadcast:
+        writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        #writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if reader:
+            reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    if reader and (is_broadcast or is_multicast):
+        reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass # Some systems don't support SO_REUSEPORT
+
+    if reader and is_multicast:
         group = socket.inet_aton(host)
         mreq = struct.pack("4sL", group, socket.INADDR_ANY)
-        rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-
+        reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
+        
     return reader, writer
 
 
@@ -159,7 +170,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     reader: Any = None
     writer: Any = None
 
-    _cot_url: str = config.get("COT_URL", "")
+    _cot_url: str = config.get("COT_URL", pytak.DEFAULT_COT_URL)
 
     if "://" not in _cot_url:
         warnings.warn(f"Invalid COT_URL: '{_cot_url}'", SyntaxWarning)
@@ -181,6 +192,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
         client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
         client_cafile = tls_config.get("PYTAK_TLS_CLIENT_CAFILE")
+        client_password = tls_config.get("PYTAK_TLS_CLIENT_PASSWORD")
 
         # Default cipher suite: ALL.
         #  Also available in FIPS: DEFAULT_FIPS_CIPHERS
@@ -201,6 +213,11 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         ssl_ctx.set_ciphers(client_ciphers)
         ssl_ctx.check_hostname = True
         ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+
+        if client_cert.endswith(".p12"):
+            cert_paths = convert_cert(client_cert, client_password)
+            client_cert = cert_paths["cert_pem_path"]
+            client_key = cert_paths["pk_pem_path"]
 
         if client_key:
             ssl_ctx.load_cert_chain(client_cert, keyfile=client_key)
@@ -231,7 +248,8 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
                 "Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?"
             ) from exc
     elif "udp" in scheme:
-        reader, writer = await pytak.create_udp_client(cot_url)
+        iface = config.get("PYTAK_MULTICAST_IFACE")
+        reader, writer = await pytak.create_udp_client(cot_url, iface)
     elif "http" in scheme:
         raise Exception("TeamConnect / Sit(x) Support comming soon.")
         # writer = await pytak.create_tc_client(cot_url)
@@ -291,7 +309,7 @@ async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -
         A full dict of configuration parameters & values.
     """
     app = importlib.__import__(app_name)
-    clitool: pytak.CLITool = pytak.CLITool(config, full_config)
+    clitool: pytak.CLITool = pytak.CLITool(config)
     create_tasks = getattr(app, "create_tasks")
     await clitool.create_workers(config)
     if config.get("IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS):
@@ -380,6 +398,7 @@ def cli(app_name: str) -> None:
     env_vars["COT_URL"] = env_vars.get("COT_URL", pytak.DEFAULT_COT_URL)
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"
     env_vars["COT_STALE"] = getattr(app, "DEFAULT_COT_STALE", pytak.DEFAULT_COT_STALE)
+    env_vars["TAK_PROTO"] = env_vars.get("TAK_PROTO", pytak.DEFAULT_TAK_PROTO)
 
     orig_config: ConfigParser = ConfigParser(env_vars)
 
