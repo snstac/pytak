@@ -12,20 +12,6 @@ over a network.
 Check out the :doc:`install` further information on installing this project. Configuration 
 parameters and their behavior can be found in the :doc:`config`. 
 
-Quickstart
-----------
-
-1. do stuff.
-
-2. do other stuff:
-
-   .. code-block:: Python
-
-   pythong stuff
-
-   See :doc:`config` for config examples.
-
-3. do last stuff
 
 Contents
 --------

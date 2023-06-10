@@ -19,6 +19,7 @@
 """PyTAK Class Definitions."""
 
 import asyncio
+import importlib.util
 import ipaddress
 import logging
 import multiprocessing as mp
@@ -31,10 +32,8 @@ from configparser import ConfigParser
 
 import pytak
 
-has_takproto: bool = False
 try:
     import takproto
-    has_takproto = True
 except ImportError:
     pass
 
@@ -139,7 +138,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
-        if has_takproto and self.config.get("TAKPROTO", pytak.constants.DEFAULT_TAKPROTO) == 1:
+        if importlib.util.find_spec("takproto") and self.config.get("TAK_PROTO", pytak.constants.DEFAULT_TAK_PROTO) == 1:
             host, _ = pytak.parse_url(self.config.get("COT_URL"))
             is_multicast: bool = False
             try:
