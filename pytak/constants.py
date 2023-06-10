@@ -70,6 +70,7 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_CLIENT_CIPHERS",
     "PYTAK_TLS_DONT_CHECK_HOSTNAME",
     "PYTAK_TLS_DONT_VERIFY",
+    "PYTAK_TLS_CLIENT_PASSWORD", # used for encrypted PEM such as P12
 ]
 
 DEFAULT_IMPORT_OTHER_CONFIGS: bool = False
@@ -81,6 +82,9 @@ DEFAULT_COT_VAL: str = "9999999.0"
 # eating 100% CPU. @PeterQFR found bumping this to 0.1 solved the high CPU
 # issue. See: https://github.com/ampledata/pytak/pull/22
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
+
+# TAK Protocol to use for CoT output, one of: 0 (XML, default), 2 (Mesh), 2 (Stream).
+DEFAULT_TAK_PROTO = 0 
 
 # Python <3.8 has no way of including XML Declaration in ET.tostring():
 DEFAULT_XML_DECLARATION: bytes = (

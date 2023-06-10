@@ -44,6 +44,7 @@ from .constants import (  # NOQA
     DEFAULT_MIN_ASYNC_SLEEP,
     DEFAULT_XML_DECLARATION,
     DEFAULT_IMPORT_OTHER_CONFIGS,
+    DEFAULT_TAK_PROTO,
 )
 
 from .classes import (  # NOQA

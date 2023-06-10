@@ -64,6 +64,20 @@ class Worker:  # pylint: disable=too-few-public-methods
 
         self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
 
+        tak_proto_version = config.getint("TAK_PROTO", pytak.DEFAULT_TAK_PROTO)
+        self.use_protobuf = tak_proto_version > 0
+        self._parse_proto = None
+        self._xml2proto = None
+        if self.use_protobuf:
+            try:
+                from takproto import parse_proto, xml2proto
+                self._parse_proto = lambda cot: parse_proto(cot)
+                self._xml2proto = lambda cot: xml2proto(cot)
+            except:
+                self._logger.error("Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]")
+                self.use_protobuf = False
+
+
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
 
@@ -131,6 +145,9 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
+        if self.use_protobuf and self._xml2proto:
+            data = self._xml2proto(data)
+
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
         else:
@@ -162,11 +179,19 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         self.reader_queue: asyncio.Queue = asyncio.Queue
 
     async def readcot(self):
-        if hasattr(self.reader, "readuntil"):
-            return await self.reader.readuntil("</event>".encode("UTF-8"))
-        elif hasattr(self.reader, "recv"):
-            buf, _ = await self.reader.recv()
-            return buf
+        try:
+            if hasattr(self.reader, 'readuntil'):
+                cot = await self.reader.readuntil("</event>".encode("UTF-8"))
+            elif hasattr(self.reader, 'recv'):
+                cot, src = await self.reader.recv()
+
+            if self.use_protobuf and self._parse_proto:
+                tak_v1 = self._parse_proto(cot)
+                if tak_v1 != -1:
+                    cot = tak_v1#.SerializeToString()
+            return cot
+        except asyncio.exceptions.IncompleteReadError:
+            return None
 
     async def run(self, number_of_iterations=-1) -> None:
         self._logger.info("Run: %s", self.__class__)
@@ -175,8 +200,9 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
             await asyncio.sleep(self.min_period)
             if self.reader:
                 data: bytes = await self.readcot()
-                # self._logger.debug("RX: %s", data)
-                self.queue.put_nowait(data)
+                if data:
+                    self._logger.debug("RX: %s", data)
+                    self.queue.put_nowait(data)
 
 
 class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
