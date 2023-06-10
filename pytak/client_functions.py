@@ -58,7 +58,8 @@ __license__ = "Apache License, Version 2.0"
 
 async def create_udp_client(
     url: ParseResult,
-    iface:str = None
+    iface: str = None,
+    local_addr = None
 ) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
@@ -77,6 +78,8 @@ async def create_udp_client(
     is_write_only: bool = "+wo" in url.scheme
     is_broadcast = "broadcast" in url.scheme
     is_multicast: bool = False
+    reader: Union[DatagramClient, None] = None
+
     try:
         is_multicast = ipaddress.ip_address(host).is_multicast
     except ValueError:
@@ -89,7 +92,7 @@ async def create_udp_client(
         bindall = True if sys.platform == 'win32' else False
         rsock.bind(('' if bindall else host, port))
         reader = await from_socket(rsock)
-    writer: DatagramClient = await dgconnect((host, port))
+    writer: DatagramClient = await dgconnect((host, port), local_addr=local_addr)
 
     if is_broadcast:
         writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -249,7 +252,8 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             ) from exc
     elif "udp" in scheme:
         iface = config.get("PYTAK_MULTICAST_IFACE")
-        reader, writer = await pytak.create_udp_client(cot_url, iface)
+        local_addr = config.get("PYTAK_MULTICAST_LOCAL_ADDR")
+        reader, writer = await pytak.create_udp_client(cot_url, iface, local_addr)
     elif "http" in scheme:
         raise Exception("TeamConnect / Sit(x) Support comming soon.")
         # writer = await pytak.create_tc_client(cot_url)

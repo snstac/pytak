@@ -243,7 +243,7 @@ async def bind(addr):
     return DatagramServer(transport, recvq, excq, drained)
 
 
-async def connect(addr):
+async def connect(addr, local_addr=None):
     """
     Connect a socket to a remote address for datagrams.  The socket will be
     either AF_INET, AF_INET6 or AF_UNIX depending upon the type of host
@@ -271,6 +271,7 @@ async def connect(addr):
         lambda: Protocol(recvq, excq, drained),
         remote_addr=addr,
         family=family,
+        local_addr=local_addr,
     )
 
     return DatagramClient(transport, recvq, excq, drained)
