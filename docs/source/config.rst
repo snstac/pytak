@@ -8,10 +8,9 @@ PyTAK's configuration parameters can be set two ways:
 
 PyTAK has the following built-in configuration parameters:
 
-COT_URL
-  Destination for Cursor on Target messages. 
+.. describe:: COT_URL (optional)
 
-  * Default: ``udp://239.2.3.1:6969`` (ATAK Multicast UDP / Mesh SA Default)
+  Destination for Cursor on Target messages. Defaults to ``udp://239.2.3.1:6969`` (ATAK Multicast UDP / Mesh SA Default)
 
 TAK_PROTO
   Sets TAK Protocol to use for CoT output, one of: 0 (XML), 2 (Mesh), 2 (Stream).

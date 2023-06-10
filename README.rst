@@ -9,37 +9,18 @@ PyTAK is a Python Module for creating TAK clients, servers & gateways and includ
 classes for handling Cursor on Target (CoT) & non-CoT data, as well as functions for 
 serializing CoT data, and sending and receiving CoT data over a network.
 
-See ReadTheDOcs
+Documentation
+=============
 
-
+See `PyTAK documentation <https://pytak.readthedocs.io/>`_.
 
 TLS Support
 ===========
 
-Moved to: ReadTheDOcs
+Moved: `PyTAK documentation <https://pytak.readthedocs.io/>`_.
 
-
-Source
-======
-Github: https://github.com/snstac/pytak
-
-
-Author
-======
-Greg Albrecht gba@snstac.com
-
-https://www.snstac.com
-
-
-Copyright
-=========
-
-* PyTAK is Copyright 2023 Sensors & Signals LLC
-* asyncio_dgram is Copyright (c) 2019 Justin Bronder
-
-
-License
-=======
+License & Copyright
+===================
 
 Copyright 2023 Sensors & Signals LLC
 
@@ -53,9 +34,5 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-* asyncio_dgram is licensed under the MIT License, see pytak/asyncio_dgram/LICENSE for details.
-
-
-Style
-=====
-Python Black, otherwise Google, then PEP-8.
+* asyncio_dgram is Copyright (c) 2019 Justin Bronder
+asyncio_dgram is licensed under the MIT License, see pytak/asyncio_dgram/LICENSE for details.

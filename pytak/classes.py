@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <gba@snstac.com>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 """PyTAK Class Definitions."""
 
 import asyncio
+import ipaddress
 import logging
 import multiprocessing as mp
 import queue as _queue
@@ -30,8 +31,15 @@ from configparser import ConfigParser
 
 import pytak
 
+has_takproto: bool = False
+try:
+    import takproto
+    has_takproto = True
+except ImportError:
+    pass
+
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -131,6 +139,20 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
+        if has_takproto and self.config.get("TAKPROTO", pytak.constants.DEFAULT_TAKPROTO) == 1:
+            host, _ = pytak.parse_url(self.config.get("COT_URL"))
+            is_multicast: bool = False
+            try:
+                is_multicast = ipaddress.ip_address(host).is_multicast
+            except ValueError:
+                # It's probably not an ip address...
+                pass
+
+            if is_multicast:
+                data = takproto.xml2proto(data, takproto.TAKProtoVer.MESH)
+            else:
+                data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
+
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
         else:

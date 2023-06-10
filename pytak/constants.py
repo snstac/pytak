@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <gba@snstac.com>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import platform
 
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -43,12 +43,13 @@ if bool(os.environ.get("DEBUG")):
     )
     logging.debug("pytak Debugging Enabled via DEBUG Environment Variable.")
 
-DEFAULT_COT_URL: str = "udp://239.2.3.1:6969"  # ATAK Default multicast
+DEFAULT_COT_URL: str = "udp+wo://239.2.3.1:6969"  # ATAK Default multicast
 DEFAULT_COT_STALE: str = "120"  # Config wants all values as strings, we'll cast later.
 DEFAULT_HOST_ID: str = f"pytak@{platform.node()}"
 DEFAULT_COT_PORT: int = 8087
 DEFAULT_ATAK_PORT: int = 4242
 DEFAULT_BROADCAST_PORT: int = 6969
+DEFAULT_TAKPROTO: int = 1
 
 DEFAULT_BACKOFF: int = 120
 DEFAULT_SLEEP: int = 5

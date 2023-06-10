@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <gba@snstac.com>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,18 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht <gba@snstac.com>
-#
 
 """Python Team Awareness Kit (PyTAK) Module.
 
-:author: Greg Albrecht <gba@snstac.com>
-:copyright: Copyright 2023 Sensors & Signals LLC
-:license: Apache License, Version 2.0
 :source: <https://github.com/snstac/pytak>
 """
 
-__version__ = "5.7.0b1"
+__version__ = "6.0.0b1"
 
 
 from .constants import (  # NOQA

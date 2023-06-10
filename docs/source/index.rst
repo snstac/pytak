@@ -12,9 +12,26 @@ over a network.
 Check out the :doc:`install` further information on installing this project. Configuration 
 parameters and their behavior can be found in the :doc:`config`. 
 
+Quickstart
+----------
+
+1. do stuff.
+
+2. do other stuff:
+
+   .. code-block:: Python
+
+   pythong stuff
+
+   See :doc:`config` for config examples.
+
+3. do last stuff
+
 Contents
 --------
 .. toctree::
+   :maxdepth: 2
+
    install
    config
    compat
@@ -22,8 +39,14 @@ Contents
    examples
    api
 
+.. seealso::
+
+   `pytak source code on Github <https://github.com/snstac/pytak>`_
+
 Indices and tables
 ==================
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+(pytak |version|)
