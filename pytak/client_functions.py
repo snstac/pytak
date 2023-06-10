@@ -291,7 +291,7 @@ async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -
         A full dict of configuration parameters & values.
     """
     app = importlib.__import__(app_name)
-    clitool: pytak.CLITool = pytak.CLITool(config, full_config)
+    clitool: pytak.CLITool = pytak.CLITool(config)
     create_tasks = getattr(app, "create_tasks")
     await clitool.create_workers(config)
     if config.get("IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS):
