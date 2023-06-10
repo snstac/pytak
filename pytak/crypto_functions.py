@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <gba@snstac.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
+# Author:: Greg Albrecht <gba@snstac.com>
 #
 
 """PyTAK Crypto (as in cryptography) Functions."""
@@ -42,7 +42,7 @@ except ImportError:
     warnings.warn(INSTALL_MSG)
 
 
-__author__ = "Greg Albrecht W2GMD <oss@undef.net>"
+__author__ = "Greg Albrecht <gba@snstac.com>"
 __copyright__ = "Copyright 2023 Greg Albrecht"
 __license__ = "Apache License, Version 2.0"
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
-#
 
 """Python Team Awareness Kit (PyTAK) Module.
 
-:author: Greg Albrecht W2GMD <oss@undef.net>
-:copyright: Copyright 2023 Greg Albrecht
-:license: Apache License, Version 2.0
-:source: <https://github.com/ampledata/pytak>
+:source: <https://github.com/snstac/pytak>
 """
+
+__version__ = "6.0.0b1"
+
 
 from .constants import (  # NOQA
     LOG_LEVEL,
@@ -70,6 +68,6 @@ from . import asyncio_dgram  # NOQA
 
 # from .crypto_functions import *
 
-__author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+__author__ = "Greg Albrecht <gba@snstac.com>"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
+# Author:: Greg Albrecht <gba@snstac.com>
 #
 
 """PyTAK Class Definitions."""
 
 import asyncio
+import importlib.util
+import ipaddress
 import logging
 import multiprocessing as mp
 import queue as _queue
@@ -30,8 +32,13 @@ from configparser import ConfigParser
 
 import pytak
 
-__author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+try:
+    import takproto
+except ImportError:
+    pass
+
+__author__ = "Greg Albrecht <gba@snstac.com>"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -65,19 +72,18 @@ class Worker:  # pylint: disable=too-few-public-methods
         self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
 
         tak_proto_version = config.getint("TAK_PROTO", pytak.DEFAULT_TAK_PROTO)
-        self.use_protobuf = tak_proto_version > 0
+
+        if tak_proto_version > 0 and importlib.util.find_spec("takproto") is None:
+            self._logger.error("Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]")
+
+        self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec("takproto")
         self._parse_proto = None
         self._xml2proto = None
+        
         if self.use_protobuf:
-            try:
-                from takproto import parse_proto, xml2proto
-                self._parse_proto = lambda cot: parse_proto(cot)
-                self._xml2proto = lambda cot: xml2proto(cot)
-            except:
-                self._logger.error("Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]")
-                self.use_protobuf = False
-
-
+            self._parse_proto = lambda cot: takproto.parse_proto(cot)
+            self._xml2proto = lambda cot: takproto.xml2proto(cot)
+        
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
 
@@ -144,8 +150,20 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
-        if self.use_protobuf and self._xml2proto:
-            data = self._xml2proto(data)
+        if self.use_protobuf:
+            host, _ = pytak.parse_url(self.config.get("COT_URL"))
+            is_multicast: bool = False
+            
+            try:
+                is_multicast = ipaddress.ip_address(host).is_multicast
+            except ValueError:
+                # It's probably not an ip address...
+                pass
+
+            if is_multicast:
+                data = self._xml2proto(data, takproto.TAKProtoVer.MESH)
+            else:
+                data = self._xml2proto(data, takproto.TAKProtoVer.STREAM)
 
         if hasattr(self.writer, "send"):
             await self.writer.send(data)

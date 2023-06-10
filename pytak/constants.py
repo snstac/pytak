@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
+# Author:: Greg Albrecht <gba@snstac.com>
 #
 
 """PyTAK Constants."""
@@ -23,8 +23,8 @@ import os
 import platform
 
 
-__author__ = "Greg Albrecht W2GMD <oss@undef.net>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+__author__ = "Greg Albrecht <gba@snstac.com>"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -43,12 +43,13 @@ if bool(os.environ.get("DEBUG")):
     )
     logging.debug("pytak Debugging Enabled via DEBUG Environment Variable.")
 
-DEFAULT_COT_URL: str = "udp://239.2.3.1:6969"  # ATAK Default multicast
+DEFAULT_COT_URL: str = "udp+wo://239.2.3.1:6969"  # ATAK Default multicast
 DEFAULT_COT_STALE: str = "120"  # Config wants all values as strings, we'll cast later.
 DEFAULT_HOST_ID: str = f"pytak@{platform.node()}"
 DEFAULT_COT_PORT: int = 8087
 DEFAULT_ATAK_PORT: int = 4242
 DEFAULT_BROADCAST_PORT: int = 6969
+DEFAULT_TAKPROTO: int = 1
 
 DEFAULT_BACKOFF: int = 120
 DEFAULT_SLEEP: int = 5
@@ -80,7 +81,7 @@ DEFAULT_COT_VAL: str = "9999999.0"
 
 # await asyncio.sleep(0) should allow co-routines to yield, but they end up
 # eating 100% CPU. @PeterQFR found bumping this to 0.1 solved the high CPU
-# issue. See: https://github.com/ampledata/pytak/pull/22
+# issue. See: https://github.com/snstac/pytak/pull/22
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
 
 # TAK Protocol to use for CoT output, one of: 0 (XML, default), 2 (Mesh), 2 (Stream).

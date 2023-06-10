@@ -1,5 +1,5 @@
 #
-# Copyright 2023 Greg Albrecht <oss@undef.net>
+# Copyright 2023 Greg Albrecht <gba@snstac.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht W2GMD <oss@undef.net>
+# Author:: Greg Albrecht <gba@snstac.com>
 # Copyright:: Copyright 2023 Greg Albrecht
 # License:: Apache License, Version 2.0
 #
@@ -24,7 +24,7 @@ this_app = pytak
 all: editable
 
 develop:
-	python3 setup.py develop
+	python3 -m pip install --use-feature=in-tree-build .
 
 editable:
 	python3 -m pip install -e .
@@ -40,14 +40,17 @@ uninstall:
 
 reinstall: uninstall install
 
-publish:
-	python3 setup.py publish
+build:
+	python3 -m build
+
+publish: dist
+	twine upload dist/*
 
 clean:
 	@rm -rf *.egg* build dist *.py[oc] */*.py[co] cover doctest_pypi.cfg \
 		nosetests.xml pylint.log output.xml flake8.log tests.log \
 		test-result.xml htmlcov fab.log .coverage __pycache__ \
-		*/__pycache__
+		*/__pycache__ */.mypy_cache/ .pytest_cache/
 
 pep8:
 	flake8 --max-line-length=88 --extend-ignore=E203,E231 --exit-zero $(this_app)/*.py
@@ -76,3 +79,7 @@ test_cov:
 
 black:
 	black .
+
+mkdocs:
+	# python -m pip install --upgrade --no-cache-dir pip setuptools<58.3.0
+	python -m pip install --upgrade --no-cache-dir -r requirements_docs.txt
