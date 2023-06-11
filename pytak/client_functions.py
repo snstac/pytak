@@ -252,7 +252,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             ) from exc
     elif "udp" in scheme:
         iface = config.get("PYTAK_MULTICAST_IFACE")
-        local_addr = config.get("PYTAK_MULTICAST_LOCAL_ADDR")
+        local_addr = (config.get("PYTAK_MULTICAST_LOCAL_ADDR"), 0,) 
         reader, writer = await pytak.create_udp_client(cot_url, iface, local_addr)
     elif "http" in scheme:
         raise Exception("TeamConnect / Sit(x) Support comming soon.")
