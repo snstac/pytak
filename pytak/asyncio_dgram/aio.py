@@ -234,11 +234,30 @@ async def bind(addr):
     else:
         family = 0
 
-    transport, protocol = await loop.create_datagram_endpoint(
+    if sys.platform == 'win32':
+        # Windows can only bind to local IP addresses. 
+        ts = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            ts.connect(('192.255.255.255', 1))
+            localip = ts.getsockname()[0]
+        except:
+            localip = '127.0.0.1'
+        finally:
+            ts.close()
+        localaddr = (localip, addr[1])
+        print(addr)
+        print(localaddr)
+        transport, protocol = await loop.create_datagram_endpoint(
+        lambda: Protocol(recvq, excq, drained),
+        local_addr=localaddr,
+        family=family,
+        )
+    else:
+        transport, protocol = await loop.create_datagram_endpoint(
         lambda: Protocol(recvq, excq, drained),
         local_addr=addr,
         family=family,
-    )
+        )
 
     return DatagramServer(transport, recvq, excq, drained)
 
