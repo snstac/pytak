@@ -87,6 +87,7 @@ async def test_worker():
     await event_queue.put("taco2")
     await event_queue.put("taco3")
     worker: pytak.Worker = pytak.Worker(event_queue)
+    worker.handle_data = lambda data: event_queue.put(data)
     await worker.run(1)
     event = await event_queue.get()
     assert "taco2" == event
