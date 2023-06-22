@@ -310,29 +310,25 @@ class CLITool:
         self._config = val
 
     async def create_workers(self, i_config):
-        """Creates and runs queue workers with specified config parameter.
+        """Create and run queue workers with specified config parameters.
 
         Parameters
         ----------
         i_config : `configparser.SectionProxy`
             Configuration options & values.
         """
-        try:
-            reader, writer = await pytak.protocol_factory(i_config)
-            tx_queue = asyncio.Queue()
-            rx_queue = asyncio.Queue()
-            if len(self.queues) == 0:
-                # If the queue list is empty, make this the default.
-                self.tx_queue = tx_queue
-                self.rx_queue = rx_queue
-            write_worker = pytak.TXWorker(tx_queue, i_config, writer)
-            read_worker = pytak.RXWorker(rx_queue, i_config, reader)
-            self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
-            self.add_task(write_worker)
-            self.add_task(read_worker)
-        except Exception as exc:
-            self._logger.warning(f"Unable to create workers from {i_config.name}")
-            self._logger.exception(exc)
+        reader, writer = await pytak.protocol_factory(i_config)
+        tx_queue = asyncio.Queue()
+        rx_queue = asyncio.Queue()
+        if len(self.queues) == 0:
+            # If the queue list is empty, make this the default.
+            self.tx_queue = tx_queue
+            self.rx_queue = rx_queue
+        write_worker = pytak.TXWorker(tx_queue, i_config, writer)
+        read_worker = pytak.RXWorker(rx_queue, i_config, reader)
+        self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
+        self.add_task(write_worker)
+        self.add_task(read_worker)
 
     async def setup(self) -> None:
         """Set up CLITool.
