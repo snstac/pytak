@@ -24,9 +24,9 @@ import multiprocessing as mp
 import queue as _queue
 import random
 
-from typing import Set, Union
+from typing import Optional, Set, Union
 
-from configparser import ConfigParser
+from configparser import ConfigParser, SectionProxy
 
 import pytak
 
@@ -54,7 +54,9 @@ class Worker:  # pylint: disable=too-few-public-methods
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
     def __init__(
-        self, queue: Union[asyncio.Queue, mp.Queue], config: ConfigParser = None
+        self,
+        queue: Union[asyncio.Queue, mp.Queue],
+        config: Union[None, SectionProxy, dict] = None,
     ) -> None:
         """Initialize a Worker instance."""
         self.queue: Union[asyncio.Queue, mp.Queue] = queue
@@ -63,28 +65,25 @@ class Worker:  # pylint: disable=too-few-public-methods
         else:
             config_p = ConfigParser({})
             config_p.add_section("pytak")
-            self.config = config_p["pytak"]
-        if self.config.getboolean("DEBUG", False):
-            _ = [x.setLevel(logging.DEBUG) for x in self._logger.handlers]
+            self.config = config_p["pytak"] or {}
+
+        if bool(self.config.get("DEBUG")):
+            for handler in self._logger.handlers:
+                handler.setLevel(logging.DEBUG)
 
         self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
 
-        tak_proto_version = config.getint("TAK_PROTO", pytak.DEFAULT_TAK_PROTO)
+        tak_proto_version = int(self.config.get("TAK_PROTO") or pytak.DEFAULT_TAK_PROTO)
 
         if tak_proto_version > 0 and importlib.util.find_spec("takproto") is None:
             self._logger.error(
-                "Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]"
+                "Failed to use takproto for parsing CoT serialized with protobuf.\n"
+                "Try: pip install pytak[with_takproto]"
             )
 
         self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec(
             "takproto"
         )
-        self._parse_proto = None
-        self._xml2proto = None
-
-        if self.use_protobuf:
-            self._parse_proto = lambda cot: takproto.parse_proto(cot)
-            self._xml2proto = lambda cot: takproto.xml2proto(cot)
 
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
@@ -92,8 +91,8 @@ class Worker:  # pylint: disable=too-few-public-methods
         If the FTS_COMPAT (or PYTAK_SLEEP) config options are set, will async sleep for
         either a given (PYTAK_SLEEP) or random (FTS_COMPAT) time.
         """
-        pytak_sleep: int = self.config.get("PYTAK_SLEEP", 0)
-        if self.config.getboolean("FTS_COMPAT") or pytak_sleep:
+        pytak_sleep: int = int(self.config.get("PYTAK_SLEEP") or 0)
+        if bool(self.config.get("FTS_COMPAT") or pytak_sleep):
             sleep_period: int = int(
                 pytak_sleep or (pytak.DEFAULT_SLEEP * random.random())
             )
@@ -139,7 +138,10 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
     """
 
     def __init__(
-        self, queue: asyncio.Queue, config: ConfigParser, writer: asyncio.Protocol
+        self,
+        queue: Union[asyncio.Queue, mp.Queue],
+        config: Union[None, SectionProxy, dict],
+        writer: asyncio.Protocol,
     ) -> None:
         """Initialize a TXWorker instance."""
         super().__init__(queue, config)
@@ -147,13 +149,13 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def handle_data(self, data: bytes) -> None:
         """Accept CoT event from CoT event queue and process for writing."""
-        self._logger.debug("TX (%s): %s", self.config.name, data)
+        # self._logger.debug("TX (%s): %s", self.config.get('name'), data)
         await self.send_data(data)
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
         if self.use_protobuf:
-            host, _ = pytak.parse_url(self.config.get("COT_URL"))
+            host, _ = pytak.parse_url(self.config.get("COT_URL", pytak.DEFAULT_COT_URL))
             is_multicast: bool = False
 
             try:
@@ -163,14 +165,17 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
                 pass
 
             if is_multicast:
-                data = self._xml2proto(data, takproto.TAKProtoVer.MESH)
+                proto = takproto.TAKProtoVer.MESH
             else:
-                data = self._xml2proto(data, takproto.TAKProtoVer.STREAM)
+                proto = takproto.TAKProtoVer.STREAM
+
+            data = takproto.xml2proto(data, proto)
 
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
         else:
-            self.writer.write(data)
+            if hasattr(self.writer, "write"):
+                self.writer.write(data)
             if hasattr(self.writer, "drain"):
                 await self.writer.drain()
             if hasattr(self.writer, "flush"):
@@ -190,22 +195,26 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
     """
 
     def __init__(
-        self, queue: asyncio.Queue, config: dict, reader: asyncio.Protocol
+        self,
+        queue: Union[asyncio.Queue, mp.Queue],
+        config: Union[None, SectionProxy, dict],
+        reader: asyncio.Protocol,
     ) -> None:
         """Initialize a RXWorker instance."""
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
-        self.reader_queue: asyncio.Queue = asyncio.Queue
+        self.reader_queue = None
 
     async def readcot(self):
+        """Read CoT from the wire until we hit an event boundary."""
         try:
             if hasattr(self.reader, "readuntil"):
                 cot = await self.reader.readuntil("</event>".encode("UTF-8"))
             elif hasattr(self.reader, "recv"):
-                cot, src = await self.reader.recv()
+                cot, _ = await self.reader.recv()
 
-            if self.use_protobuf and self._parse_proto:
-                tak_v1 = self._parse_proto(cot)
+            if self.use_protobuf:
+                tak_v1 = takproto.parse_proto(cot)
                 if tak_v1 != -1:
                     cot = tak_v1  # .SerializeToString()
             return cot
@@ -213,6 +222,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
             return None
 
     async def run(self, number_of_iterations=-1) -> None:
+        """Run this worker."""
         self._logger.info("Run: %s", self.__class__)
 
         while 1:
@@ -238,17 +248,24 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
     pytak([asyncio.Protocol]->[pytak.MessageWorker]->[asyncio.Queue])
     """
 
-    def __init__(self, queue: asyncio.Queue, config: dict) -> None:
+    def __init__(
+        self,
+        queue: Union[asyncio.Queue, mp.Queue],
+        config: Union[None, SectionProxy, dict],
+    ) -> None:
         super().__init__(queue, config)
-        self._logger.info("CoT_URL Dest: %s", self.config.get("COT_URL"))
+        self._logger.info("COT_URL: %s", self.config.get("COT_URL"))
 
-    async def put_queue(self, data: bytes, queue_arg: asyncio.Queue = None) -> None:
+    async def put_queue(
+        self, data: bytes, queue_arg: Union[asyncio.Queue, mp.Queue, None] = None
+    ) -> None:
         """Put Data onto the Queue."""
+        _queue = queue_arg or self.queue
         try:
-            if queue_arg == None:
-                await self.queue.put(data)
+            if isinstance(_queue, asyncio.Queue):
+                await _queue.put(data)
             else:
-                await queue_arg.put(data)
+                _queue.put(data)
         except asyncio.QueueFull:
             self._logger.warning("Lost Data (queue full): '%s'", data)
 
@@ -276,11 +293,11 @@ class CLITool:
         self.tasks: Set = set()
         self.running_tasks: Set = set()
         self._config = config
-        self.queues = {}
+        self.queues: dict = {}
         self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
         self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
 
-        if self._config.getboolean("DEBUG", False):
+        if bool(self._config.get("DEBUG") or 0):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
 
@@ -289,8 +306,8 @@ class CLITool:
         return self._config
 
     @config.setter
-    def config(self, v):
-        self._config = v
+    def config(self, val):
+        self._config = val
 
     async def create_workers(self, i_config):
         """Creates and runs queue workers with specified config parameter.
@@ -314,7 +331,7 @@ class CLITool:
             self.add_task(write_worker)
             self.add_task(read_worker)
         except Exception as exc:
-            self._logger.warn(f"Unable to create workers from {i_config.name}")
+            self._logger.warning(f"Unable to create workers from {i_config.name}")
             self._logger.exception(exc)
 
     async def setup(self) -> None:
