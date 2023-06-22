@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht <gba@snstac.com>
-#
 
 """PyTAK Class Definitions."""
 
@@ -74,16 +72,20 @@ class Worker:  # pylint: disable=too-few-public-methods
         tak_proto_version = config.getint("TAK_PROTO", pytak.DEFAULT_TAK_PROTO)
 
         if tak_proto_version > 0 and importlib.util.find_spec("takproto") is None:
-            self._logger.error("Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]")
+            self._logger.error(
+                "Failed to use takproto for parsing CoT serialized with protobuf.\n Try: pip install pytak[with_takproto]"
+            )
 
-        self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec("takproto")
+        self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec(
+            "takproto"
+        )
         self._parse_proto = None
         self._xml2proto = None
-        
+
         if self.use_protobuf:
             self._parse_proto = lambda cot: takproto.parse_proto(cot)
             self._xml2proto = lambda cot: takproto.xml2proto(cot)
-        
+
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
 
@@ -153,7 +155,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
         if self.use_protobuf:
             host, _ = pytak.parse_url(self.config.get("COT_URL"))
             is_multicast: bool = False
-            
+
             try:
                 is_multicast = ipaddress.ip_address(host).is_multicast
             except ValueError:
@@ -197,15 +199,15 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def readcot(self):
         try:
-            if hasattr(self.reader, 'readuntil'):
+            if hasattr(self.reader, "readuntil"):
                 cot = await self.reader.readuntil("</event>".encode("UTF-8"))
-            elif hasattr(self.reader, 'recv'):
+            elif hasattr(self.reader, "recv"):
                 cot, src = await self.reader.recv()
 
             if self.use_protobuf and self._parse_proto:
                 tak_v1 = self._parse_proto(cot)
                 if tak_v1 != -1:
-                    cot = tak_v1#.SerializeToString()
+                    cot = tak_v1  # .SerializeToString()
             return cot
         except asyncio.exceptions.IncompleteReadError:
             return None

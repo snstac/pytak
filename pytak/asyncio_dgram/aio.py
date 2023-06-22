@@ -295,7 +295,7 @@ async def from_socket(sock):
     drained = asyncio.Event()
 
     supported_families = tuple((socket.AF_INET, socket.AF_INET6))
-    if not sys.platform == 'win32':
+    if not sys.platform == "win32":
         supported_families += (socket.AF_UNIX,)
 
     if sock.family not in supported_families:

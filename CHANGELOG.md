@@ -1,4 +1,4 @@
-PyTAK 5.7.0b2
+PyTAK 5.7.0b3
 -------------
 Updates for AirTAK.
 - Proto updates

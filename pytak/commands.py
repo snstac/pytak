@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht <gba@snstac.com>
-#
 
 """PyTAK Command Line."""
 

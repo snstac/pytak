@@ -1,5 +1,6 @@
+# Makefile for PyTAK
 #
-# Copyright 2023 Greg Albrecht <gba@snstac.com>
+# Copyright 2023 Sensors & Signals LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Author:: Greg Albrecht <gba@snstac.com>
-# Copyright:: Copyright 2023 Greg Albrecht
-# License:: Apache License, Version 2.0
 #
 
 this_app = pytak
@@ -39,6 +36,8 @@ uninstall:
 	python3 -m pip uninstall -y $(this_app)
 
 reinstall: uninstall install
+
+dist: build
 
 build:
 	python3 -m build

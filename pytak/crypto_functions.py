@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht <gba@snstac.com>
-#
 
 """PyTAK Crypto (as in cryptography) Functions."""
 
@@ -43,7 +41,7 @@ except ImportError:
 
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Greg Albrecht"
+__copyright__ = "Copyright 2023 Sensors & Signals LLC"
 __license__ = "Apache License, Version 2.0"
 
 

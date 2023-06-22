@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author:: Greg Albrecht <gba@snstac.com>
-#
 
 """PyTAK Client & CLI Functions."""
 
@@ -40,7 +38,12 @@ import pytak
 
 from pytak.functions import unzip_file, find_file, load_preferences, cs2url
 
-from pytak.asyncio_dgram import DatagramClient, connect as dgconnect, bind as dgbind, from_socket
+from pytak.asyncio_dgram import (
+    DatagramClient,
+    connect as dgconnect,
+    bind as dgbind,
+    from_socket,
+)
 
 from pytak.crypto_functions import convert_cert
 
@@ -57,9 +60,7 @@ __license__ = "Apache License, Version 2.0"
 
 
 async def create_udp_client(
-    url: ParseResult,
-    iface: str = None,
-    local_addr = None
+    url: ParseResult, iface: str = None, local_addr=None
 ) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
@@ -89,14 +90,14 @@ async def create_udp_client(
     rsock: Union[DatagramClient, None] = None
     if not is_write_only:
         rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        bindall = True if sys.platform == 'win32' else False
-        rsock.bind(('' if bindall else host, port))
+        bindall = True if sys.platform == "win32" else False
+        rsock.bind(("" if bindall else host, port))
         reader = await from_socket(rsock)
     writer: DatagramClient = await dgconnect((host, port), local_addr=local_addr)
 
     if is_broadcast:
         writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        #writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if reader:
             reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
@@ -105,14 +106,16 @@ async def create_udp_client(
         try:
             reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except AttributeError:
-            pass # Some systems don't support SO_REUSEPORT
+            pass  # Some systems don't support SO_REUSEPORT
 
     if reader and is_multicast:
         group = socket.inet_aton(host)
         mreq = struct.pack("4sL", group, socket.INADDR_ANY)
         reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack('b', 1))
-        
+        reader.socket.setsockopt(
+            socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack("b", 1)
+        )
+
     return reader, writer
 
 
@@ -252,7 +255,10 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             ) from exc
     elif "udp" in scheme:
         iface = config.get("PYTAK_MULTICAST_IFACE")
-        local_addr = (config.get("PYTAK_MULTICAST_LOCAL_ADDR"), 0,) 
+        local_addr = (
+            config.get("PYTAK_MULTICAST_LOCAL_ADDR"),
+            0,
+        )
         reader, writer = await pytak.create_udp_client(cot_url, iface, local_addr)
     elif "http" in scheme:
         raise Exception("TeamConnect / Sit(x) Support comming soon.")
