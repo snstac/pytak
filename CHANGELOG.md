@@ -1,10 +1,19 @@
-PyTAK 5.7.0b3
+PyTAK 5.7.0b6
 -------------
-Updates for AirTAK.
-- Proto updates
-- Docs
-- Cleanup & style
+- Moved & expanded documentation at https://pytak.readthedocs.io/
+- COT_URL now defaults to ``udp+wo://239.2.3.1:6969``, aka 'Mesh SA' in ATAK & WinTAK. This disables receiveing CoT by default. To enable receiving CoT, remove the ``+wo`` modifier. 
+* Fixes #31: 'protobuf support', "TAK Protocol, Version 1" is now the default output from PyTAK, *BUT* you must install the ``takproto`` python module seperately to ENABLE, otherwise reverts to CoT XML. PyTAK will automatically detect if the ``COT_URL`` is multicast or unicast, and use the appropriate protobuf format.
+* Fixes #36: 'Network is unreachable', added ``PYTAK_MULTICAST_LOCAL_ADDR`` to allow setting bind port on network connections.
+* Fixes #37: 'unknown compression', reverted to github builder ubuntu-20.04
+- Added support for reading PKCS#12 (.p12) files containing public-private key pairs. Set p12 file with ``PYTAK_TLS_CLIENT_CERT``, and keystore password with ``PYTAK_TLS_CLIENT_PASSWORD``.
+- Updates for AirTAK v1 support: https://www.snstac.com/blog/introducing-airtak-v1
 - Moved setup.py metadata to setup.cfg
+- Style, lint and layout cleanup of code.
+- Added CI testing for Python 3.11
+- Added Read The Docs builder.
+- Added PyTAK shield logo & screenshots.
+
+
 
 PyTAK 5.6.1
 -----------

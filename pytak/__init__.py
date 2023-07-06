@@ -19,7 +19,7 @@
 :source: <https://github.com/snstac/pytak>
 """
 
-__version__ = "5.7.0-beta5"
+__version__ = "5.7.0-beta6"
 
 
 from .constants import (  # NOQA
