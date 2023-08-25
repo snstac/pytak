@@ -36,12 +36,12 @@ def test_load_preferences():
     assert all(prefs)
 
 
-def test_load_cs2url():
+def test_load_connectString2url():
     """Test converting a TAK connectString to a URL"""
     test_pref: str = "tests/data/test_pref.pref"
     prefs: dict = pytak.functions.load_preferences(test_pref, "tests/data")
     connect_string: str = prefs.get("connect_string")
-    url: str = pytak.functions.cs2url(connect_string)
+    url: str = pytak.functions.connectString2url(connect_string)
     assert url == "ssl://takserver.example.com:8089"
 
 
