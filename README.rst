@@ -8,6 +8,7 @@ Python Team Awareness Kit (PyTAK)
 PyTAK is a Python Module for creating TAK clients, servers & gateways.
 
 PyTAK includes:
+
 - TAK Protocol support for interconnecting with ATAK, WinTAK, iTAK & TAK Server.
 - Classes for handling TAK, Cursor on Target (CoT) & non-CoT data.
 - Functions for parsing and serializing TAK & CoT data.
