@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Sensors & Signals LLC
+# Copyright Sensors & Signals LLC https://www.snstac.com
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ from urllib.parse import ParseResult, urlparse
 import pytak  # pylint: disable=cyclic-import
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Sensors & Signals LLC"
+__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -129,7 +129,7 @@ def find_file(search_dir: str, glob: str) -> str:
         assert len(files) > 0
         return str(files[0])
     except Exception as exc:
-        raise Exception(f"Could not find file: {glob}") from exc
+        raise EOFError(f"Could not find file: {glob}") from exc
 
 
 def find_cert(search_dir: str, cert_path: str) -> str:
@@ -165,7 +165,7 @@ def load_preferences(pref_path: str, search_dir: str):
     return prefs
 
 
-def cs2url(conn_str: str) -> str:
+def connectString2url(conn_str: str) -> str:  # pylint: disable=invalid-name
     """Convert a TAK-style connectString into a URL."""
     uri_parts = conn_str.split(":")
     return f"{uri_parts[2]}://{uri_parts[0]}:{uri_parts[1]}"

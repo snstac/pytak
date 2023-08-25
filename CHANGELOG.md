@@ -1,3 +1,14 @@
+PyTAK 6.1.0
+-----------
+- Fixes #43: Add broadcast UDP support.
+- Fixes #46: Move documentation from Sphinx to Markdown.
+- Fixed #47: Change default constants to match config type hints (e.g. str instead of int).
+- Updated Type Hints for function & method parameters.
+- Updated Coverage for Python version work-arounds.
+- Refactored `udp_client()` function, API unchanged.
+- Fixed vague Exceptions.
+- Renamed `cs2url()` to `connectString2url()`.
+
 PyTAK 6.0.0
 -----------
 - Moved & expanded documentation at https://pytak.readthedocs.io/

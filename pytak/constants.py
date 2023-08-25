@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Sensors & Signals LLC
+# Copyright Sensors & Signals LLC https://www.snstac.com
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,13 +44,13 @@ if bool(os.environ.get("DEBUG")):
 DEFAULT_COT_URL: str = "udp+wo://239.2.3.1:6969"  # ATAK Default multicast
 DEFAULT_COT_STALE: str = "120"  # Config wants all values as strings, we'll cast later.
 DEFAULT_HOST_ID: str = f"pytak@{platform.node()}"
-DEFAULT_COT_PORT: int = 8087
-DEFAULT_ATAK_PORT: int = 4242
-DEFAULT_BROADCAST_PORT: int = 6969
-DEFAULT_TAK_PROTO: int = 1
+DEFAULT_COT_PORT: str = "8087"
+DEFAULT_ATAK_PORT: str = "4242"
+DEFAULT_BROADCAST_PORT: str = "6969"
+DEFAULT_TAK_PROTO: str = "1"
 
-DEFAULT_BACKOFF: int = 120
-DEFAULT_SLEEP: int = 5
+DEFAULT_BACKOFF: str = "120"
+DEFAULT_SLEEP: str = "5"
 DEFAULT_FIPS_CIPHERS: str = (
     "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"
 )
@@ -72,7 +72,7 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_CLIENT_PASSWORD",  # used for encrypted PEM such as P12
 ]
 
-DEFAULT_IMPORT_OTHER_CONFIGS: bool = False
+DEFAULT_IMPORT_OTHER_CONFIGS: str = "0"
 
 BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
 DEFAULT_COT_VAL: str = "9999999.0"
@@ -83,7 +83,7 @@ DEFAULT_COT_VAL: str = "9999999.0"
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
 
 # TAK Protocol to use for CoT output, one of: 0 (XML, default), 2 (Mesh), 2 (Stream).
-DEFAULT_TAK_PROTO = 0
+DEFAULT_TAK_PROTO: str = "0"
 
 # Python <3.8 has no way of including XML Declaration in ET.tostring():
 DEFAULT_XML_DECLARATION: bytes = (
