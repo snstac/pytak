@@ -124,3 +124,6 @@ PyTAK can send & receive data over TLS by setting the following configuration pa
     
     ``PYTAK_TLS_CLIENT_CIPHERS=ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384``
 
+* **`PYTAK_TLS_CLIENT_PASSWORD`** (optional)
+
+    Password for PKCS#12 (.p12) password protected certificates.
