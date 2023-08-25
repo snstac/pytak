@@ -93,13 +93,11 @@ async def create_udp_client(
         bindall = True if sys.platform == "win32" else False
         rsock.bind(("" if bindall else host, port))
         reader = await from_socket(rsock)
-    writer: DatagramClient = await dgconnect((host, port), local_addr=local_addr)
+    writer: DatagramClient = await dgconnect(
+        (host, port), local_addr=local_addr, allow_broadcast=is_broadcast)
 
-    if is_broadcast:
-        writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        # writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if reader:
-            reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    if is_broadcast and reader:
+        reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     if reader and (is_broadcast or is_multicast):
         reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
