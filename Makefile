@@ -1,6 +1,6 @@
 # Makefile for PyTAK
 #
-# Copyright 2023 Sensors & Signals LLC
+# Copyright Sensors & Signals LLC https://www.snstac.com
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,5 +80,5 @@ black:
 	black .
 
 mkdocs:
-	# python -m pip install --upgrade --no-cache-dir pip setuptools<58.3.0
-	python -m pip install --upgrade --no-cache-dir -r requirements_docs.txt
+	pip install -r docs/requirements.txt
+	mkdocs serve

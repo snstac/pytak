@@ -1,0 +1,29 @@
+site_name: Python Team Awareness Kit (PyTAK)
+site_url: https://pytak.rtfd.io/
+repo_url: https://github.com/snstac/pytak/
+site_description: Python Team Awareness Kit (PyTAK) Documentation
+site_author: Greg Albrecht <gba@snstac.com>
+copyright: Copyright Sensors & Signals LLC snstac.com
+
+theme:
+  name: material
+  highlightjs: true
+
+plugins:
+  - include-markdown:
+      opening_tag: "{!"
+      closing_tag: "!}"
+  - search
+  - mkdocstrings:
+      handlers:
+        # See: https://mkdocstrings.github.io/python/usage/
+        python:
+          options:
+            docstring_style: sphinx
+
+markdown_extensions:
+  - markdown_include.include:
+      base_path: .
+  - admonition
+  - toc:
+      permalink: True

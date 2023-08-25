@@ -5,24 +5,24 @@
 Python Team Awareness Kit (PyTAK)
 *********************************
 
-PyTAK is a Python Module for creating TAK clients, servers & gateways and includes 
-classes for handling Cursor on Target (CoT) & non-CoT data, as well as functions for 
-serializing CoT data, and sending and receiving CoT data over a network.
+PyTAK is a Python Module for creating TAK clients, servers & gateways.
+
+PyTAK includes:
+- TAK Protocol support for interconnecting with ATAK, WinTAK, iTAK & TAK Server.
+- Classes for handling TAK, Cursor on Target (CoT) & non-CoT data.
+- Functions for parsing and serializing TAK & CoT data.
+- Functions for sending and receiving TAK & CoT data over a network.
 
 Documentation
 =============
 
-See `PyTAK documentation <https://pytak.readthedocs.io/>`_.
-
-TLS Support
-===========
-
-Moved: `PyTAK documentation <https://pytak.readthedocs.io/>`_.
+See `PyTAK documentation <https://pytak.rtfd.io/>`_ for instructions on getting 
+started with PyTAK, examples, configuration & troubleshooting options.
 
 License & Copyright
 ===================
 
-Copyright 2023 Sensors & Signals LLC
+Copyright Sensors & Signals LLC https://www.snstac.com
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
