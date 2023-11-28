@@ -125,8 +125,9 @@ async def create_udp_client(
 
     # Create Multicast Reader
     if is_multicast:
-        group = socket.inet_aton(host)
-        mreq = struct.pack("4sL", group, socket.INADDR_ANY)
+        ip = socket.INADDR_ANY if local_addr[0] is None else int(ipaddress.IPv4Address(local_addr[0]))
+        group = int(ipaddress.IPv4Address(host))
+        mreq = struct.pack("!LL", group, ip)
 
         reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         reader.socket.setsockopt(

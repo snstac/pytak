@@ -47,7 +47,6 @@ DEFAULT_HOST_ID: str = f"pytak@{platform.node()}"
 DEFAULT_COT_PORT: str = "8087"
 DEFAULT_ATAK_PORT: str = "4242"
 DEFAULT_BROADCAST_PORT: str = "6969"
-DEFAULT_TAK_PROTO: str = "1"
 
 DEFAULT_BACKOFF: str = "120"
 DEFAULT_SLEEP: str = "5"
@@ -82,8 +81,8 @@ DEFAULT_COT_VAL: str = "9999999.0"
 # issue. See: https://github.com/snstac/pytak/pull/22
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
 
-# TAK Protocol to use for CoT output, one of: 0 (XML, default), 2 (Mesh), 2 (Stream).
-DEFAULT_TAK_PROTO: str = "0"
+# TAK Protocol to use for CoT output, one of: 0 (XML, default), 1 (Mesh/Stream).
+DEFAULT_TAK_PROTO: str = "1"
 
 # Python <3.8 has no way of including XML Declaration in ET.tostring():
 DEFAULT_XML_DECLARATION: bytes = (
