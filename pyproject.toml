@@ -5,4 +5,5 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pytak"
 authors = [{name = "Greg Albrecht", email = "oss@undef.net"}]
-dynamic = ["version", "description"]
+dynamic = ["version", "description", "optional-dependencies", "readme", 
+  "requires-python", "license", "maintainers", "keywords", "classifiers"]

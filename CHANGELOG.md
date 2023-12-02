@@ -1,3 +1,14 @@
+PyTAK 6.2.0
+-----------
+- Fixes #12: Encrypted TLS Private Keys (Private Keys with Passphrases).
+- Fixes #40: Fix multicast binding on Windows.
+- Fixes #48: Apply multicast membership to specified interface.
+- Fixes #50: Add support for flow-tags.
+- Fixes #51: CoT Time/Start/Stale timestamps aren't actually ISO-8601.
+- Fixes #52: Add additional default CoT attributes.
+- Fixes #53: Add generic CoT generation function.
+- Various documentation fixes.
+
 PyTAK 6.1.0
 -----------
 - Fixes #43: Add broadcast UDP support.

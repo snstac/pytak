@@ -39,11 +39,13 @@ To allow PyTAK to send & receive "TAK Protocol Payload - Version 1" Protobuf, in
 
 When installing PyTAK::
 
-    $ python3 -m pip install pytak[with_takproto]
+    python3 -m pip install pytak[with_takproto]
 
 Alternative, installing from a Debian package::
 
-    $ TK FIXME
+    sudo apt update -y
+    wget https://github.com/snstak/takproto/releases/latest/download/python3-takproto_latest_all.deb
+    sudo apt install -f ./python3-takproto_latest_all.deb
 
 
 ## Python 3.6+
@@ -64,9 +66,9 @@ To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` configuration param
 to ``True``. This will cause the PyTAK client to sleep a random number of seconds 
 between transmitting CoT to a FTS server::
 
-    FTS_COMPAT = True
+    FTS_COMPAT=True
 
 Alternatively you can specify a static sleep period by setting ``PYTAK_SLEEP`` to an 
 integer number of seconds::
 
-    PYTAK_SLEEP = 3
+    PYTAK_SLEEP=3

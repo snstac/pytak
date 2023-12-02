@@ -6,9 +6,20 @@ PyTAK's configuration parameters can be set two ways:
 PyTAK has the following built-in configuration parameters:
 
 * **`COT_URL`**
-    * Default: ``udp://239.2.3.1:6969`` (TAK Mesh SA, Multicast UDP)
+    * Default: ``udp+wo://239.2.3.1:6969`` (TAK Mesh SA, Multicast UDP)
 
-    Destination for TAK Data (Cursor on Target Events).
+    Destination for TAK Data (Cursor on Target Events). Supported values are:
+    
+    * TLS Unicast: ``tls://host:port``
+    * TCP Unicast: ``tcp://host:port``
+    * UDP Multicast: ``udp://group:port`` (aka **Mesh SA**)
+    * UDP Unicast: ``udp://host:port``
+    * UDP Broadcast: ``udp+broadcast://network:port``
+    * UDP Write-only: ``udp+wo://host:port``
+    * stdout or stderr: ``log://stdout`` or ``log://stderr``
+
+    **N.B.** `+wo` modifier stands for 'write-only', and allows multiple PyTAK 
+    applications to run on a single bound-interface without monopolizing a port. If you're getting a 'cannot bind to port' or 'port occupied error', try adding the `+wo` modifier.
 
 * **`TAK_PROTO`**
     * Default: `0` ("TAK Protocol - Version 0", XML)
@@ -21,9 +32,9 @@ PyTAK has the following built-in configuration parameters:
 
 
 * **`DEBUG`**
-    * Default: `0` (false)
+    * Default: `0` (False)
 
-    Sets debug-level logging.
+    Sets debug-level logging. Any value other than `0` is considered True. False if unset.
 
 
 * **`FTS_COMPAT`** 
@@ -35,11 +46,12 @@ PyTAK has the following built-in configuration parameters:
 * **`PYTAK_SLEEP`**
     * Default: `0` (disabled)
 
-    If set, implements given sleep period of seconds between emitting CoT Events.
+    If set, implements given sleep period of seconds between emitting CoT Events. Only supports integers (seconds), not sub-seconds.
 
 
 * **`PREF_PACKAGE`**
-    * If PyTAK is installed with optional *with_crypto* support.
+    
+    **N.B.** PyTAK must be installed with *with_crypto* support, or the Python `cryptography` module must be installed.
 
     PyTAK supports importing TAK Data Packages containing TAK Server connection settings, TLS certificates, etc. 
 
@@ -49,6 +61,44 @@ PyTAK has the following built-in configuration parameters:
 
     * Using ``config.ini``: Add the line ``PREF_PACKAGE=ADSB3_FIRE.zip``
     * Using the commandline of a utility: Add the argument ``-p ADSB3_FIRE.zip``
+
+
+* **`PYTAK_MULTICAST_LOCAL_ADDR`**
+
+    TK
+
+
+## CoT Event Attributes
+
+* **`COT_STALE`**
+
+    TK
+
+
+* **`COT_ACCESS`**
+    * Default: `UNCLASSIFIED`
+
+    Classification of CoT Events using CAPCO markings. See MIL-STD-6090.
+
+
+* **`COT_CAVEAT`**
+
+    See MIL-STD-6090.
+
+
+* **`COT_RELTO`**
+
+    See MIL-STD-6090.
+    
+
+* **`COT_QOS`**
+
+    See MIL-STD-6090.
+
+
+* **`COT_OPEX`**
+
+    See MIL-STD-6090.
 
 
 ## TLS Support
@@ -86,11 +136,14 @@ PyTAK can send & receive data over TLS by setting the following configuration pa
     
     This file can contain both the Client Cert & Client Key, or the Client Cert alone. In the later case (cert alone), ``PYTAK_TLS_CLIENT_KEY`` must be set to the Client Key.
 
-    For example, to connect to a TAK Server listening for TLS on port 8089::
+    For example, to connect to a TAK Server using TLS on port 8089:
 
         PYTAK_TLS_CLIENT_CERT=/etc/pytak_client_cert_and_key.pem
         COT_URL=tls://takserver.example.com:8089
 
+    For reference, the TAK Server `CoreConfig.xml` would contain a line like this:
+
+        <input auth="x509" _name="tlsx509" protocol="tls" port="8089" archive="false"/>
 
 * **`PYTAK_TLS_CLIENT_KEY`** (optional)
 
@@ -126,4 +179,4 @@ PyTAK can send & receive data over TLS by setting the following configuration pa
 
 * **`PYTAK_TLS_CLIENT_PASSWORD`** (optional)
 
-    Password for PKCS#12 (.p12) password protected certificates.
+    Password for PKCS#12 (.p12) password protected certificates or password protected Private Keys.

@@ -20,9 +20,11 @@ import logging
 import os
 import platform
 
+from typing import Optional
+
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Sensors & Signals LLC"
+__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -53,7 +55,9 @@ DEFAULT_SLEEP: str = "5"
 DEFAULT_FIPS_CIPHERS: str = (
     "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384"
 )
-ISO_8601_UTC = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+W3C_XML_DATETIME: str = "%Y-%m-%dT%H:%M:%S.%fZ"
+ISO_8601_UTC = W3C_XML_DATETIME  # Issue 51: Not technically correct.
 
 TC_TOKEN_URL = "https://app-api.parteamconnect.com/api/v1/auth/token"
 DEFAULT_TC_TOKEN_URL = os.getenv("TC_TOKEN_URL", TC_TOKEN_URL)
@@ -88,3 +92,11 @@ DEFAULT_TAK_PROTO: str = "1"
 DEFAULT_XML_DECLARATION: bytes = (
     b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
 )
+
+# Multicast
+DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR: str = "0.0.0.0"
+DEFAULT_COT_ACCESS: Optional[str] = os.getenv("COT_ACCESS", "UNCLASSIFIED")
+DEFAULT_COT_CAVEAT: Optional[str] = os.getenv("COT_CAVEAT", "")
+DEFAULT_COT_RELTO: Optional[str] = os.getenv("COT_RELTO", "")
+DEFAULT_COT_QOS: Optional[str] = os.getenv("COT_QOS", "")
+DEFAULT_COT_OPEX: Optional[str] = os.getenv("COT_OPEX", "")

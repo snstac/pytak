@@ -55,7 +55,7 @@ else:  # pragma: no cover
     from asyncio import get_event_loop as get_running_loop
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Sensors & Signals LLC"
+__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -80,6 +80,8 @@ async def create_udp_client(
 
     host, port = pytak.parse_url(url)
 
+    local_addr = local_addr or "0.0.0.0"
+
     is_write_only: bool = "+wo" in url.scheme
     is_broadcast: bool = "broadcast" in url.scheme
     is_multicast: bool = "multicast" in url.scheme
@@ -94,6 +96,9 @@ async def create_udp_client(
     writer: DatagramClient = await dgconnect(
         (host, port), local_addr=local_addr, allow_broadcast=is_broadcast
     )
+
+    if is_broadcast:
+        writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     if is_write_only:
         return reader, writer
@@ -125,7 +130,11 @@ async def create_udp_client(
 
     # Create Multicast Reader
     if is_multicast:
-        ip = socket.INADDR_ANY if local_addr[0] is None else int(ipaddress.IPv4Address(local_addr[0]))
+        ip = (
+            socket.INADDR_ANY
+            if local_addr[0] is None
+            else int(ipaddress.IPv4Address(local_addr[0]))
+        )
         group = int(ipaddress.IPv4Address(host))
         mreq = struct.pack("!LL", group, ip)
 
@@ -244,9 +253,9 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             client_key = cert_paths["pk_pem_path"]
 
         if client_key:
-            ssl_ctx.load_cert_chain(client_cert, keyfile=client_key)
+            ssl_ctx.load_cert_chain(client_cert, keyfile=client_key, password=client_password)
         else:
-            ssl_ctx.load_cert_chain(client_cert)
+            ssl_ctx.load_cert_chain(client_cert, password=client_password)
 
         if client_cafile:
             ssl_ctx.load_verify_locations(cafile=client_cafile)
@@ -274,7 +283,9 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     elif "udp" in scheme:
         iface = config.get("PYTAK_MULTICAST_IFACE")
         local_addr = (
-            config.get("PYTAK_MULTICAST_LOCAL_ADDR"),
+            config.get(
+                "PYTAK_MULTICAST_LOCAL_ADDR", pytak.DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR
+            ),
             0,
         )
         reader, writer = await pytak.create_udp_client(cot_url, iface, local_addr)

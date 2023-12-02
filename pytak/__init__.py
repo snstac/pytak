@@ -19,7 +19,7 @@
 :source: <https://github.com/snstac/pytak>
 """
 
-__version__ = "6.1.1"
+__version__ = "6.2.0-beta1"
 
 
 from .constants import (  # NOQA
@@ -32,7 +32,7 @@ from .constants import (  # NOQA
     DEFAULT_BROADCAST_PORT,
     DEFAULT_COT_STALE,
     DEFAULT_FIPS_CIPHERS,
-    ISO_8601_UTC,
+    W3C_XML_DATETIME,
     DEFAULT_TC_TOKEN_URL,
     DEFAULT_COT_URL,
     DEFAULT_TLS_PARAMS_OPT,
@@ -43,6 +43,13 @@ from .constants import (  # NOQA
     DEFAULT_XML_DECLARATION,
     DEFAULT_IMPORT_OTHER_CONFIGS,
     DEFAULT_TAK_PROTO,
+    DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR,
+    DEFAULT_COT_ACCESS,
+    DEFAULT_COT_CAVEAT,
+    DEFAULT_COT_RELTO,
+    DEFAULT_COT_QOS,
+    DEFAULT_COT_OPEX,
+    DEFAULT_COT_VAL,
 )
 
 from .classes import (  # NOQA
@@ -53,7 +60,7 @@ from .classes import (  # NOQA
     CLITool,
 )
 
-from .functions import split_host, parse_url, hello_event, cot_time  # NOQA
+from .functions import split_host, parse_url, hello_event, cot_time, gen_cot, gen_cot_xml  # NOQA
 
 from .client_functions import (  # NOQA
     create_udp_client,

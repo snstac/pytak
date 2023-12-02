@@ -31,7 +31,7 @@ import pytak
 
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Sensors & Signals LLC"
+__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -113,7 +113,7 @@ def test_get_tls_config_incomplete():
 @pytest.mark.asyncio
 async def test_protocol_factory_udp_broadcast():
     """Test creating a broadcast UDP reader & writer with `pytak.protocol_factory()`."""
-    test_url1: str = "udp+broadcast://localhost"
+    test_url1: str = "udp+broadcast://localhost:6666"
     config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
     assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)

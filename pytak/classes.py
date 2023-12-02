@@ -36,7 +36,7 @@ except ImportError:
     pass
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Sensors & Signals LLC"
+__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
 __license__ = "Apache License, Version 2.0"
 
 
@@ -76,9 +76,11 @@ class Worker:  # pylint: disable=too-few-public-methods
         tak_proto_version = int(self.config.get("TAK_PROTO") or pytak.DEFAULT_TAK_PROTO)
 
         if tak_proto_version > 0 and importlib.util.find_spec("takproto") is None:
-            self._logger.error(
-                "Failed to use takproto for parsing CoT serialized with protobuf.\n"
-                "Try: pip install pytak[with_takproto]"
+            self._logger.warning(
+                "TAK_PROTO is set to '%s', but the 'takproto' Python module is not installed.\n"
+                "Try: python -m pip install pytak[with_takproto]\n"
+                "See Also: https://pytak.rtfd.io/en/latest/compatibility/#tak-protocol-payload-version-1-protobuf",
+                tak_proto_version,
             )
 
         self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec(

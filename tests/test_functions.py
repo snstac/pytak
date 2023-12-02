@@ -94,7 +94,21 @@ def test_split_host():
     assert 9999 == port
 
 
+def test_gen_cot():
+    """Test gen_cot() XML CoT generator."""
+    event = pytak.gen_cot(uid="taco")
+    assert b"taco" in event
+    assert b"a-u-G" in event
+
+
 def test_hello_event():
+    """Test test_hello_event() Hello Event generator."""
     event = pytak.hello_event("taco")
     assert b"taco" in event
     assert b"t-x-d-d" in event
+
+
+def test_cot_time():
+    """Test that cot_time() returns the proper dateTime string."""
+    cot_time = pytak.cot_time()
+    assert "Z" in cot_time[-1]
