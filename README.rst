@@ -1,4 +1,4 @@
-.. image:: https://github.com/snstac/pytak/blob/main/docs/atak_screenshot_with_pytak_logo-x25.jpg
+.. image:: https://pytak.readthedocs.io/en/latest/atak_screenshot_with_pytak_logo-x25.jpg
    :alt: ATAK Screenshot with PyTAK Logo.
    :target: https://github.com/snstac/pytak/blob/main/docs/atak_screenshot_with_pytak_logo.jpg
 
