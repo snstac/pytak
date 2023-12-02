@@ -6,7 +6,7 @@ PyTAK's configuration parameters can be set two ways:
 PyTAK has the following built-in configuration parameters:
 
 * **`COT_URL`**
-    * Default: ``udp+wo://239.2.3.1:6969`` (TAK Mesh SA, Multicast UDP)
+    * Default: ``udp+wo://239.2.3.1:6969`` (TAK Mesh SA, Multicast UDP, write-only)
 
     Destination for TAK Data (Cursor on Target Events). Supported values are:
     
@@ -20,6 +20,7 @@ PyTAK has the following built-in configuration parameters:
 
     **N.B.** `+wo` modifier stands for 'write-only', and allows multiple PyTAK 
     applications to run on a single bound-interface without monopolizing a port. If you're getting a 'cannot bind to port' or 'port occupied error', try adding the `+wo` modifier.
+
 
 * **`TAK_PROTO`**
     * Default: `0` ("TAK Protocol - Version 0", XML)
@@ -64,15 +65,17 @@ PyTAK has the following built-in configuration parameters:
 
 
 * **`PYTAK_MULTICAST_LOCAL_ADDR`**
+    * Default: `0.0.0.0`
 
-    TK
+    For systems with multiple IP network interfaces, specifies which IP interface to use for the multicast group.
 
 
 ## CoT Event Attributes
 
 * **`COT_STALE`**
+    * Default: `120` (2 minutes)
 
-    TK
+    CoT Event stale time in seconds.
 
 
 * **`COT_ACCESS`**
@@ -120,11 +123,6 @@ At a minimum, to use TLS with PyTAK, the following two conditions must be met:
 **Please Note**
 
 * Client Certificates, Client Key, CA Certificate & Key must be specified in PEM format.
-* Encrypted private keys are not supported and must be saved in clear-text. 
-    
-    The following command will prompt for a passphrase, and decrypt the private key and remove the passphrase:
-
-    ``openssl rsa -in my_encrypted_cert.pem -out my_unencrypted_cert.pem``
 
 ### TLS Configuration Parameters
 
@@ -176,6 +174,7 @@ PyTAK can send & receive data over TLS by setting the following configuration pa
     For example, to set FIPS-only ciphers:
     
     ``PYTAK_TLS_CLIENT_CIPHERS=ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384``
+
 
 * **`PYTAK_TLS_CLIENT_PASSWORD`** (optional)
 

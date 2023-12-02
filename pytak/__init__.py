@@ -60,7 +60,14 @@ from .classes import (  # NOQA
     CLITool,
 )
 
-from .functions import split_host, parse_url, hello_event, cot_time, gen_cot, gen_cot_xml  # NOQA
+from .functions import (
+    split_host,
+    parse_url,
+    hello_event,
+    cot_time,
+    gen_cot,
+    gen_cot_xml,
+)  # NOQA
 
 from .client_functions import (  # NOQA
     create_udp_client,

@@ -72,7 +72,7 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_CLIENT_CIPHERS",
     "PYTAK_TLS_DONT_CHECK_HOSTNAME",
     "PYTAK_TLS_DONT_VERIFY",
-    "PYTAK_TLS_CLIENT_PASSWORD",  # used for encrypted PEM such as P12
+    "PYTAK_TLS_CLIENT_PASSWORD",
 ]
 
 DEFAULT_IMPORT_OTHER_CONFIGS: str = "0"
@@ -95,6 +95,8 @@ DEFAULT_XML_DECLARATION: bytes = (
 
 # Multicast
 DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR: str = "0.0.0.0"
+
+# See MIL-STD-6090.
 DEFAULT_COT_ACCESS: Optional[str] = os.getenv("COT_ACCESS", "UNCLASSIFIED")
 DEFAULT_COT_CAVEAT: Optional[str] = os.getenv("COT_CAVEAT", "")
 DEFAULT_COT_RELTO: Optional[str] = os.getenv("COT_RELTO", "")

@@ -1,6 +1,7 @@
 PyTAK 6.2.0
 -----------
 - Fixes #12: Encrypted TLS Private Keys (Private Keys with Passphrases).
+- Fixes #33: PyTAK Multicast read/write & write-only do not work on Windows.
 - Fixes #40: Fix multicast binding on Windows.
 - Fixes #48: Apply multicast membership to specified interface.
 - Fixes #50: Add support for flow-tags.

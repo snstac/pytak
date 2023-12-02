@@ -60,7 +60,7 @@ __license__ = "Apache License, Version 2.0"
 
 
 async def create_udp_client(
-    url: ParseResult, iface: Optional[str] = None, local_addr=None
+    url: ParseResult, local_addr=None
 ) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
@@ -253,7 +253,9 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             client_key = cert_paths["pk_pem_path"]
 
         if client_key:
-            ssl_ctx.load_cert_chain(client_cert, keyfile=client_key, password=client_password)
+            ssl_ctx.load_cert_chain(
+                client_cert, keyfile=client_key, password=client_password
+            )
         else:
             ssl_ctx.load_cert_chain(client_cert, password=client_password)
 
@@ -281,14 +283,13 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
                 "Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?"
             ) from exc
     elif "udp" in scheme:
-        iface = config.get("PYTAK_MULTICAST_IFACE")
         local_addr = (
             config.get(
                 "PYTAK_MULTICAST_LOCAL_ADDR", pytak.DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR
             ),
             0,
         )
-        reader, writer = await pytak.create_udp_client(cot_url, iface, local_addr)
+        reader, writer = await pytak.create_udp_client(cot_url, local_addr)
     elif "http" in scheme:
         raise SyntaxError("TeamConnect / Sit(x) Support comming soon.")
         # writer = await pytak.create_tc_client(cot_url)
