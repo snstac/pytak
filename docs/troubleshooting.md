@@ -23,9 +23,9 @@ Depending on the security requirements in your operating environment, there are 
 
 `ssl.SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:1131)`
 
-The `certificate verify failed` error indicates that PyTAK is the TAK Server is using a certificate that PyTAK does not trust because it cannot be verified. This is the default behavior for TAK Servers built following the TAK Server Setup Guide instructions. 
+The `certificate verify failed` error indicates that the TAK Server is using a certificate that PyTAK does not trust, because it cannot be verified. This is expected behavior for TAK Servers built from the *TAK Server Setup Guide*. 
 
-Alternatively, many organizations have established their own custom Certificate Authority (CA). With this comes the need to propagate & establish the CA's authority throughout the organization, including on end-user devices like smartphones, tablets and computers. 
+Many organizations have established their own custom Certificate Authorities (CA). With this comes the need to propagate & establish the CA's authority throughout the organization, including on end-user devices (EUD) like smartphones, tablets and computers. If and EUD holds a copy of the CA's trusted certificate, it can verify (and thus, trust) certificates signed by the CA. If an EUD lacks the CA's authoritative trust (for example, the CA's trust chain PEM is not installed on the EUD), it cannot verify or trust certificates signed by that CA. 
 
 Depending on the security requirements in your operating environment, there are two possible procedures to follow to resolve this error:
 
