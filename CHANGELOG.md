@@ -1,3 +1,8 @@
+PyTAK 6.2.1
+-----------
+- Add 'PEM pass phrase' prompt instructions. Fixes #54.
+
+
 PyTAK 6.2.0
 -----------
 - Fixes #12: Encrypted TLS Private Keys (Private Keys with Passphrases).
