@@ -200,7 +200,7 @@ def gen_cot_xml(
     point.set("ce", ce)
 
     flow_tags = ET.Element("_flow-tags_")
-    _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-v{pytak.__version__}"
+    _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-v{pytak.__version__}".replace("@", "-")
     flow_tags.set(_ft_tag, pytak.cot_time())
 
     detail = ET.Element("detail")
