@@ -78,32 +78,6 @@ PyTAK has the following built-in configuration parameters:
     CoT Event stale time in seconds.
 
 
-* **`COT_ACCESS`**
-    * Default: `UNCLASSIFIED`
-
-    Classification of CoT Events using CAPCO markings. See MIL-STD-6090.
-
-
-* **`COT_CAVEAT`**
-
-    See MIL-STD-6090.
-
-
-* **`COT_RELTO`**
-
-    See MIL-STD-6090.
-    
-
-* **`COT_QOS`**
-
-    See MIL-STD-6090.
-
-
-* **`COT_OPEX`**
-
-    See MIL-STD-6090.
-
-
 ## TLS Support
 
 PyTAK supports sending & receiving TAK Data over TLS. This section describes the various configuration parameters that can be set for TLS network connections.
