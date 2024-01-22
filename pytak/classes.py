@@ -220,7 +220,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
                 if tak_v1 != -1:
                     cot = tak_v1  # .SerializeToString()
             return cot
-        except asyncio.exceptions.IncompleteReadError:
+        except asyncio.IncompleteReadError:
             return None
 
     async def run(self, number_of_iterations=-1) -> None:

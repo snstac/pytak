@@ -1,10 +1,13 @@
-PyTAK 6.2.1
------------
+## PyTAK 6.2.4
+
+- Fixes #63: Python 3.6: AttributeError: module 'asyncio' has no attribute 'exceptions'.
+
+## PyTAK 6.2.1
+
 - Add 'PEM pass phrase' prompt instructions. Fixes #54.
 
+## PyTAK 6.2.0
 
-PyTAK 6.2.0
------------
 - Fixes #12: Encrypted TLS Private Keys (Private Keys with Passphrases).
 - Fixes #33: PyTAK Multicast read/write & write-only do not work on Windows.
 - Fixes #40: Fix multicast binding on Windows.
@@ -15,8 +18,8 @@ PyTAK 6.2.0
 - Fixes #53: Add generic CoT generation function.
 - Various documentation fixes.
 
-PyTAK 6.1.0
------------
+## PyTAK 6.1.0
+
 - Fixes #43: Add broadcast UDP support.
 - Fixes #46: Move documentation from Sphinx to Markdown.
 - Fixed #47: Change default constants to match config type hints (e.g. str instead of int).
@@ -26,8 +29,8 @@ PyTAK 6.1.0
 - Fixed vague Exceptions.
 - Renamed `cs2url()` to `connectString2url()`.
 
-PyTAK 6.0.0
------------
+## PyTAK 6.0.0
+
 - Moved & expanded documentation at https://pytak.readthedocs.io/
 - ``COT_URL`` now defaults to ``udp+wo://239.2.3.1:6969``, aka 'Mesh SA' in ATAK & WinTAK. This disables receiveing CoT by default. To enable receiving CoT, remove the ``+wo`` modifier. 
 * Fixes #31: 'protobuf support', "TAK Protocol, Version 1" is now the default output from PyTAK, *BUT* you must install the ``takproto`` python module seperately to ENABLE, otherwise reverts to CoT XML. PyTAK will automatically detect if the ``COT_URL`` is multicast or unicast, and use the appropriate protobuf format. See: https://github.com/snstac/takproto
@@ -41,8 +44,8 @@ PyTAK 6.0.0
 - Added Read The Docs builder.
 - Added PyTAK shield logo & screenshots.
 
-PyTAK 5.6.1
------------
+## PyTAK 5.6.1
+
 Exported `read_pref_package()` from client_functions.
 
 PyTAK 5.6.0
