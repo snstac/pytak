@@ -19,7 +19,7 @@
 :source: <https://github.com/snstac/pytak>
 """
 
-__version__ = "6.2.4"
+__version__ = "6.3.0-beta1"
 
 
 from .constants import (  # NOQA
@@ -50,6 +50,8 @@ from .constants import (  # NOQA
     DEFAULT_COT_QOS,
     DEFAULT_COT_OPEX,
     DEFAULT_COT_VAL,
+    DEFAULT_MAX_OUT_QUEUE,
+    DEFAULT_MAX_IN_QUEUE,
 )
 
 from .classes import (  # NOQA

@@ -1,3 +1,10 @@
+## PyTAK 6.3.0
+
+- Fixes #58: TypeError: can't multiply sequence by non-int of type 'float'.
+- Fixes #64 (?): Cryptography functions deprecated
+- Fixes #65: Performance issues with large queues, sleep only on empty queue.
+- Fixes #66: Add config params MAX_OUT_QUEUE & MAX_IN_QUEUE to allow queue tuning.
+
 ## PyTAK 6.2.4
 
 - Fixes #63: Python 3.6: AttributeError: module 'asyncio' has no attribute 'exceptions'.

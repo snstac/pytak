@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2023 Sensors & Signals LLC
+# Copyright Sensors & Signals LLC https://www.snstac.com
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,18 +25,18 @@ import pytak.functions
 import pytak.crypto_functions
 
 __author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright 2023 Sensors & Signals LLC"
+__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
 __license__ = "Apache License, Version 2.0"
 
 
-def test_load_preferences():
+def test_load_preferences() -> None:
     """Test loading a preferences file."""
     test_pref: str = "tests/data/test_pref.pref"
     prefs: dict = pytak.functions.load_preferences(test_pref, "tests/data")
     assert all(prefs)
 
 
-def test_load_connectString2url():
+def test_load_connectString2url() -> None:
     """Test converting a TAK connectString to a URL"""
     test_pref: str = "tests/data/test_pref.pref"
     prefs: dict = pytak.functions.load_preferences(test_pref, "tests/data")
@@ -45,7 +45,7 @@ def test_load_connectString2url():
     assert url == "ssl://takserver.example.com:8089"
 
 
-def test_load_cert():
+def test_load_cert() -> None:
     cert: list = pytak.crypto_functions.load_cert(
         "tests/data/test_user_cert.p12", "atakatak"
     )

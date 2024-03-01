@@ -24,6 +24,8 @@ import multiprocessing as mp
 import queue as _queue
 import random
 
+import xml.etree.ElementTree as ET
+
 from typing import Optional, Set, Union
 
 from configparser import ConfigParser, SectionProxy
@@ -96,7 +98,7 @@ class Worker:  # pylint: disable=too-few-public-methods
         pytak_sleep: int = int(self.config.get("PYTAK_SLEEP") or 0)
         if bool(self.config.get("FTS_COMPAT") or pytak_sleep):
             sleep_period: int = int(
-                pytak_sleep or (pytak.DEFAULT_SLEEP * random.random())
+                pytak_sleep or (int(pytak.DEFAULT_SLEEP) * random.random())
             )
             self._logger.debug("COMPAT: Sleeping for %ss", sleep_period)
             await asyncio.sleep(sleep_period)
@@ -112,10 +114,12 @@ class Worker:  # pylint: disable=too-few-public-methods
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
         while number_of_iterations != 0:
-            await asyncio.sleep(self.min_period)
+            if self.queue.qsize() == 0:
+                await asyncio.sleep(self.min_period)
+                continue
 
+            # self._logger.debug("TX queue size=%s", self.queue.qsize())
             data = None
-
             try:
                 data = self.queue.get_nowait()
             except (asyncio.QueueEmpty, _queue.Empty):
@@ -171,7 +175,11 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
             else:
                 proto = takproto.TAKProtoVer.STREAM
 
-            data = takproto.xml2proto(data, proto)
+            try:
+                data = takproto.xml2proto(data, proto)
+            except ET.ParseError as exc:
+                self._logger.warning(exc)
+                self._logger.warning("Could not convert XML to Proto.")
 
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
@@ -256,20 +264,24 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
         config: Union[None, SectionProxy, dict],
     ) -> None:
         super().__init__(queue, config)
-        self._logger.info("COT_URL: %s", self.config.get("COT_URL"))
+        self._logger.info("Using COT_URL='%s'", self.config.get("COT_URL"))
 
     async def put_queue(
         self, data: bytes, queue_arg: Union[asyncio.Queue, mp.Queue, None] = None
     ) -> None:
         """Put Data onto the Queue."""
         _queue = queue_arg or self.queue
-        try:
-            if isinstance(_queue, asyncio.Queue):
-                await _queue.put(data)
-            else:
-                _queue.put(data)
-        except asyncio.QueueFull:
-            self._logger.warning("Lost Data (queue full): '%s'", data)
+        self._logger.debug("Queue size=%s", _queue.qsize())
+        if isinstance(_queue, asyncio.Queue):
+            if _queue.full():
+                self._logger.warning("Queue full, dropping oldest data.")
+                await _queue.get()
+            await _queue.put(data)
+        else:
+            if _queue.full():
+                self._logger.warning("Queue full, dropping oldest data.")
+                _queue.get_nowait()
+            _queue.put_nowait(data)
 
 
 class CLITool:
@@ -296,8 +308,19 @@ class CLITool:
         self.running_tasks: Set = set()
         self._config = config
         self.queues: dict = {}
-        self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue()
-        self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue()
+
+        self.max_in_queue = int(
+            self._config.get("MAX_IN_QUEUE") or pytak.DEFAULT_MAX_IN_QUEUE
+        )
+        self.max_out_queue = int(
+            self._config.get("MAX_OUT_QUEUE") or pytak.DEFAULT_MAX_OUT_QUEUE
+        )
+        self.tx_queue: Union[asyncio.Queue, mp.Queue] = tx_queue or asyncio.Queue(
+            self.max_out_queue
+        )
+        self.rx_queue: Union[asyncio.Queue, mp.Queue] = rx_queue or asyncio.Queue(
+            self.max_in_queue
+        )
 
         if bool(self._config.get("DEBUG") or 0):
             for handler in self._logger.handlers:
@@ -312,23 +335,25 @@ class CLITool:
         self._config = val
 
     async def create_workers(self, i_config):
-        """Create and run queue workers with specified config parameters.
+        """
+        Create and run queue workers with specified config parameters.
 
         Parameters
         ----------
         i_config : `configparser.SectionProxy`
             Configuration options & values.
         """
-        reader, writer = await pytak.protocol_factory(i_config)
-        tx_queue = asyncio.Queue()
-        rx_queue = asyncio.Queue()
+        tx_queue = asyncio.Queue(self.max_out_queue)
+        rx_queue = asyncio.Queue(self.max_in_queue)
         if len(self.queues) == 0:
             # If the queue list is empty, make this the default.
             self.tx_queue = tx_queue
             self.rx_queue = rx_queue
+        self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
+
+        reader, writer = await pytak.protocol_factory(i_config)
         write_worker = pytak.TXWorker(tx_queue, i_config, writer)
         read_worker = pytak.RXWorker(rx_queue, i_config, reader)
-        self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
         self.add_task(write_worker)
         self.add_task(read_worker)
 
@@ -364,6 +389,7 @@ class CLITool:
         """Run the given coroutine task."""
         self._logger.debug("Run Task: %s", task)
         self.running_tasks.add(asyncio.ensure_future(task.run()))
+        # self.running_tasks.add(run_coroutine_in_thread(task.run()))
 
     def run_tasks(self, tasks=None):
         """Run the given list or set of couroutine tasks."""

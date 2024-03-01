@@ -30,13 +30,13 @@ INSTALL_MSG = (
 
 USE_CRYPTOGRAPHY = False
 try:
-    from cryptography.hazmat.backends.openssl.rsa import _RSAPrivateKey
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.serialization import pkcs12
     from cryptography.x509 import Certificate
 
     USE_CRYPTOGRAPHY = True
-except ImportError:
+except ImportError as exc:
+    warnings.warn(exc)
     warnings.warn(INSTALL_MSG)
 
 

@@ -102,3 +102,6 @@ DEFAULT_COT_CAVEAT: Optional[str] = os.getenv("COT_CAVEAT", "")
 DEFAULT_COT_RELTO: Optional[str] = os.getenv("COT_RELTO", "")
 DEFAULT_COT_QOS: Optional[str] = os.getenv("COT_QOS", "")
 DEFAULT_COT_OPEX: Optional[str] = os.getenv("COT_OPEX", "")
+
+DEFAULT_MAX_OUT_QUEUE = 100
+DEFAULT_MAX_IN_QUEUE = 500
