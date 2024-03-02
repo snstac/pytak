@@ -109,7 +109,7 @@ class Worker:  # pylint: disable=too-few-public-methods
 
     async def run(self, number_of_iterations=-1):
         """Run this Thread, reads Data from Queue & passes data to next Handler."""
-        self._logger.info("Run: %s", self.__class__)
+        self._logger.info("Run: %s", self.__class__.__name__)
 
         # We're instantiating the while loop this way, and using get_nowait(),
         # to allow unit testing of at least one call of this loop.
@@ -233,7 +233,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
 
     async def run(self, number_of_iterations=-1) -> None:
         """Run this worker."""
-        self._logger.info("Run: %s", self.__class__)
+        self._logger.info("Run: %s", self.__class__.__name__)
 
         while 1:
             await asyncio.sleep(self.min_period)
@@ -400,7 +400,7 @@ class CLITool:
 
     async def run(self):
         """Run this Thread and its associated coroutine tasks."""
-        self._logger.info("Run: %s", self.__class__)
+        self._logger.info("Run: %s", self.__class__.__name__)
 
         await self.hello_event()
         self.run_tasks()
