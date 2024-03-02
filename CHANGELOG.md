@@ -1,3 +1,7 @@
+## PyTAK 6.3.1
+
+- Fixes #67: Add constrained logging for systemd invocation.
+
 ## PyTAK 6.3.0
 
 - Fixes #58: TypeError: can't multiply sequence by non-int of type 'float'.
