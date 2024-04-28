@@ -91,7 +91,8 @@ DEFAULT_COT_VAL: str = "9999999.0"
 DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
 
 # TAK Protocol to use for CoT output, one of: 0 (XML, default), 1 (Mesh/Stream).
-DEFAULT_TAK_PROTO: str = "1"
+# Doesn't always work with iTAK. Recommend sticking with 0 (XML).
+DEFAULT_TAK_PROTO: str = "0"
 
 # Python <3.8 has no way of including XML Declaration in ET.tostring():
 DEFAULT_XML_DECLARATION: bytes = (

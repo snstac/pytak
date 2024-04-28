@@ -1,3 +1,7 @@
+## PyTAK 6.4.0
+
+- Fixes #69: PyTAK's TAK_PROTO=1 doesn't always work with iTAK.
+
 ## PyTAK 6.3.1
 
 - Fixes #67: Add constrained logging for systemd invocation.
