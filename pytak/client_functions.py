@@ -227,6 +227,8 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         client_cafile = tls_config.get("PYTAK_TLS_CLIENT_CAFILE")
         client_password = tls_config.get("PYTAK_TLS_CLIENT_PASSWORD")
 
+        expected_server_hostname = tls_config.get("PYTAK_TLS_SERVER_EXPECTED_HOSTNAME")
+
         # Default cipher suite: ALL.
         #  Also available in FIPS: DEFAULT_FIPS_CIPHERS
         client_ciphers = tls_config.get("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
@@ -267,6 +269,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             warnings.warn(
                 "TLS CN/Hostname Check DISABLED by PYTAK_TLS_DONT_CHECK_HOSTNAME."
             )
+            expected_server_hostname = None
             ssl_ctx.check_hostname = False
 
         # Default to verifying cert:
@@ -277,7 +280,9 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             ssl_ctx.verify_mode = ssl.CERT_NONE
 
         try:
-            reader, writer = await asyncio.open_connection(host, port, ssl=ssl_ctx)
+            reader, writer = await asyncio.open_connection(
+                host, port, ssl=ssl_ctx, server_hostname=expected_server_hostname
+            )
         except ssl.SSLCertVerificationError as exc:
             raise SyntaxError(
                 "Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?"

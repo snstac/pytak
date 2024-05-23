@@ -140,6 +140,11 @@ PyTAK can send & receive data over TLS by setting the following configuration pa
     Path to a file containing the CA Trust Store to use for remote certificate verification.
 
 
+* **`PYTAK_TLS_SERVER_EXPECTED_HOSTNAME`** (optional)
+
+  Expected hostname or CN of the connected server. Not used unless verifying hostname.
+
+
 * **`PYTAK_TLS_CLIENT_CIPHERS`** (optional)
     * Default: ``ALL`` 
 
