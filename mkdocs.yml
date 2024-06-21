@@ -3,7 +3,7 @@ site_url: https://pytak.rtfd.io/
 repo_url: https://github.com/snstac/pytak/
 site_description: Python Team Awareness Kit (PyTAK) Documentation
 site_author: Greg Albrecht <gba@snstac.com>
-copyright: Copyright Sensors & Signals LLC snstac.com
+copyright: Copyright Sensors & Signals LLC https://www.snstac.com/
 
 theme:
   name: material

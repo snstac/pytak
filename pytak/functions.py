@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# functions.py from https://github.com/snstac/pytak
 #
 # Copyright Sensors & Signals LLC https://www.snstac.com
 #
@@ -28,10 +29,6 @@ from typing import Optional, Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
 import pytak  # pylint: disable=cyclic-import
-
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"
 
 
 def split_host(host: str, port: Union[int, None] = None) -> Tuple[str, int]:

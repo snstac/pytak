@@ -1,11 +1,8 @@
-.. image:: https://pytak.readthedocs.io/en/latest/atak_screenshot_with_pytak_logo-x25.jpg
-   :alt: ATAK Screenshot with PyTAK Logo.
-   :target: https://github.com/snstac/pytak/blob/main/docs/atak_screenshot_with_pytak_logo.jpg
+![ATAK Screenshot with PyTAK Logo.](media/atak_screenshot_with_pytak_logo-x25.jpg)
 
-Python Team Awareness Kit (PyTAK)
-*********************************
+# Python Team Awareness Kit
 
-PyTAK is a Python Module for creating TAK clients, servers & gateways.
+PyTAK is a Python Module for creating [TAK](https://tak.gov) clients, servers & gateways.
 
 PyTAK includes:
 
@@ -14,14 +11,12 @@ PyTAK includes:
 - Functions for parsing and serializing TAK & CoT data.
 - Functions for sending and receiving TAK & CoT data over a network.
 
-Documentation
-=============
+## Documentation
 
-See `PyTAK documentation <https://pytak.rtfd.io/>`_ for instructions on getting 
+See [PyTAK documentation](https://pytak.rtfd.io/) for instructions on getting 
 started with PyTAK, examples, configuration & troubleshooting options.
 
-License & Copyright
-===================
+## License & Copyright
 
 Copyright Sensors & Signals LLC https://www.snstac.com
 
@@ -37,3 +32,4 @@ limitations under the License.
 
 asyncio_dgram is Copyright (c) 2019 Justin Bronder and is licensed under the MIT 
 License, see pytak/asyncio_dgram/LICENSE for details.
+

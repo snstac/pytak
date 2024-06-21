@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# __init__.py from https://github.com/snstac/pytak
 #
 # Copyright Sensors & Signals LLC https://www.snstac.com
 #
@@ -14,13 +15,9 @@
 # limitations under the License.
 #
 
-"""Python Team Awareness Kit (PyTAK) Module.
+"""Python Team Awareness Kit (PyTAK) Module."""
 
-:source: <https://github.com/snstac/pytak>
-"""
-
-__version__ = "6.4.0"
-
+__version__ = "7.0.0-beta1"
 
 from .constants import (  # NOQA
     LOG_LEVEL,
@@ -81,9 +78,3 @@ from .client_functions import (  # NOQA
 )
 
 from . import asyncio_dgram  # NOQA
-
-# from .crypto_functions import *
-
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"

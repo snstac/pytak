@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# client_functions.py from https://github.com/snstac/pytak
 #
 # Copyright Sensors & Signals LLC https://www.snstac.com
 #
@@ -53,10 +54,6 @@ if sys.version_info[:2] >= (3, 7):  # pragma: no cover
 else:  # pragma: no cover
     warnings.warn("Using Python < 3.7, consider upgrading Python.")
     from asyncio import get_event_loop as get_running_loop
-
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"
 
 
 async def create_udp_client(

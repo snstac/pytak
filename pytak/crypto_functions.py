@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# crypto_functions.py from https://github.com/snstac/pytak
 #
 # Copyright Sensors & Signals LLC https://www.snstac.com
 #
@@ -37,12 +38,6 @@ try:
     USE_CRYPTOGRAPHY = True
 except ImportError as exc:
     warnings.warn(exc)
-    warnings.warn(INSTALL_MSG)
-
-
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"
 
 
 def save_pem(pem: bytes, dest: Union[str, None] = None) -> str:
