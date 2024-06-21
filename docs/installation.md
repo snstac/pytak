@@ -6,8 +6,8 @@ To install PyTAK, download the pytak package and install using apt:
 
 ```sh
 sudo apt update -y
-wget https://github.com/snstac/pytak/releases/latest/download/python3-pytak_latest_all.deb
-sudo apt install -f ./python3-pytak_latest_all.deb
+wget https://github.com/snstac/pytak/releases/latest/download/pytak_latest_all.deb
+sudo apt install -f ./pytak_latest_all.deb
 ```
 
 ### Data Package Support
@@ -27,8 +27,8 @@ To install takproto, download the deb package and install using apt::
 
 ```sh
 sudo apt update -y
-wget https://github.com/snstak/takproto/releases/latest/download/python3-takproto_latest_all.deb
-sudo apt install -f ./python3-takproto_latest_all.deb
+wget https://github.com/snstak/takproto/releases/latest/download/takproto_latest_all.deb
+sudo apt install -f ./takproto_latest_all.deb
 ```
 
 ## Install from Python Package Index (PyPI)

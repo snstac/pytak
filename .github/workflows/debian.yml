@@ -1,4 +1,4 @@
-name: Build Debian package
+name: Build Debian Package
 
 on:
   push:
@@ -15,33 +15,19 @@ jobs:
     steps:
       - uses: actions/checkout@master
 
-      - name: Install packaging dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            python3 python3-dev python3-pip python3-venv python3-all \
-            dh-python debhelper devscripts dput software-properties-common \
-            python3-distutils python3-setuptools python3-wheel python3-stdeb
+      - name: Install Debian Package Building Dependencies
+        run: sudo bash debian/install_pkg_build_deps.sh
 
-      - name: Build Debian/Apt sdist_dsc
-        run: |
-          rm -Rf deb_dist/*
-          python3 setup.py --command-packages=stdeb.command sdist_dsc
+      - name: Create Debian Package
+        run: make clean package
 
-      - name: Build Debian/Apt bdist_deb
-        run: |
-          export REPO_NAME=$(echo ${{ github.repository }} | awk -F"/" '{print $2}')
-          python3 setup.py --command-packages=stdeb.command bdist_deb
-          ls -al deb_dist/
-          cp deb_dist/python3-${REPO_NAME}_*_all.deb deb_dist/python3-${REPO_NAME}_latest_all.deb
-
-      - uses: actions/upload-artifact@master
+      - name: Upload Artifacts to GitHub
+        uses: actions/upload-artifact@master
         with:
           name: artifact-deb
-          path: |
-            deb_dist/*.deb
+          path: deb_dist/*.deb
 
-      - name: Create Release
+      - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@master
         env:
@@ -52,7 +38,7 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload Release Asset
+      - name: Upload Release Asset to GitHub
         id: upload-release-asset
         uses: svenstaro/upload-release-action@v2
         with:

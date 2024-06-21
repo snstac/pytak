@@ -44,8 +44,8 @@ When installing PyTAK::
 Alternative, installing from a Debian package::
 
     sudo apt update -y
-    wget https://github.com/snstak/takproto/releases/latest/download/python3-takproto_latest_all.deb
-    sudo apt install -f ./python3-takproto_latest_all.deb
+    wget https://github.com/snstak/takproto/releases/latest/download/takproto_latest_all.deb
+    sudo apt install -f ./takproto_latest_all.deb
 
 
 ## Python 3.6+
