@@ -1,3 +1,21 @@
+## PyTAK 7.0.0
+
+Happy Summer Solstice
+
+- Fixes #72: Add a config variable for users to set expected CN when using CA verification. Thanks @ahoenerBE
+- Added configuration parameter: PYTAK_TLS_SERVER_EXPECTED_HOSTNAME
+- Rewrote GitHub actions, moved most logic to shell script and Makefile.
+- Renamed Debian package from python3-pytak to pytak.
+- Standardized Makefile for all PyTAK based programs.
+- Cleaned, simplified and expanded documentation.
+- Created Makefile jobs for Debian packaging and PyTAK customization.
+- Moved all media to media sub directory under docs/.
+- Converted README.rst to README.md.
+- Style & Linting of code.
+- Refactored TLS client creation, abstracted many functions.
+- Added TLS client cert and key checks and improved error messages.
+
+
 ## PyTAK 6.4.0
 
 - Fixes #69: PyTAK's TAK_PROTO=1 doesn't always work with iTAK.
