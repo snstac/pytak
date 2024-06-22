@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-"""PyTAK Client & CLI Functions."""
+"""PyTAK functions for creating network & CLI TAK clients."""
 
 import argparse
 import asyncio
@@ -33,7 +33,7 @@ import warnings
 
 from configparser import ConfigParser, SectionProxy
 from urllib.parse import ParseResult, urlparse
-from typing import Any, Tuple, Union, Optional
+from typing import Any, Tuple, Union
 
 import pytak
 
@@ -42,18 +42,91 @@ from pytak.functions import unzip_file, find_file, load_preferences, connectStri
 from pytak.asyncio_dgram import (
     DatagramClient,
     connect as dgconnect,
-    bind as dgbind,
     from_socket,
 )
 
 from pytak.crypto_functions import convert_cert
 
-# Python 3.6 support:
+# DEPRECATED Python 3.6 support for asyncio get_running_loop().
 if sys.version_info[:2] >= (3, 7):  # pragma: no cover
     from asyncio import get_running_loop
 else:  # pragma: no cover
     warnings.warn("Using Python < 3.7, consider upgrading Python.")
     from asyncio import get_event_loop as get_running_loop
+
+
+def get_cot_url(config) -> ParseResult:
+    """Verify and parse a raw COT_URL."""
+    raw_cot_url: str = config.get("COT_URL", pytak.DEFAULT_COT_URL)
+
+    if "://" not in raw_cot_url:
+        warnings.warn(f"Invalid COT_URL={raw_cot_url}", SyntaxWarning)
+        raise SyntaxError(
+            "Specify COT_URL as a full URL. For example: tcp://tak.example.com:1234"
+        )
+
+    cot_url: ParseResult = urlparse(raw_cot_url)
+    return cot_url
+
+
+async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    config: SectionProxy,
+) -> Any:
+    """Create input, output, or input-output clients for network and file protocols.
+
+    Parameters
+    ----------
+    config : `SectionProxy`
+        Configuration parameters & values.
+
+    Returns
+    -------
+    `Any`
+        Varies by input-output protocol.
+    """
+    reader: Any = None
+    writer: Any = None
+
+    cot_url: ParseResult = get_cot_url(config)
+    scheme: str = cot_url.scheme.lower()
+
+    # TCP
+    if scheme in ["tcp"]:
+        host, port = pytak.parse_url(cot_url)
+        reader, writer = await asyncio.open_connection(host, port)
+
+    # TLS
+    elif scheme in ["tls", "ssl"]:
+        reader, writer = await create_tls_client(config, cot_url)
+
+    # UDP
+    elif "udp" in scheme:
+        # Support Linux hosts with no default gateway defined with local addr:
+        local_addr = (
+            config.get(
+                "PYTAK_MULTICAST_LOCAL_ADDR", pytak.DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR
+            ),
+            0,
+        )
+        reader, writer = await pytak.create_udp_client(cot_url, local_addr)
+
+    # LOG
+    elif "log" in scheme:
+        if cot_url.hostname:
+            dest: str = cot_url.hostname.lower()
+            if "stderr" in dest:
+                writer = sys.stderr.buffer
+            else:
+                writer = sys.stdout.buffer
+
+    # Default
+    if not reader and not writer:
+        raise SyntaxError(
+            "Invalid COT_URL protocol specified. "
+            "See: https://pytak.rtfd.io/en/stable/configuration/"
+        )
+
+    return reader, writer
 
 
 async def create_udp_client(
@@ -180,135 +253,117 @@ def get_tls_config(config: SectionProxy) -> SectionProxy:
     return ConfigParser(dict(filter(lambda x: x[1], tls_config_req.items())))["DEFAULT"]
 
 
-async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-branches,too-many-statements
-    config: SectionProxy,
-) -> Any:
-    """Create a network connection class instance.
+async def create_tls_client(
+    config, cot_url
+) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    """Create a two-way TLS socket.
 
-    Class is for the protocol specified by the COT_URL parameter in the config object.
+    Establishing a socket requires:
+    1. Enabling or disabling TLS Verifications.
+    2. Establishing a TLS Context.
+    3. Configuring an async TCP read-write socket.
 
-    Parameters
-    ----------
-    config : `SectionProxy`
-        Configuration parameters & values.
-
-    Returns
-    -------
-    `Any`
-        Return value depends on the network protocol.
+     Parameters
+     ----------
+     config : `SectionProxy`
+     Configuration parameters for this socket.
+     cot_url : `str`
+     The COT_URL as a string (un-parsed).
     """
-    reader: Any = None
-    writer: Any = None
 
-    _cot_url: str = config.get("COT_URL", pytak.DEFAULT_COT_URL)
+    reader, writer = None, None
+    host, port = pytak.parse_url(cot_url)
+    tls_config: SectionProxy = get_tls_config(config)
 
-    if "://" not in _cot_url:
-        warnings.warn(f"Invalid COT_URL: '{_cot_url}'", SyntaxWarning)
-        raise SyntaxError(
-            "Please specify COT_URL as a full URL, including '://', for "
-            "example: tcp://tak.example.com:1234"
-        )
+    ssl_ctx = get_ssl_ctx(tls_config)
 
-    cot_url: ParseResult = urlparse(_cot_url)
-    scheme: str = cot_url.scheme.lower()
-
-    if scheme in ["tcp"]:
-        host, port = pytak.parse_url(cot_url)
-        reader, writer = await asyncio.open_connection(host, port)
-    elif scheme in ["tls", "ssl"]:
-        host, port = pytak.parse_url(cot_url)
-        tls_config: SectionProxy = get_tls_config(config)
-
-        client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
-        client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
-        client_cafile = tls_config.get("PYTAK_TLS_CLIENT_CAFILE")
-        client_password = tls_config.get("PYTAK_TLS_CLIENT_PASSWORD")
-
+    if ssl_ctx.check_hostname:
         expected_server_hostname = tls_config.get("PYTAK_TLS_SERVER_EXPECTED_HOSTNAME")
+    else:
+        expected_server_hostname = None
 
-        # Default cipher suite: ALL.
-        #  Also available in FIPS: DEFAULT_FIPS_CIPHERS
-        client_ciphers = tls_config.get("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
-
-        # If the cert's CA isn't in our trust chain, set this:
-        dont_verify = tls_config.getboolean("PYTAK_TLS_DONT_VERIFY")
-
-        # If the cert's CN doesn't match the hostname, set this:
-        dont_check_hostname = dont_verify or tls_config.getboolean(
-            "PYTAK_TLS_DONT_CHECK_HOSTNAME"
+    try:
+        reader, writer = await asyncio.open_connection(
+            host, port, ssl=ssl_ctx, server_hostname=expected_server_hostname
         )
-
-        # SSL Context setup:
-        ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_ctx.options |= ssl.OP_NO_TLSv1
-        ssl_ctx.options |= ssl.OP_NO_TLSv1_1
-        ssl_ctx.set_ciphers(client_ciphers)
-        ssl_ctx.check_hostname = True
-        ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
-
-        if client_cert.endswith(".p12"):
-            cert_paths = convert_cert(client_cert, client_password)
-            client_cert = cert_paths["cert_pem_path"]
-            client_key = cert_paths["pk_pem_path"]
-
-        if client_key:
-            ssl_ctx.load_cert_chain(
-                client_cert, keyfile=client_key, password=client_password
-            )
-        else:
-            ssl_ctx.load_cert_chain(client_cert, password=client_password)
-
-        if client_cafile:
-            ssl_ctx.load_verify_locations(cafile=client_cafile)
-
-        # Default to checking hostnames:
-        if dont_check_hostname:
-            warnings.warn(
-                "TLS CN/Hostname Check DISABLED by PYTAK_TLS_DONT_CHECK_HOSTNAME."
-            )
-            expected_server_hostname = None
-            ssl_ctx.check_hostname = False
-
-        # Default to verifying cert:
-        if dont_verify:
-            warnings.warn(
-                "TLS Certificate Verification DISABLED by PYTAK_TLS_DONT_VERIFY."
-            )
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-
-        try:
-            reader, writer = await asyncio.open_connection(
-                host, port, ssl=ssl_ctx, server_hostname=expected_server_hostname
-            )
-        except ssl.SSLCertVerificationError as exc:
-            raise SyntaxError(
-                "Consider setting PYTAK_TLS_DONT_CHECK_HOSTNAME=1 ?"
-            ) from exc
-    elif "udp" in scheme:
-        local_addr = (
-            config.get(
-                "PYTAK_MULTICAST_LOCAL_ADDR", pytak.DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR
-            ),
-            0,
-        )
-        reader, writer = await pytak.create_udp_client(cot_url, local_addr)
-    elif "http" in scheme:
-        raise SyntaxError("TeamConnect / Sit(x) Support comming soon.")
-        # writer = await pytak.create_tc_client(cot_url)
-    elif "log" in scheme:
-        if cot_url.hostname:
-            dest: str = cot_url.hostname.lower()
-            if "stderr" in dest:
-                writer = sys.stderr.buffer
-            else:
-                writer = sys.stdout.buffer
-
-    if not reader and not writer:
+    except ssl.SSLCertVerificationError as exc:
         raise SyntaxError(
-            "Please specify a protocol in your COT Destination URL. See PyTAK README."
-        )
+            (
+                "Could not verify TLS Certificate for TAK Server."
+                "Bypass with PYTAK_TLS_DONT_CHECK_HOSTNAME=1 or PYTAK_TLS_DONT_VERIFY=1"
+                "See: https://pytak.rtfd.io/en/stable/configuration"
+            )
+        ) from exc
 
     return reader, writer
+
+
+def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
+    """Configure a TLS socket context."""
+
+    client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
+    client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
+    client_cafile = tls_config.get("PYTAK_TLS_CLIENT_CAFILE")
+    client_password = tls_config.get("PYTAK_TLS_CLIENT_PASSWORD")
+
+    client_ciphers = tls_config.get("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
+
+    # Do not verify CA against our trust store.
+    dont_verify = tls_config.getboolean("PYTAK_TLS_DONT_VERIFY")
+
+    dont_check_hostname = dont_verify or tls_config.getboolean(
+        "PYTAK_TLS_DONT_CHECK_HOSTNAME"
+    )
+
+    if not os.path.exists(client_cert):
+        raise SyntaxError(
+            f"Resource does not exist: PYTAK_TLS_CLIENT_CERT={client_cert}"
+        )
+
+    # SSL Context setup:
+    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_ctx.options |= ssl.OP_NO_TLSv1
+    ssl_ctx.options |= ssl.OP_NO_TLSv1_1
+    ssl_ctx.set_ciphers(client_ciphers)
+    ssl_ctx.check_hostname = True
+    ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
+
+    # PCKS#12
+    if client_cert.endswith(".p12"):
+        cert_paths = convert_cert(client_cert, client_password)
+        client_cert = cert_paths["cert_pem_path"]
+        client_key = cert_paths["pk_pem_path"]
+
+    # Cert, Key
+    if client_key:
+        if not os.path.exists(client_key):
+            raise SyntaxError(
+                f"Resource does not exist: PYTAK_TLS_CLIENT_KEY={client_key}"
+            )
+
+        # Cert+Key
+        ssl_ctx.load_cert_chain(
+            client_cert, keyfile=client_key, password=client_password
+        )
+    else:
+        # Cert
+        ssl_ctx.load_cert_chain(client_cert, password=client_password)
+
+    # CA File
+    if client_cafile:
+        ssl_ctx.load_verify_locations(cafile=client_cafile)
+
+    # Disables TLS Server Common Name Verification
+    if dont_check_hostname:
+        warnings.warn("Disabled: TLS Server Common Name Verification")
+        ssl_ctx.check_hostname = False
+
+    # Disables TLS Server Certificate Verification
+    if dont_verify:
+        warnings.warn("Disabled: TLS Server Certificate Verification")
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+
+    return ssl_ctx
 
 
 async def txworker_factory(
@@ -474,34 +529,3 @@ def cli(app_name: str) -> None:
             loop.run_until_complete(main(app_name, config, full_config))
         finally:
             loop.close()
-
-
-# TeamConnect / Sit(x) Support TK:
-#
-# def tc_get_auth(
-#     client_id: str, client_secret: str, scope_url: str = ".bridge-both"
-# ) -> dict:
-#     """
-#     Authenticates against the Team Connect API.
-
-#     Returns the complete auth payload, including `access_token`
-#     """
-#     payload: dict = {
-#         "grant_type": "client_credentials",
-#         "client_id": client_id,
-#         "client_secret": client_secret,
-#         "scope": scope_url,
-#     }
-#     payload: str = json.dumps(payload)
-#     url: str = pytak.DEFAULT_TC_TOKEN_URL
-
-#     req: urllib.request.Request = urllib.request.Request(
-#         url=url, data=bytes(payload.encode("utf-8")), method="POST"
-#     )
-#     req.add_header("Content-type", "application/json; charset=UTF-8")
-
-#     with urllib.request.urlopen(req) as resp:
-#         if resp.status == 200:
-#             response_data = json.loads(resp.read().decode("utf-8"))
-#             return response_data
-#     return {}

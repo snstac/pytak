@@ -98,6 +98,14 @@ At a minimum, to use TLS with PyTAK, the following two conditions must be met:
 
 * Client Certificates, Client Key, CA Certificate & Key must be specified in PEM format.
 
+### TLS Verifications
+
+PyTAK uses standard TLS Verifications when establishing TLS sockets to TAK Servers.
+
+1. TLS Server Common Name Verification
+
+2. TLS Server Certificate Verification
+
 ### TLS Configuration Parameters
 
 PyTAK can send & receive data over TLS by setting the following configuration parameters:
