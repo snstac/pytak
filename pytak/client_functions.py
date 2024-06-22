@@ -315,16 +315,25 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
         "PYTAK_TLS_DONT_CHECK_HOSTNAME"
     )
 
-    if not os.path.exists(client_cert):
-        raise SyntaxError(
-            f"Resource does not exist: PYTAK_TLS_CLIENT_CERT={client_cert}"
-        )
+    # Cert is always required.
+    if client_cert:
+        if not os.path.exists(client_cert):
+            raise SyntaxError(
+                f"Resource not found: PYTAK_TLS_CLIENT_CERT={client_cert}"
+            )
+    else:
+        raise SyntaxError("Missing value: PYTAK_TLS_CLIENT_CERT")
 
-    # SSL Context setup:
+    if client_key:
+        if not os.path.exists(client_key):
+            raise SyntaxError(f"Resource not found: PYTAK_TLS_CLIENT_KEY={client_key}")
+
+    # SSL Context
     ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ssl_ctx.options |= ssl.OP_NO_TLSv1
     ssl_ctx.options |= ssl.OP_NO_TLSv1_1
     ssl_ctx.set_ciphers(client_ciphers)
+    # Checks & Verifications
     ssl_ctx.check_hostname = True
     ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
 
@@ -333,21 +342,21 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
         cert_paths = convert_cert(client_cert, client_password)
         client_cert = cert_paths["cert_pem_path"]
         client_key = cert_paths["pk_pem_path"]
-
-    # Cert, Key
-    if client_key:
-        if not os.path.exists(client_key):
-            raise SyntaxError(
-                f"Resource does not exist: PYTAK_TLS_CLIENT_KEY={client_key}"
+        if not os.path.exists(client_cert) and os.path.exists(client_key):
+            raise SystemError(
+                f"Missing PKCS#12 extracted {client_cert} & {client_key}."
             )
 
-        # Cert+Key
+    try:
         ssl_ctx.load_cert_chain(
             client_cert, keyfile=client_key, password=client_password
         )
-    else:
-        # Cert
-        ssl_ctx.load_cert_chain(client_cert, password=client_password)
+    except Exception as exc:
+        raise ValueError(
+            f"Error opening resource. Using: PYTAK_TLS_CLIENT_CERT={client_cert} "
+            f"[PYTAK_TLS_CLIENT_KEY={client_key}] Using "
+            f"Password: {bool(client_password)}?"
+        ) from exc
 
     # CA File
     if client_cafile:
@@ -355,12 +364,12 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
 
     # Disables TLS Server Common Name Verification
     if dont_check_hostname:
-        warnings.warn("Disabled: TLS Server Common Name Verification")
+        warnings.warn("Disabled TLS Server Common Name Verification")
         ssl_ctx.check_hostname = False
 
     # Disables TLS Server Certificate Verification
     if dont_verify:
-        warnings.warn("Disabled: TLS Server Certificate Verification")
+        warnings.warn("Disabled TLS Server Certificate Verification")
         ssl_ctx.verify_mode = ssl.CERT_NONE
 
     return ssl_ctx
