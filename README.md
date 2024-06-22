@@ -1,4 +1,4 @@
-![ATAK Screenshot with PyTAK Logo.](media/atak_screenshot_with_pytak_logo-x25.jpg)
+![ATAK Screenshot with PyTAK Logo.](https://pytak.readthedocs.io/en/stable/media/atak_screenshot_with_pytak_logo-x25.jpg)
 
 # Python Team Awareness Kit
 
