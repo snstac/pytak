@@ -15,7 +15,6 @@ Happy Summer Solstice
 - Refactored TLS client creation, abstracted many functions.
 - Added TLS client cert and key checks and improved error messages.
 
-
 ## PyTAK 6.4.0
 
 - Fixes #69: PyTAK's TAK_PROTO=1 doesn't always work with iTAK.

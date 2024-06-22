@@ -5,33 +5,31 @@ PyTAK is distributed as a Debian package (``.deb``). PyTAK should be compatible 
 To install PyTAK, download the pytak package and install using apt:
 
 ```sh
-sudo apt update -y
+sudo apt update -qq
 wget https://github.com/snstac/pytak/releases/latest/download/pytak_latest_all.deb
 sudo apt install -f ./pytak_latest_all.deb
 ```
 
-### Data Package Support
+### Optional TAK Data Package Support
 
-To install PyTAK with Deta Package support, you must also install the [cryptography](https://cryptography.io/en/latest/installation/) Python module using apt:
+To use Data Packages with PyTAK, install the optional [cryptography](https://cryptography.io/en/latest/installation/) Python package:
 
 ```sh
-sudo apt update -y
+sudo apt update -qq
 sudo apt install -y python3-cryptography
 ```
 
-### TAK Protocol - Version 1 Support
+### Optional TAK Protocol - Version 1 Protobuf Support
 
-To install PyTAK with "TAK Protocol - Version 1" Protobuf support, you must also install the [takproto](https://github.com/snstac/takproto) Python module.
-
-To install takproto, download the deb package and install using apt::
+To use "TAK Protocol - Version 1" Protobuf support, install the optional [takproto](https://github.com/snstac/takproto) Python package.
 
 ```sh
-sudo apt update -y
+sudo apt update -qq
 wget https://github.com/snstak/takproto/releases/latest/download/takproto_latest_all.deb
 sudo apt install -f ./takproto_latest_all.deb
 ```
 
-## Install from Python Package Index (PyPI)
+## Python Package
 
 You can install from [Python Package Index (PyPI)](https://pypi.org/) or from source. Both of these methods will require manual installation of additional libraries.
 
@@ -41,7 +39,7 @@ You can install from [Python Package Index (PyPI)](https://pypi.org/) or from so
 
 Install [LibFFI](https://sourceware.org/libffi/):
 ```sh
-sudo apt update -y
+sudo apt update -qq
 sudo apt install libffi-dev
 ```
 
