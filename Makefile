@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-REPO_NAME ?= $(shell echo $(wildcard */classes.py) | awk -F'/' '{print $$1}')
+REPO_NAME ?= $(shell echo $(wildcard */__init__.py) | awk -F'/' '{print $$1}')
 SHELL := /bin/bash
 .DEFAULT_GOAL := editable
 # postinst = $(wildcard debian/*.postinst.sh)

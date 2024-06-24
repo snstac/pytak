@@ -1,4 +1,4 @@
-## PyTAK 7.0.0
+## PyTAK 7.0.1
 
 Happy Summer Solstice
 
