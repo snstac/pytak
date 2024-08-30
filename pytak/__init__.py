@@ -17,7 +17,7 @@
 
 """Python Team Awareness Kit (PyTAK) Module."""
 
-__version__ = "7.0.1"
+__version__ = "7.0.2"
 
 from .constants import (  # NOQA
     LOG_LEVEL,
