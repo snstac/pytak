@@ -37,7 +37,7 @@ try:
 
     USE_CRYPTOGRAPHY = True
 except ImportError as exc:
-    warnings.warn(exc)
+    warnings.warn(str(exc))
 
 
 def save_pem(pem: bytes, dest: Union[str, None] = None) -> str:
@@ -60,7 +60,7 @@ def load_cert(
 ):  # -> Set[_RSAPrivateKey, Certificate, Certificate]:
     """Load RSA Keys & Certs from a pkcs12 ().p12) file."""
     if not USE_CRYPTOGRAPHY:
-        raise Exception(INSTALL_MSG)
+        raise ValueError(INSTALL_MSG)
 
     with open(cert_path, "br+") as cp_fd:
         p12_data = cp_fd.read()
@@ -73,7 +73,7 @@ def load_cert(
 def convert_cert(cert_path: str, cert_pass: str) -> dict:
     """Convert a P12 cert to PEM."""
     if not USE_CRYPTOGRAPHY:
-        raise Exception(INSTALL_MSG)
+        raise ValueError(INSTALL_MSG)
 
     cert_paths = {
         "pk_pem_path": None,

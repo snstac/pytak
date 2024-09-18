@@ -160,24 +160,65 @@ def connectString2url(conn_str: str) -> str:  # pylint: disable=invalid-name
     return f"{uri_parts[2]}://{uri_parts[0]}:{uri_parts[1]}"
 
 
+def cot2xml(event: pytak.COTEvent) -> ET.Element:
+    """Generate a minimum COT Event as an XML object."""
+    lat = str(event.lat or "0.0")
+    lon = str(event.lon or "0.0")
+    uid = event.uid or pytak.DEFAULT_HOST_ID
+    stale = int(event.stale or pytak.DEFAULT_COT_STALE)
+    cot_type = event.cot_type or "a-u-G"
+    le = str(event.le or pytak.DEFAULT_COT_VAL)
+    hae = str(event.hae or pytak.DEFAULT_COT_VAL)
+    ce = str(event.ce or pytak.DEFAULT_COT_VAL)
+
+    xevent = ET.Element("event")
+    xevent.set("version", "2.0")
+    xevent.set("type", cot_type)
+    xevent.set("uid", uid)
+    xevent.set("how", "m-g")
+    xevent.set("time", pytak.cot_time())
+    xevent.set("start", pytak.cot_time())
+    xevent.set("stale", pytak.cot_time(stale))
+
+    point = ET.Element("point")
+    point.set("lat", lat)
+    point.set("lon", lon)
+    point.set("le", le)
+    point.set("hae", hae)
+    point.set("ce", ce)
+
+    flow_tags = ET.Element("_flow-tags_")
+    _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-v{pytak.__version__}".replace("@", "-")
+    flow_tags.set(_ft_tag, pytak.cot_time())
+
+    detail = ET.Element("detail")
+    detail.append(flow_tags)
+
+    xevent.append(point)
+    xevent.append(detail)
+
+    return xevent
+
+
 def gen_cot_xml(
     lat: Union[bytes, str, float, None] = None,
     lon: Union[bytes, str, float, None] = None,
     ce: Union[bytes, str, float, int, None] = None,
     hae: Union[bytes, str, float, int, None] = None,
     le: Union[bytes, str, float, int, None] = None,
-    uid: Union[bytes, str, None] = None,
+    uid: Union[str, None] = None,
     stale: Union[float, int, None] = None,
-    cot_type: Union[bytes, str, None] = None,
+    cot_type: Union[str, None] = None,
 ) -> Optional[ET.Element]:
     """Generate a minimum CoT Event as an XML object."""
+
     lat = str(lat or "0.0")
     lon = str(lon or "0.0")
     ce = str(ce or pytak.DEFAULT_COT_VAL)
     hae = str(hae or pytak.DEFAULT_COT_VAL)
     le = str(le or pytak.DEFAULT_COT_VAL)
     uid = uid or pytak.DEFAULT_HOST_ID
-    stale = stale or pytak.DEFAULT_COT_STALE
+    stale = int(stale or pytak.DEFAULT_COT_STALE)
     cot_type = cot_type or "a-u-G"
 
     event = ET.Element("event")

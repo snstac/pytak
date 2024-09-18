@@ -17,8 +17,8 @@
 
 """PyTAK Class Definitions."""
 
+import abc
 import asyncio
-import importlib.util
 import ipaddress
 import logging
 import multiprocessing as mp
@@ -27,19 +27,20 @@ import random
 
 import xml.etree.ElementTree as ET
 
-from typing import Optional, Set, Union
+from dataclasses import dataclass
+from typing import Set, Union
 
 from configparser import ConfigParser, SectionProxy
 
 import pytak
 
 try:
-    import takproto
+    import takproto  # type: ignore
 except ImportError:
-    pass
+    takproto = None
 
 
-class Worker:  # pylint: disable=too-few-public-methods
+class Worker:
     """Meta class for all other Worker Classes."""
 
     _logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class Worker:  # pylint: disable=too-few-public-methods
 
         tak_proto_version = int(self.config.get("TAK_PROTO") or pytak.DEFAULT_TAK_PROTO)
 
-        if tak_proto_version > 0 and importlib.util.find_spec("takproto") is None:
+        if tak_proto_version > 0 and takproto is None:
             self._logger.warning(
                 "TAK_PROTO is set to '%s', but the 'takproto' Python module is not installed.\n"
                 "Try: python -m pip install pytak[with_takproto]\n"
@@ -82,9 +83,7 @@ class Worker:  # pylint: disable=too-few-public-methods
                 tak_proto_version,
             )
 
-        self.use_protobuf = tak_proto_version > 0 and importlib.util.find_spec(
-            "takproto"
-        )
+        self.use_protobuf = tak_proto_version > 0 and takproto is not None
 
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
@@ -100,9 +99,10 @@ class Worker:  # pylint: disable=too-few-public-methods
             self._logger.debug("COMPAT: Sleeping for %ss", sleep_period)
             await asyncio.sleep(sleep_period)
 
+    @abc.abstractmethod
     async def handle_data(self, data: bytes) -> None:
         """Handle data (placeholder method, please override)."""
-        raise NotImplementedError("Subclasses need to override this method")
+        pass
 
     async def run(self, number_of_iterations=-1):
         """Run this Thread, reads Data from Queue & passes data to next Handler."""
@@ -131,7 +131,7 @@ class Worker:  # pylint: disable=too-few-public-methods
             number_of_iterations -= 1
 
 
-class TXWorker(Worker):  # pylint: disable=too-few-public-methods
+class TXWorker(Worker):
     """Works data queue and hands off to Protocol Workers.
 
     You should create an TXWorker Instance using the `pytak.txworker_factory()`
@@ -190,7 +190,7 @@ class TXWorker(Worker):  # pylint: disable=too-few-public-methods
                 self.writer.flush()
 
 
-class RXWorker(Worker):  # pylint: disable=too-few-public-methods
+class RXWorker(Worker):
     """Async receive (input) queue worker.
 
     Reads events from a `pytak.protocol_factory()` reader and adds them to
@@ -211,6 +211,11 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
         self.reader_queue = None
+
+    @abc.abstractmethod
+    async def handle_data(self, data: bytes) -> None:
+        """Handle data (placeholder method, please override)."""
+        pass
 
     async def readcot(self):
         """Read CoT from the wire until we hit an event boundary."""
@@ -241,7 +246,7 @@ class RXWorker(Worker):  # pylint: disable=too-few-public-methods
                     self.queue.put_nowait(data)
 
 
-class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
+class QueueWorker(Worker):
     """Read non-CoT Messages from an async network client.
 
     (`asyncio.Protocol` or similar async network client)
@@ -262,6 +267,11 @@ class QueueWorker(Worker):  # pylint: disable=too-few-public-methods
     ) -> None:
         super().__init__(queue, config)
         self._logger.info("Using COT_URL='%s'", self.config.get("COT_URL"))
+
+    @abc.abstractmethod
+    async def handle_data(self, data: bytes) -> None:
+        """Handle data (placeholder method, please override)."""
+        pass
 
     async def put_queue(
         self, data: bytes, queue_arg: Union[asyncio.Queue, mp.Queue, None] = None
@@ -408,3 +418,63 @@ class CLITool:
 
         for task in done:
             self._logger.info("Complete: %s", task)
+
+
+@dataclass
+class SimpleCOTEvent:
+    """CoT Event Dataclass."""
+
+    lat: Union[bytes, str, float, None] = None
+    lon: Union[bytes, str, float, None] = None
+    uid: Union[str, None] = None
+    stale: Union[float, int, None] = None
+    cot_type: Union[str, None] = None
+
+    def __str__(self) -> str:
+        """Return a formatted string representation of the dataclass."""
+        event = self.to_xml()
+        return ET.tostring(event, encoding="unicode")
+
+    def to_bytes(self) -> bytes:
+        """Return the class as bytes."""
+        event = self.to_xml()
+        return ET.tostring(event, encoding="utf-8")
+
+    def to_xml(self) -> ET.Element:
+        """Return a CoT Event as an XML string."""
+        cotevent = COTEvent(
+            lat=self.lat,
+            lon=self.lon,
+            uid=self.uid,
+            stale=self.stale,
+            cot_type=self.cot_type,
+            le=pytak.DEFAULT_COT_VAL,
+            ce=pytak.DEFAULT_COT_VAL,
+            hae=pytak.DEFAULT_COT_VAL,
+        )
+        event = pytak.cot2xml(cotevent)
+        return event
+
+
+@dataclass
+class COTEvent(SimpleCOTEvent):
+    """COT Event Dataclass."""
+
+    ce: Union[bytes, str, float, int, None] = None
+    hae: Union[bytes, str, float, int, None] = None
+    le: Union[bytes, str, float, int, None] = None
+
+    def to_xml(self) -> ET.Element:
+        """Return a CoT Event as an XML string."""
+        cotevent = COTEvent(
+            lat=self.lat,
+            lon=self.lon,
+            uid=self.uid,
+            stale=self.stale,
+            cot_type=self.cot_type,
+            le=self.le,
+            ce=self.ce,
+            hae=self.hae,
+        )
+        event = pytak.cot2xml(cotevent)
+        return event

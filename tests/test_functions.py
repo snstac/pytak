@@ -112,3 +112,46 @@ def test_cot_time():
     """Test that cot_time() returns the proper dateTime string."""
     cot_time = pytak.cot_time()
     assert "Z" in cot_time[-1]
+
+
+def test_cot2xml():
+    """Test gen_cot_xml2() function."""
+    event = pytak.COTEvent(
+        lat=37.7749,
+        lon=-122.4194,
+        ce=10,
+        hae=100,
+        le=5,
+        uid="test_uid",
+        stale=3600,
+        cot_type="a-f-G",
+    )
+    xml_element = pytak.cot2xml(event)
+    assert xml_element is not None
+    assert xml_element.tag == "event"
+    assert xml_element.get("version") == "2.0"
+    assert xml_element.get("type") == "a-f-G"
+    assert xml_element.get("uid") == "test_uid"
+    assert xml_element.get("how") == "m-g"
+    assert xml_element.get("time") is not None
+    assert xml_element.get("start") is not None
+    assert xml_element.get("stale") is not None
+
+    point_element = xml_element.find("point")
+    assert point_element is not None
+    assert point_element.get("lat") == "37.7749"
+    assert point_element.get("lon") == "-122.4194"
+    assert point_element.get("le") == "5"
+    assert point_element.get("hae") == "100"
+    assert point_element.get("ce") == "10"
+
+    detail_element = xml_element.find("detail")
+    assert detail_element is not None
+    flow_tags_element = detail_element.find("_flow-tags_")
+    assert flow_tags_element is not None
+    assert (
+        flow_tags_element.get(
+            f"{pytak.DEFAULT_HOST_ID}-v{pytak.__version__}".replace("@", "-")
+        )
+        is not None
+    )

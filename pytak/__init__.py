@@ -17,7 +17,7 @@
 
 """Python Team Awareness Kit (PyTAK) Module."""
 
-__version__ = "7.0.2"
+__version__ = "7.1.0"
 
 from .constants import (  # NOQA
     LOG_LEVEL,
@@ -57,16 +57,19 @@ from .classes import (  # NOQA
     RXWorker,
     QueueWorker,
     CLITool,
+    SimpleCOTEvent,
+    COTEvent,
 )
 
-from .functions import (
+from .functions import (  # NOQA
     split_host,
     parse_url,
     hello_event,
     cot_time,
     gen_cot,
     gen_cot_xml,
-)  # NOQA
+    cot2xml,
+)
 
 from .client_functions import (  # NOQA
     create_udp_client,
