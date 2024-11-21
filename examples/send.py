@@ -19,9 +19,9 @@ class MySerializer(pytak.QueueWorker):
         event = data
         await self.put_queue(event)
 
-    async def run(self, number_of_iterations=-1):
+    async def run(self):
         """Run the loop for processing or generating pre-CoT data."""
-        while 1:
+        while True:
             data = tak_pong()
             await self.handle_data(data)
             await asyncio.sleep(20)

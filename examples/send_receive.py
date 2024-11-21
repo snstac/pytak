@@ -44,9 +44,9 @@ class MySender(pytak.QueueWorker):
         event = data
         await self.put_queue(event)
 
-    async def run(self, number_of_iterations=-1):
+    async def run(self):
         """Run the loop for processing or generating pre-CoT data."""
-        while 1:
+        while True:
             data = gen_cot()
             self._logger.info("Sending:\n%s\n", data.decode())
             await self.handle_data(data)
@@ -60,9 +60,9 @@ class MyReceiver(pytak.QueueWorker):
         """Handle data from the receive queue."""
         self._logger.info("Received:\n%s\n", data.decode())
 
-    async def run(self):  # pylint: disable=arguments-differ
+    async def run(self):
         """Read from the receive queue, put data onto handler."""
-        while 1:
+        while True:
             data = (
                 await self.queue.get()
             )  # this is how we get the received CoT from rx_queue

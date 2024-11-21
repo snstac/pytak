@@ -71,8 +71,6 @@ class Worker:
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
 
-        self.min_period = pytak.DEFAULT_MIN_ASYNC_SLEEP
-
         tak_proto_version = int(self.config.get("TAK_PROTO") or pytak.DEFAULT_TAK_PROTO)
 
         if tak_proto_version > 0 and takproto is None:
@@ -104,31 +102,18 @@ class Worker:
         """Handle data (placeholder method, please override)."""
         pass
 
-    async def run(self, number_of_iterations=-1):
-        """Run this Thread, reads Data from Queue & passes data to next Handler."""
+    async def run_once(self) -> None:
+        """Reads Data from Queue & passes data to next Handler."""
+        data = await self.queue.get()
+        await self.handle_data(data)
+        await self.fts_compat()
+
+    async def run(self) -> None:
+        """Run this Thread - calls run_once() in a loop."""
         self._logger.info("Run: %s", self.__class__.__name__)
-
-        # We're instantiating the while loop this way, and using get_nowait(),
-        # to allow unit testing of at least one call of this loop.
-        while number_of_iterations != 0:
-            if self.queue.qsize() == 0:
-                await asyncio.sleep(self.min_period)
-                continue
-
-            # self._logger.debug("TX queue size=%s", self.queue.qsize())
-            data = None
-            try:
-                data = self.queue.get_nowait()
-            except (asyncio.QueueEmpty, _queue.Empty):
-                continue
-
-            if not data:
-                continue
-
-            await self.handle_data(data)
-            await self.fts_compat()
-
-            number_of_iterations -= 1
+        while True:
+            await self.run_once()
+            await asyncio.sleep(0) # make sure other tasks have a chance to run
 
 
 class TXWorker(Worker):
@@ -233,18 +218,20 @@ class RXWorker(Worker):
         except asyncio.IncompleteReadError:
             return None
 
-    async def run(self, number_of_iterations=-1) -> None:
+    async def run_once(self) -> None:
+        """Run this worker once."""
+        if self.reader:
+            data: bytes = await self.readcot()
+            if data:
+                self._logger.debug("RX: %s", data)
+                self.queue.put_nowait(data)
+
+    async def run(self) -> None:
         """Run this worker."""
         self._logger.info("Run: %s", self.__class__.__name__)
-
-        while 1:
-            await asyncio.sleep(self.min_period)
-            if self.reader:
-                data: bytes = await self.readcot()
-                if data:
-                    self._logger.debug("RX: %s", data)
-                    self.queue.put_nowait(data)
-
+        while True:
+            await self.run_once()
+            await asyncio.sleep(0)  # make sure other tasks have a chance to run
 
 class QueueWorker(Worker):
     """Read non-CoT Messages from an async network client.
