@@ -145,8 +145,9 @@ async def test_protocol_factory_bad_url():
     """Test calling `pytak.protocol_factory()` with a bad URL."""
     test_url1: str = "udp:localhost"
     config: dict = {"COT_URL": test_url1}
-    with pytest.raises(Exception):
-        await pytak.protocol_factory(config)
+    with pytest.warns(SyntaxWarning, match="Invalid COT_URL"):
+        with pytest.raises(Exception):
+            await pytak.protocol_factory(config)
 
 
 @pytest.mark.asyncio
