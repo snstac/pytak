@@ -329,16 +329,18 @@ class CLITool:
             self.max_in_queue
         )
 
-        if bool(self._config.get("DEBUG") or 0):
+        if isinstance(self._config, SectionProxy) and bool(self._config.get("DEBUG")):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
 
     @property
     def config(self):
+        """Return the config object."""
         return self._config
 
     @config.setter
     def config(self, val):
+        """Set the config object."""
         self._config = val
 
     async def create_workers(self, i_config):
@@ -409,7 +411,9 @@ class CLITool:
         """Run this Thread and its associated coroutine tasks."""
         self._logger.info("Run: %s", self.__class__.__name__)
 
-        await self.hello_event()
+        if not self.config.get("PYTAK_NO_HELLO", False):
+            await self.hello_event()
+
         self.run_tasks()
 
         done, _ = await asyncio.wait(
