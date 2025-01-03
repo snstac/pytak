@@ -256,15 +256,19 @@ def gen_cot(
     ce: Union[bytes, float, int, None] = None,
     hae: Union[bytes, float, int, None] = None,
     le: Union[bytes, float, int, None] = None,
-    uid: Union[bytes, None] = None,
+    uid: Optional[str] = None,
     stale: Union[float, int, None] = None,
-    cot_type: Union[bytes, None] = None,
+    cot_type: Optional[str] = None,
 ) -> Optional[bytes]:
     """Generate a minimum CoT Event as an XML string [gen_cot_xml() wrapper]."""
-    cot: Optional[ET.Element] = gen_cot_xml(lat, lon, ce, hae, le, uid, stale, cot_type)
-    return (
-        b"\n".join([pytak.DEFAULT_XML_DECLARATION, ET.tostring(cot)]) if cot else None
+    cot: Union[ET.Element, bytes, None] = gen_cot_xml(
+        lat, lon, ce, hae, le, uid, stale, cot_type
     )
+    if isinstance(cot, ET.Element):
+        # FIXME: This is a hack to add the XML declaration to the CoT event.
+        #       When Python 3.7 is EOL'd, we can use 3.8's 'xml_declaration' kwarg.
+        cot = b"\n".join([pytak.DEFAULT_XML_DECLARATION, ET.tostring(cot)])
+    return cot
 
 
 def tak_pong():
