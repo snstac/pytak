@@ -31,6 +31,7 @@ import struct
 import sys
 import warnings
 
+from asyncio import get_running_loop
 from configparser import ConfigParser, SectionProxy
 from urllib.parse import ParseResult, urlparse
 from typing import Any, Tuple, Union
@@ -46,13 +47,6 @@ from pytak.asyncio_dgram import (
 )
 
 from pytak.crypto_functions import convert_cert
-
-# DEPRECATED Python 3.6 support for asyncio get_running_loop().
-if sys.version_info[:2] >= (3, 7):  # pragma: no cover
-    from asyncio import get_running_loop
-else:  # pragma: no cover
-    warnings.warn("Using Python < 3.7, consider upgrading Python.")
-    from asyncio import get_event_loop as get_running_loop
 
 
 def get_cot_url(config) -> ParseResult:
