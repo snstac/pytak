@@ -69,6 +69,11 @@ PyTAK has the following built-in configuration parameters:
 
     For systems with multiple IP network interfaces, specifies which IP interface to use for the multicast group.
 
+* **`PYTAK_NO_HELLO`**
+    * Default: `False`
+
+    Disable the "Hello" Event transmitted by PyTAK on initial connection to a TCP or UDP host.
+
 
 ## CoT Event Attributes
 
