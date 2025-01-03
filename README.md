@@ -4,12 +4,12 @@
 
 PyTAK is a Python Module for creating [TAK](https://tak.gov) clients, servers & gateways.
 
-PyTAK includes:
+## Features
 
-- TAK Protocol support for interconnecting with ATAK, WinTAK, iTAK & TAK Server.
-- Classes for handling TAK, Cursor on Target (CoT) & non-CoT data.
-- Functions for parsing and serializing TAK & CoT data.
-- Functions for sending and receiving TAK & CoT data over a network.
+- **TAK Protocol Support**: Connect with ATAK, WinTAK, iTAK, and TAK Server.
+- **Data Handling**: Manage TAK, Cursor on Target (CoT), and non-CoT data.
+- **Data Parsing and Serialization**: Parse and serialize TAK and CoT data.
+- **Network Communication**: Send and receive TAK and CoT data over a network.
 
 ## Documentation
 
