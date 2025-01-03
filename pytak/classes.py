@@ -22,7 +22,6 @@ import asyncio
 import ipaddress
 import logging
 import multiprocessing as mp
-import queue as _queue
 import random
 
 import xml.etree.ElementTree as ET
@@ -108,12 +107,12 @@ class Worker:
         await self.handle_data(data)
         await self.fts_compat()
 
-    async def run(self) -> None:
+    async def run(self, _=-1) -> None:
         """Run this Thread - calls run_once() in a loop."""
-        self._logger.info("Run: %s", self.__class__.__name__)
+        self._logger.info("Running: %s", self.__class__.__name__)
         while True:
             await self.run_once()
-            await asyncio.sleep(0) # make sure other tasks have a chance to run
+            await asyncio.sleep(0)  # make sure other tasks have a chance to run
 
 
 class TXWorker(Worker):
@@ -204,6 +203,7 @@ class RXWorker(Worker):
 
     async def readcot(self):
         """Read CoT from the wire until we hit an event boundary."""
+        cot = None
         try:
             if hasattr(self.reader, "readuntil"):
                 cot = await self.reader.readuntil("</event>".encode("UTF-8"))
@@ -223,15 +223,16 @@ class RXWorker(Worker):
         if self.reader:
             data: bytes = await self.readcot()
             if data:
-                self._logger.debug("RX: %s", data)
+                self._logger.debug("RX data: %s", data)
                 self.queue.put_nowait(data)
 
-    async def run(self) -> None:
+    async def run(self, _=-1) -> None:
         """Run this worker."""
-        self._logger.info("Run: %s", self.__class__.__name__)
+        self._logger.info("Running: %s", self.__class__.__name__)
         while True:
             await self.run_once()
             await asyncio.sleep(0)  # make sure other tasks have a chance to run
+
 
 class QueueWorker(Worker):
     """Read non-CoT Messages from an async network client.
