@@ -60,6 +60,6 @@ async def test_EventWorker(my_queue, my_writer):
     test_data = b"test test"
     test_eventworker = pytak.TXWorker(my_queue, {}, my_writer)
     await my_queue.put(test_data)
-    await test_eventworker.run(number_of_iterations=1)
+    await test_eventworker.run_once()
 
     assert my_writer.events.pop() == test_data

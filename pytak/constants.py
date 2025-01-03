@@ -82,11 +82,6 @@ DEFAULT_IMPORT_OTHER_CONFIGS: str = "0"
 BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
 DEFAULT_COT_VAL: str = "9999999.0"
 
-# await asyncio.sleep(0) should allow co-routines to yield, but they end up
-# eating 100% CPU. @PeterQFR found bumping this to 0.1 solved the high CPU
-# issue. See: https://github.com/snstac/pytak/pull/22
-DEFAULT_MIN_ASYNC_SLEEP: float = 0.1
-
 # TAK Protocol to use for CoT output, one of: 0 (XML, default), 1 (Mesh/Stream).
 # Doesn't always work with iTAK. Recommend sticking with 0 (XML).
 DEFAULT_TAK_PROTO: str = "0"
