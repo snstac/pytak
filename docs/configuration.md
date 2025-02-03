@@ -74,6 +74,12 @@ PyTAK has the following built-in configuration parameters:
 
     For clients that are more than one hop away from the TAK broadcast network, specifies the time-to-live (TTL) of multicast packets. This is helpful when the client is hosted in a virtual machine or container with an overlay network.
 
+* **`PYTAK_NO_HELLO`**
+    * Default: `False`
+
+    Disable the "Hello" Event transmitted by PyTAK on initial connection to a TCP or UDP host.
+
+
 ## CoT Event Attributes
 
 * **`COT_STALE`**
