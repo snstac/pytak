@@ -150,8 +150,6 @@ def test_cot2xml():
     flow_tags_element = detail_element.find("_flow-tags_")
     assert flow_tags_element is not None
     assert (
-        flow_tags_element.get(
-            f"{pytak.DEFAULT_HOST_ID}-v{pytak.__version__}".replace("@", "-")
-        )
+        flow_tags_element.get(f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-"))
         is not None
     )

@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-REPO_NAME ?= $(shell echo $(wildcard */__init__.py) | awk -F'/' '{print $$1}')
+REPO_NAME ?= $(shell echo $(wildcard src/*/__init__.py) | awk -F'/' '{print $$2}')
 SHELL := /bin/bash
 .DEFAULT_GOAL := editable
 # postinst = $(wildcard debian/*.postinst.sh)
@@ -47,7 +47,7 @@ clean:
 	@rm -rf *.egg* build dist *.py[oc] */*.py[co] cover doctest_pypi.cfg \
 		nosetests.xml pylint.log output.xml flake8.log tests.log \
 		test-result.xml htmlcov fab.log .coverage __pycache__ \
-		*/__pycache__ deb_dist .mypy_cache
+		*/__pycache__ deb_dist .mypy_cache .pytest_cache
 
 pep8:
 	flake8 --max-line-length=88 --extend-ignore=E203 --exit-zero $(REPO_NAME)/*.py
@@ -67,12 +67,12 @@ mypy:
 	mypy --strict .
 
 pytest:
-	pytest
+	python3 -m pytest
 
 test: editable install_test_requirements pytest
 
 test_cov:
-	pytest --cov=$(REPO_NAME) --cov-report term-missing
+	python3 -m pytest --cov=$(REPO_NAME) --cov-report term-missing
 
 black:
 	black .
