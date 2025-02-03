@@ -2,7 +2,7 @@
 
 # Python Team Awareness Kit
 
-PyTAK is a Python Module for creating [TAK](https://tak.gov) clients, servers & gateways.
+PyTAK is a Python Module for creating Team Awareness Kit ([TAK](https://tak.gov)) clients, servers & gateways.
 
 ## Features
 
