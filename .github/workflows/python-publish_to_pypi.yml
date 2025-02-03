@@ -8,26 +8,31 @@ on:
 
 jobs:
   deploy:
-    permissions:
-      id-token: write
 
     runs-on: ubuntu-20.04
 
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
+
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install setuptools wheel twine
+        python3 -m pip install setuptools wheel twine build
+
     - name: Build
       run: |
-        python3 setup.py sdist bdist_wheel
+        python3 -m build
+
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+      # with:
+      #   user: __token__
+      #   password: ${{ secrets.PYPI_API_TOKEN }}
