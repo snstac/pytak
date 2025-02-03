@@ -23,6 +23,8 @@ import os
 from unittest import mock
 from tempfile import NamedTemporaryFile
 
+import pytak
+
 
 def test_convert_cert():
     cert_path = "test_cert.p12"
