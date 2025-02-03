@@ -69,6 +69,11 @@ PyTAK has the following built-in configuration parameters:
 
     For systems with multiple IP network interfaces, specifies which IP interface to use for the multicast group.
 
+* **`PYTAK_MULTICAST_TTL`**
+    * Default: `1`
+
+    For clients that are more than one hop away from the TAK broadcast network, specifies the time-to-live (TTL) of multicast packets. This is helpful when the client is hosted in a virtual machine or container with an overlay network.
+
 * **`PYTAK_NO_HELLO`**
     * Default: `False`
 

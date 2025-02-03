@@ -102,7 +102,8 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             ),
             0,
         )
-        reader, writer = await pytak.create_udp_client(cot_url, local_addr)
+        multicast_ttl = config.get("PYTAK_MULTICAST_TTL", 1)
+        reader, writer = await pytak.create_udp_client(cot_url, local_addr, multicast_ttl)
 
     # LOG
     elif "log" in scheme:
@@ -124,7 +125,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
 
 
 async def create_udp_client(
-    url: ParseResult, local_addr=None
+    url: ParseResult, local_addr=None, multicast_ttl=1
 ) -> Tuple[Union[DatagramClient, None], DatagramClient]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
@@ -164,6 +165,11 @@ async def create_udp_client(
     if is_broadcast:
         writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
+    if is_multicast:
+        writer.socket.setsockopt(
+            socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack("b", multicast_ttl)
+        )
+
     if is_write_only:
         return reader, writer
 
@@ -201,11 +207,7 @@ async def create_udp_client(
         )
         group = int(ipaddress.IPv4Address(host))
         mreq = struct.pack("!LL", group, ip)
-
         reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        reader.socket.setsockopt(
-            socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack("b", 1)
-        )
 
     return reader, writer
 
