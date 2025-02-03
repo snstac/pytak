@@ -1,8 +1,7 @@
-graft pytak
+graft src
 
 global-exclude .DS_Store
 global-exclude __pycache__
 global-exclude *.pyc
 
-include README.rst LICENSE
-
+include README.md CHANGELOG.md LICENSE src/pytak/VERSION
