@@ -13,26 +13,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # python-version: [3.6, 3.7, 3.8, 3.9, "3.10", "3.11", "3.12"]
         python-version: [3.7, 3.8, 3.9, "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Install test requirements
       run: |
         make install_test_requirements
+
     - name: Install package itself (editable)
       run: |
         make editable
+
     - name: Lint with pylint
       run: |
         make pylint
+
     - name: Lint with flake8
       run: |
         make flake8
+        
     - name: Test with pytest-cov
       run: |
         make test_cov

@@ -19,7 +19,7 @@ jobs:
         run: sudo bash debian/install_pkg_build_deps.sh
 
       - name: Create Debian Package
-        run: make clean package
+        run: make clean install_test_requirements package
 
       - name: Upload Artifacts to GitHub
         uses: actions/upload-artifact@master
