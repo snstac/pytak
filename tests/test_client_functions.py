@@ -49,8 +49,8 @@ async def test_protocol_factory_udp():
     test_url1: str = "udp://localhost"
     config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
-    assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)
-    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+    assert isinstance(reader, pytak.asyncio_dgram.DatagramServer)
+    assert isinstance(writer, pytak.asyncio_dgram.DatagramClient)
 
 
 @pytest.mark.asyncio
@@ -116,8 +116,8 @@ async def test_protocol_factory_udp_broadcast():
     test_url1: str = "udp+broadcast://localhost:6666"
     config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
-    assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)
-    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+    assert isinstance(reader, pytak.asyncio_dgram.DatagramServer)
+    assert isinstance(writer, pytak.asyncio_dgram.DatagramClient)
 
 
 @pytest.mark.asyncio
@@ -126,8 +126,8 @@ async def test_protocol_factory_udp_multicast():
     test_url1: str = "udp://239.2.3.1"
     config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
-    assert isinstance(reader, pytak.asyncio_dgram.aio.DatagramServer)
-    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+    assert isinstance(reader, pytak.asyncio_dgram.DatagramServer)
+    assert isinstance(writer, pytak.asyncio_dgram.DatagramClient)
 
 
 @pytest.mark.asyncio
@@ -137,7 +137,7 @@ async def test_protocol_factory_udp_multicast_wo():
     config: dict = {"COT_URL": test_url1}
     reader, writer = await pytak.protocol_factory(config)
     assert reader == None
-    assert isinstance(writer, pytak.asyncio_dgram.aio.DatagramClient)
+    assert isinstance(writer, pytak.asyncio_dgram.DatagramClient)
 
 
 @pytest.mark.asyncio
