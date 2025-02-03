@@ -19,15 +19,11 @@
 """Tests for PyTAK Crypto Functions."""
 
 import os
-import pytest
 
 from unittest import mock
 from tempfile import NamedTemporaryFile
 
-from pytak.crypto_functions import convert_cert, INSTALL_MSG
 
-
-# @pytest.mark.skipif(not os.getenv("USE_CRYPTOGRAPHY"), reason=INSTALL_MSG)
 def test_convert_cert():
     cert_path = "test_cert.p12"
     cert_pass = "test_pass"
@@ -50,7 +46,7 @@ def test_convert_cert():
                 delete=False
             ).name
 
-            cert_paths = convert_cert(cert_path, cert_pass)
+            cert_paths = pytak.crypto_functions.convert_cert(cert_path, cert_pass)
 
             assert "pk_pem_path" in cert_paths
             assert "cert_pem_path" in cert_paths
