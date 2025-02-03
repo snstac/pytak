@@ -25,17 +25,13 @@ import asyncio
 import enum
 import inspect
 
+from configparser import ConfigParser
 from typing import Any
 from unittest import mock
 
 import pytest
 
 import pytak
-import asyncio
-import pytest
-from unittest import mock
-from configparser import ConfigParser
-from pytak import CLITool
 
 
 _SENTINEL = enum.Enum("_SENTINEL", "sentinel")
@@ -252,11 +248,11 @@ def rx_queue():
 
 @pytest.fixture
 def cli_tool(config, tx_queue, rx_queue):
-    return CLITool(config, tx_queue, rx_queue)
+    return pytak.CLITool(config, tx_queue, rx_queue)
 
 
 def test_clitool_init(config, tx_queue, rx_queue):
-    cli_tool = CLITool(config, tx_queue, rx_queue)
+    cli_tool = pytak.CLITool(config, tx_queue, rx_queue)
     assert cli_tool.config == config
     assert cli_tool.tx_queue == tx_queue
     assert cli_tool.rx_queue == rx_queue

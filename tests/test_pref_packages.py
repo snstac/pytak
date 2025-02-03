@@ -21,14 +21,10 @@
 import os
 
 import pytak
-import pytak.functions
-import pytak.crypto_functions
 
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"
 
 __folder__ = os.path.dirname(__file__)
+
 
 def test_load_preferences() -> None:
     """Test loading a preferences file."""
