@@ -269,12 +269,16 @@ class QueueWorker(Worker):
         self._logger.debug("Queue size=%s", _queue.qsize())
         if isinstance(_queue, asyncio.Queue):
             if _queue.full():
-                self._logger.warning("Queue full, dropping oldest data.")
+                self._logger.warning(
+                    "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
+                )
                 await _queue.get()
             await _queue.put(data)
         else:
             if _queue.full():
-                self._logger.warning("Queue full, dropping oldest data.")
+                self._logger.warning(
+                    "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
+                )
                 _queue.get_nowait()
             _queue.put_nowait(data)
 
