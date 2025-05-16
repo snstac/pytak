@@ -44,6 +44,8 @@ from .constants import (  # NOQA
     DEFAULT_COT_QOS,
     DEFAULT_COT_OPEX,
     DEFAULT_COT_VAL,
+    DEFAULT_COT_DELETE_TYPE,
+    MIL_STD_6090_ACCESS_VALUES,
     DEFAULT_MAX_OUT_QUEUE,
     DEFAULT_MAX_IN_QUEUE,
 )
@@ -63,8 +65,11 @@ from .functions import (  # NOQA
     parse_url,
     hello_event,
     cot_time,
+    is_valid_datetime,
     gen_cot,
     gen_cot_xml,
+    gen_cot_detailed_xml,
+    gen_delete_cot_xml,
     cot2xml,
 )
 

@@ -1,9 +1,24 @@
+## PyTAK 7.1.0-beta
+
+- Removed `bytes` as a data type option for `lat`, `lon`, `ce`, `hae`, `le` in `gen_cot_xml(...) function`.
+  - Bytes was not building well in XML, preferred str, float, or int.
+- Modified `gen_cot(...)` function to reflect removal of `bytes` data type.
+- Added function `gen_cot_detailed_xml(...)` to facilitate building a COT with all attributes for the `event` element, and some `detail` elements.
+- Added function `gen_delete_cot_xml(uid)` that will delete any previous COT that matches the `uid` that needs to be deleted.
+  - Just provide the `uid` as argument.
+- Added function `is_valid_datetime()` to validate a datetime string that needs to match the following formats: `%Y-%m-%dT%H:%M:%S.%fZ` with millis or `%Y-%m-%dT%H:%M:%SZ` without millis.
+- Added constant: DEFAULT_COT_DELETE_TYPE: str = "t-x-d-d".
+- Added an Enum class for the `access` attribute for `event` element.
+  - Class is called: `MIL_STD_6090_ACCESS_VALUES`
+- Added two more example scripts:
+  - `cot_builder.py` -> to show the use of built-in functions that facilitate building a COT.
+  - `cot_deleter.py` -> to show how to delete a COT after sending it.
+
 ## PyTAK 7.1.0
 
 Happy Lunar New Year 2025 - Year of the Snake.
 
-- Fixes 
-
+- Fixes
 
 ## PyTAK 7.0.1
 
@@ -71,11 +86,13 @@ Happy Summer Solstice
 ## PyTAK 6.0.0
 
 - Moved & expanded documentation at https://pytak.readthedocs.io/
-- ``COT_URL`` now defaults to ``udp+wo://239.2.3.1:6969``, aka 'Mesh SA' in ATAK & WinTAK. This disables receiveing CoT by default. To enable receiving CoT, remove the ``+wo`` modifier. 
-* Fixes #31: 'protobuf support', "TAK Protocol, Version 1" is now the default output from PyTAK, *BUT* you must install the ``takproto`` python module seperately to ENABLE, otherwise reverts to CoT XML. PyTAK will automatically detect if the ``COT_URL`` is multicast or unicast, and use the appropriate protobuf format. See: https://github.com/snstac/takproto
-* Fixes #36: 'Network is unreachable', added ``PYTAK_MULTICAST_LOCAL_ADDR`` to allow setting bind port on network connections.
+- `COT_URL` now defaults to `udp+wo://239.2.3.1:6969`, aka 'Mesh SA' in ATAK & WinTAK. This disables receiveing CoT by default. To enable receiving CoT, remove the `+wo` modifier.
+
+* Fixes #31: 'protobuf support', "TAK Protocol, Version 1" is now the default output from PyTAK, _BUT_ you must install the `takproto` python module seperately to ENABLE, otherwise reverts to CoT XML. PyTAK will automatically detect if the `COT_URL` is multicast or unicast, and use the appropriate protobuf format. See: https://github.com/snstac/takproto
+* Fixes #36: 'Network is unreachable', added `PYTAK_MULTICAST_LOCAL_ADDR` to allow setting bind port on network connections.
 * Fixes #37: 'unknown compression', reverted to github builder ubuntu-20.04
-- Added support for reading PKCS#12 (.p12) files containing public-private key pairs. Set p12 file with ``PYTAK_TLS_CLIENT_CERT``, and keystore password with ``PYTAK_TLS_CLIENT_PASSWORD``.
+
+- Added support for reading PKCS#12 (.p12) files containing public-private key pairs. Set p12 file with `PYTAK_TLS_CLIENT_CERT`, and keystore password with `PYTAK_TLS_CLIENT_PASSWORD`.
 - Updates for AirTAK v1 support: https://www.snstac.com/blog/introducing-airtak-v1
 - Moved setup.py metadata to setup.cfg
 - Style, lint and layout cleanup of code.
@@ -87,49 +104,54 @@ Happy Summer Solstice
 
 Exported `read_pref_package()` from client_functions.
 
-PyTAK 5.6.0
------------
+## PyTAK 5.6.0
+
 New Features:
+
 - Made cryptography an install extras: You'll need this to use data packages! To install: `python3 -m pip install pytak[with_crypto]`
 - Added write-only socket option to UDP sockets. Add `+wo` to the URL schema, as in: `udp+wo://239.2.3.1:6969`.
 
 Bug Fixes:
+
 - Fixed bad parsing of env var '%' characters on config import.
 
-PyTAK 5.5.0
------------
+## PyTAK 5.5.0
+
 New Features:
+
 - Added multicast receive support.
 - Added pref package / data package .zip support.
 
 Other:
+
 - Code cleanup.
 - Documentation & README updates.
 - 2023 copyright updates.
 - Ramped up code coverage to at least 50% on most files.
 - Added example of takproto support.
 
-PyTAK 5.4.1
------------
+## PyTAK 5.4.1
+
 Fixes #24, const as bytes not str.
 
-PyTAK 5.4.0
------------
+## PyTAK 5.4.0
+
 Added CoT XML Declaration constant, should be included with all output XML CoT.
 
-PyTAK 5.3.1
------
+## PyTAK 5.3.1
+
 Readme cleanup.
 
 Changed behavior of while loops to sleep 0.1 instead of 0, which was causing
 high CPU. See https://github.com/snstac/pytak/pull/22 thanks @PeterQFR.
 
+## PyTAK 5.2.0
 
-PyTAK 5.2.0
------
 New Features:
+
 - Added support for both AsyncIO & Multiprocessing Queues in PyTAK Workers classes.
 - Added support for specifying TX & RX queue when instantiating PyTAK CLITool.
 
 Bug & Performance Fixes:
+
 - Added async sleeps to each TX & RX loops iteration to fix broken async regiment in PYTAK.

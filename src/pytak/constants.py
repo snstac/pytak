@@ -20,6 +20,7 @@
 import logging
 import os
 import platform
+from enum import Enum
 
 from typing import Optional
 
@@ -81,6 +82,7 @@ DEFAULT_IMPORT_OTHER_CONFIGS: str = "0"
 
 BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
 DEFAULT_COT_VAL: str = "9999999.0"
+DEFAULT_COT_DELETE_TYPE: str = "t-x-d-d"
 
 # TAK Protocol to use for CoT output, one of: 0 (XML, default), 1 (Mesh/Stream).
 # Doesn't always work with iTAK. Recommend sticking with 0 (XML).
@@ -100,6 +102,16 @@ DEFAULT_COT_CAVEAT: Optional[str] = os.getenv("COT_CAVEAT", "")
 DEFAULT_COT_RELTO: Optional[str] = os.getenv("COT_RELTO", "")
 DEFAULT_COT_QOS: Optional[str] = os.getenv("COT_QOS", "")
 DEFAULT_COT_OPEX: Optional[str] = os.getenv("COT_OPEX", "")
+
+class MIL_STD_6090_ACCESS_VALUES(Enum):
+    UNCLASSIFIED = "Unclassified"
+    NATO_UNCLASSIFIED = "NATO Unclassified"
+    NATO_RESTRICTED = "NATO Restricted"
+    CONFIDENTIAL = "Confidential"
+    NATO_CONFIDENTIAL = "NATO Confidential"
+    SECRET = "Secret"
+    NATO_SECRET = "NATO Secret"
+    UNDEFINED = "Undefined"
 
 DEFAULT_MAX_OUT_QUEUE = 100
 DEFAULT_MAX_IN_QUEUE = 500

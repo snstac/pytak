@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 import tempfile
 import zipfile
 import os
+import uuid
 
 from pathlib import Path
 from typing import Optional, Tuple, Union
@@ -94,6 +95,38 @@ def cot_time(cot_stale: Union[int, None] = None) -> str:
     if cot_stale:
         time = time + datetime.timedelta(seconds=int(cot_stale))
     return time.strftime(pytak.W3C_XML_DATETIME)
+
+def is_valid_datetime(datetime_str: str) -> bool:
+    """
+    This validates if the datetime is in the right format
+    Makes both checks with millis and without millis, either or still should be good
+
+    Parameters
+    ----------
+    datetime_str : `str`
+        Datetime as string that needs to be validated according to the defined format
+
+    Returns
+    -------
+    `bool`
+        True if format is good, otherwise False
+    """
+    try:
+        # Try to parse with milliseconds
+        datetime.datetime.strptime(datetime_str, pytak.W3C_XML_DATETIME)
+        return True
+    except ValueError:
+        # If parsing with milliseconds fails, try parsing without milliseconds
+        try:
+            datetime.datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%SZ")
+            return True
+        except ValueError:
+            # If both formats fail, return False
+            warnings.warn(f"Datetime [{datetime_str}] format is wrong, must be [%Y-%m-%dT%H:%M:%S.%fZ] or [%Y-%m-%dT%H:%M:%SZ]. Defaulting to pytak.cot_time()")
+            return False
+    except Exception as e:
+        warnings.warn(f"{e}\nSome exception happened when parsing datetime. Defaulting to pytak.cot_time()")
+        return False
 
 
 def hello_event(uid: Optional[bytes] = None) -> bytes:
@@ -199,18 +232,54 @@ def cot2xml(event: pytak.COTEvent) -> ET.Element:
 
     return xevent
 
-
+# better to not type hint any of the arguments as bytes
 def gen_cot_xml(
-    lat: Union[bytes, str, float, None] = None,
-    lon: Union[bytes, str, float, None] = None,
-    ce: Union[bytes, str, float, int, None] = None,
-    hae: Union[bytes, str, float, int, None] = None,
-    le: Union[bytes, str, float, int, None] = None,
+    lat: Union[str, float, None] = None,
+    lon: Union[str, float, None] = None,
+    ce: Union[str, float, int, None] = None,
+    hae: Union[str, float, int, None] = None,
+    le: Union[str, float, int, None] = None,
     uid: Union[str, None] = None,
     stale: Union[float, int, None] = None,
     cot_type: Union[str, None] = None,
 ) -> Optional[ET.Element]:
-    """Generate a minimum CoT Event as an XML object."""
+    """Generate a minimum CoT Event as an XML object
+
+    Parameters
+    ----------
+    lat : `str` or `float` or `None`
+        latitude for point in COT
+
+    lon : `str` or `float` or `None`
+        longitude for point in COT
+
+    ce : `str` or `float` or `int` or `None`
+        circular error around point in meters. Can be default value `9999999.0`
+
+    hae : `str` or `float` or `int` or `None`
+        height above ellipsoid in meters. Can be default value `9999999.0`
+    
+    le : `str` or `float` or `int` or `None`
+        linear error above point in meters. Can be default value `9999999.0`
+
+    uid : `str` or `None`
+        uid string for COT. Different COT events with the same uid, will replace each other with the latest updating the older. Different COT events with different `uid` can be present in TAK at the same time
+
+    stale : `float` or `int` or `None`
+        interval in seconds that defines the ending of an event. A marker will grey out after this interval has passed from the start time. 
+
+    cot_type : `str` or `None`
+        COT type string defined in MIL-STD-2525
+
+    Returns
+    -------
+    `ET.Element`
+        COT event as XML Element object
+
+    Notes
+    -----
+    Flow tags will be appended automatically
+    """
 
     lat = str(lat or "0.0")
     lon = str(lon or "0.0")
@@ -251,12 +320,181 @@ def gen_cot_xml(
     return event
 
 
+def gen_cot_detailed_xml(
+    lat: Union[str, float, None] = None,
+    lon: Union[str, float, None] = None,
+    hae: Union[str, float, int, None] = None,
+    ce: Union[str, float, int, None] = None,
+    le: Union[str, float, int, None] = None,
+    uid: Union[str, None] = None,
+    stale: Union[float, int, None] = None,
+    cot_type: Union[str, None] = None,
+    cot_how: Union[str, None] = None,
+    timestamp: Union[str, None] = None,
+    access: Union[pytak.MIL_STD_6090_ACCESS_VALUES, str, None] = None,
+    caveat: Union[str, None] = None,
+    releasableto: Union[str, None] = None,
+    qos: Union[str, None] = None,
+    opex: Union[str, None] = None,
+    callsign: Union[str, None] = None,
+    remarks: Union[str, None] = None,
+    flow_tags_include: Union[bool, None] = False,
+    flow_tags_custom: Union[str, None] = None,
+) -> Optional[ET.Element]:
+    """Generate a more detailed CoT Event as an XML object.
+
+    Parameters
+    ----------
+    lat : `str` or `float` or `None`
+        latitude for point in COT
+
+    lon : `str` or `float` or `None`
+        longitude for point in COT
+
+    ce : `str` or `float` or `int` or `None`
+        circular error around point in meters. Can be default value `9999999.0`
+
+    hae : `str` or `float` or `int` or `None`
+        height above ellipsoid in meters. Can be default value `9999999.0`
+    
+    le : `str` or `float` or `int` or `None`
+        linear error above point in meters. Can be default value `9999999.0`
+
+    uid : `str` or `None`
+        uid string for COT. Different COT events with the same uid, will replace each other with the latest updating the older. Different COT events with different `uid` can be present in TAK at the same time
+
+    stale : `float` or `int` or `None`
+        interval in seconds that defines the ending of an event. A marker will grey out after this interval has passed from the start time. 
+
+    cot_type : `str` or `None`
+        COT type string defined in MIL-STD-2525
+
+    cot_how : `str` or `None`
+        how the COT was generated as defined in MIL-STD-2525
+
+    timestamp : `str` or `None`
+        time stamp that is placed on the event when it was generated
+
+    access : `str` or `None`
+        access type for COT as defined in MIL-STD-6090
+
+    caveat : `str` or `None`
+        safeguarding and dissemination of information as defined in MIL-STD-6090
+
+    releasableto : `str` or `None`
+        indicates which countries/country can have the information releasable. Refer to DFI 4127/701 for a list of 3-digit country codes
+
+    qos : `str`or `None`
+        quality of service to how to treat events
+
+    opex : `str` or `None`
+        indicates if the event is part of live operation, exercise, or simulation
+
+    callsign : `str` or `None`
+        callsign for marker that will appear as its label. When callsign is missing, `uid` becomes the label for the marker
+    
+    remarks : `str` or None
+        user defined remarks that will be appended to `detail` element. These can be used to provide more information about a marker
+    
+    flow_tags_include : `bool` or `None`
+        flag to indicate if flow tags are to be included or no. TAK server includes them by default. Here default is False
+    
+    flow_tags_custom: `str` or `None`
+        user provided flow tags as string
+    
+    Returns
+    -------
+    `ET.Element`
+        COT event as XML Element object
+    
+        Notes
+    -----
+    User can provide the custom flow tag string, but it will be included only if the `flow_tags_include` flag is set to `True`
+    """
+
+    lat = str(lat or "0.0")
+    lon = str(lon or "0.0")
+    hae = str(hae or pytak.DEFAULT_COT_VAL)
+    ce = str(ce or pytak.DEFAULT_COT_VAL)
+    le = str(le or pytak.DEFAULT_COT_VAL)
+    uid = uid or f"{pytak.DEFAULT_HOST_ID}_{uuid.uuid4()}"
+    time = timestamp if pytak.is_valid_datetime(timestamp) else pytak.cot_time()
+    stale = int(stale or pytak.DEFAULT_COT_STALE)
+    cot_type = cot_type or "a-u-G"
+    cot_how = cot_how or "m-g"
+
+    event = ET.Element("event")
+    event.set("version", "2.0")
+    event.set("type", cot_type)
+    event.set("uid", uid)
+    event.set("how", cot_how)
+    event.set("time", time)
+    event.set("start", pytak.cot_time())
+    event.set("stale", pytak.cot_time(stale))
+
+    if access:
+        try:
+            pytak.MIL_STD_6090_ACCESS_VALUES(access)
+            event.set("access", str(access.value))
+        except ValueError:
+            event.set("access", str(pytak.MIL_STD_6090_ACCESS_VALUES.UNDEFINED.value))
+
+    if caveat:
+        event.set("caveat", str(caveat))
+    if releasableto:
+        event.set("releasableto", str(releasableto))
+    if qos:
+        event.set("qos", str(qos))
+    if opex:
+        event.set("opex", str(opex))
+
+    point = ET.Element("point")
+    point.set("lat", lat)
+    point.set("lon", lon)
+    point.set("hae", hae)
+    point.set("le", le)
+    point.set("ce", ce)
+
+    event.append(point)
+
+    detail = ET.Element("detail")
+
+    # Add callsign
+    if callsign:
+        ET.SubElement(detail, "contact", {"callsign": callsign})
+
+    # Add remarks
+    if remarks:
+        remark = ET.Element("remarks")
+        text: str = remarks
+        remark.text = text
+        detail.append(remark)
+
+    # Add flow tags
+    if flow_tags_include:
+        flow_tags = ET.Element("_flow-tags_")
+        if flow_tags_custom:
+            _ft_tag: str = flow_tags_custom
+        else:
+            # FIXME: Add PyTAK version to the flow tags.
+            _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-")
+
+        flow_tags.set(_ft_tag, pytak.cot_time())
+        detail.append(flow_tags)
+
+    # if nothing appends to the `detail` element, that is fine
+    # will be just a closed tag: `<detail />`
+    event.append(detail)
+
+    return event
+
+
 def gen_cot(
-    lat: Union[bytes, float, None] = None,
-    lon: Union[bytes, float, None] = None,
-    ce: Union[bytes, float, int, None] = None,
-    hae: Union[bytes, float, int, None] = None,
-    le: Union[bytes, float, int, None] = None,
+    lat: Union[str, float, None] = None,
+    lon: Union[str, float, None] = None,
+    ce: Union[str, float, int, None] = None,
+    hae: Union[str, float, int, None] = None,
+    le: Union[str, float, int, None] = None,
     uid: Optional[str] = None,
     stale: Union[float, int, None] = None,
     cot_type: Optional[str] = None,
@@ -283,3 +521,72 @@ def tak_pong():
     event.set("start", pytak.cot_time())
     event.set("stale", pytak.cot_time(3600))
     return ET.tostring(event)
+
+
+def gen_delete_cot_xml(cot_uid_to_delete: str, flow_tags_include: Union[bool, None] = False, flow_tags_custom: Union[str, None] = None) -> bytes:
+    """Function to generate a COT event that can delete any previously sent COT that matches the `uid`
+
+    Parameters
+    ----------
+    uid : `str`
+        uid of COT to be deleted
+    
+    flow_tags_include : `bool` or `None`
+        flag to indicate if flow tags are to be included or no. TAK server includes them by default. Here default is False
+    
+    flow_tags_custom: `str` or `None`
+        user provided flow tags as string
+
+    Returns
+    -------
+    `bytes`
+        COT event in bytes
+
+    Notes
+    -----
+    User can provide the custom flow tag string, but it will be included only if the `flow_tags_include` flag is set to `True`
+    """
+
+    event = ET.Element("event")
+    event.set("version", "2.0")
+    # this could be either a unique id or the same uid as the one to delete
+    event.set("uid", str(uuid.uuid4()))  
+    event.set("how", "m-g")
+    event.set("type", pytak.DEFAULT_COT_DELETE_TYPE)  # to delete
+    event.set("time", pytak.cot_time())
+    event.set("start", pytak.cot_time())
+    event.set("stale", pytak.cot_time(1)) # stale does not matter either
+
+    # point location does not matter, but is needed for a valid COT event xml
+    pt_attr = {
+        "lat": "0.0",
+        "lon": "0.0",
+        "hae": "0.0",
+        "ce": pytak.DEFAULT_COT_VAL,
+        "le": pytak.DEFAULT_COT_VAL,
+    }
+
+    ET.SubElement(event, "point", attrib=pt_attr)
+
+    detail = ET.Element("detail")
+    # this is the important part
+    ET.SubElement(detail, "link", {"uid": str(cot_uid_to_delete), "relation": "none", "type": "none"})
+    ET.SubElement(detail, "__forcedelete")
+
+
+    # Add flow tags
+    if flow_tags_include:
+        flow_tags = ET.Element("_flow-tags_")
+        if flow_tags_custom:
+            _ft_tag: str = flow_tags_custom
+        else:
+            # FIXME: Add PyTAK version to the flow tags.
+            _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-")
+
+        flow_tags.set(_ft_tag, pytak.cot_time())
+        detail.append(flow_tags)
+
+    event.append(detail)
+
+    cot = b"\n".join([pytak.DEFAULT_XML_DECLARATION, ET.tostring(event)])
+    return cot
