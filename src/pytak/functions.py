@@ -20,15 +20,19 @@
 import datetime
 import warnings
 import xml.etree.ElementTree as ET
+import secrets
 import tempfile
 import zipfile
 import os
+
+import json
 
 from pathlib import Path
 from typing import Optional, Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
-import pytak  # pylint: disable=cyclic-import
+import pytak
+import pytak.crypto_classes  # pylint: disable=cyclic-import
 
 
 def split_host(host: str, port: Union[int, None] = None) -> Tuple[str, int]:
@@ -209,6 +213,7 @@ def gen_cot_xml(
     uid: Union[str, None] = None,
     stale: Union[float, int, None] = None,
     cot_type: Union[str, None] = None,
+    callsign: Optional[str] = None,
 ) -> Optional[ET.Element]:
     """Generate a minimum CoT Event as an XML object."""
 
@@ -245,6 +250,11 @@ def gen_cot_xml(
     detail = ET.Element("detail")
     detail.append(flow_tags)
 
+    if callsign:
+        contact = ET.Element("contact")
+        contact.set("callsign", callsign)
+        detail.append(contact)
+
     event.append(point)
     event.append(detail)
 
@@ -260,10 +270,11 @@ def gen_cot(
     uid: Optional[str] = None,
     stale: Union[float, int, None] = None,
     cot_type: Optional[str] = None,
+    callsign: Optional[str] = None,
 ) -> Optional[bytes]:
     """Generate a minimum CoT Event as an XML string [gen_cot_xml() wrapper]."""
     cot: Union[ET.Element, bytes, None] = gen_cot_xml(
-        lat, lon, ce, hae, le, uid, stale, cot_type
+        lat, lon, ce, hae, le, uid, stale, cot_type, callsign
     )
     if isinstance(cot, ET.Element):
         # FIXME: This is a hack to add the XML declaration to the CoT event.
@@ -283,3 +294,47 @@ def tak_pong():
     event.set("start", pytak.cot_time())
     event.set("stale", pytak.cot_time(3600))
     return ET.tostring(event)
+
+
+async def enroll_tak(host: str, username: str, password: str, passphrase: Optional[str] = None) -> Tuple[str, str]:
+    enrollment = pytak.crypto_classes.CertificateEnrollment()
+    passphrase = secrets.token_urlsafe(pytak.DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH) if passphrase is None else passphrase
+
+    # Create a temporary file to store the certificate
+    output_path = None
+    
+    # Use tempfile to create a temp file for the cert
+    with tempfile.NamedTemporaryFile(suffix=".p12", delete=False) as tmpfile:
+        output_path = tmpfile.name
+
+    await enrollment.begin_enrollment(
+        domain=host,
+        username=username,
+        password=password,
+        output_path=output_path,
+        passphrase=passphrase,
+        trust_all=True
+    )
+
+    return output_path, passphrase
+
+
+async def decode_response(response):
+    """
+    Decode the response from the server.
+    If the response is JSON, it will return a dictionary.
+    If the response is not JSON, it will return the text content.
+    """
+    try:
+        response_data = await response.json()
+    except Exception as json_error:
+        # If JSON parsing fails due to content-type, try parsing text as JSON
+        response_text = await response.text()
+        try:
+            response_data = json.loads(response_text)
+        except json.JSONDecodeError:
+            # If still fails, return the text content
+            response_data = response_text
+            print(f"Failed to decode JSON: {json_error}. Returning text content instead.")
+            print(f"Response text: {response_text}")
+    return response_data

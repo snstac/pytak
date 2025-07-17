@@ -10,6 +10,7 @@ PyTAK is a Python Module for creating Team Awareness Kit ([TAK](https://tak.gov)
 - **Data Handling**: Manage TAK, Cursor on Target (CoT), and non-CoT data.
 - **Data Parsing and Serialization**: Parse and serialize TAK and CoT data.
 - **Network Communication**: Send and receive TAK and CoT data over a network.
+- **No External Dependencies**: Batteries-included Pythonic architecture requires no external libraries or modules.
 
 ## Documentation
 

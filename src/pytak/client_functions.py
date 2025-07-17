@@ -25,11 +25,13 @@ import logging
 import os
 import platform
 import pprint
+import secrets
 import socket
 import ssl
 import struct
 import sys
 import warnings
+import tempfile
 
 from asyncio import get_running_loop
 from configparser import ConfigParser, SectionProxy
@@ -103,7 +105,9 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             0,
         )
         multicast_ttl = config.get("PYTAK_MULTICAST_TTL", 1)
-        reader, writer = await pytak.create_udp_client(cot_url, local_addr, multicast_ttl)
+        reader, writer = await pytak.create_udp_client(
+            cot_url, local_addr, multicast_ttl
+        )
 
     # LOG
     elif "log" in scheme:
@@ -113,6 +117,12 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
                 writer = sys.stderr.buffer
             else:
                 writer = sys.stdout.buffer
+    # File output
+    elif "file" in scheme:
+        path = cot_url.netloc + cot_url.path
+        file_path = Path(path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        writer = open(file_path, 'wb+')
 
     # Default
     if not reader and not writer:
@@ -271,6 +281,43 @@ async def create_tls_client(
     host, port = pytak.parse_url(cot_url)
     tls_config: SectionProxy = get_tls_config(config)
 
+    if tls_config.get("PYTAK_TLS_CERT_ENROLLMENT_USERNAME") and tls_config.get(
+        "PYTAK_TLS_CERT_ENROLLMENT_PASSWORD"
+    ):
+        from pytak.crypto_classes import CertificateEnrollment
+
+        enrollment = CertificateEnrollment()
+
+        cert_enrollment_username = tls_config.get("PYTAK_TLS_CERT_ENROLLMENT_USERNAME")
+        cert_enrollment_password = tls_config.get("PYTAK_TLS_CERT_ENROLLMENT_PASSWORD")
+        cert_enrollment_url = tls_config.get("PYTAK_TLS_CERT_ENROLLMENT_URL", host)
+
+        cert_enrollment_passphrase = tls_config.get(
+            "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"
+        )
+        if not cert_enrollment_passphrase:
+            # Generate a random passphrase for the PKCS#12 file.
+            cert_enrollment_passphrase = secrets.token_urlsafe(16)
+            print(
+                f"Using generated passphrase for enrollment: {cert_enrollment_passphrase}"
+            )
+            tls_config["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] = (
+                cert_enrollment_passphrase
+            )
+
+        with tempfile.NamedTemporaryFile(suffix=".p12", delete=False) as tmpfile:
+            output_path = tmpfile.name
+
+        await enrollment.begin_enrollment(
+            domain=host,
+            username=cert_enrollment_username,
+            password=cert_enrollment_password,
+            output_path=output_path,
+            passphrase=cert_enrollment_passphrase,
+        )
+        # Update TLS config with the output path of the cert enrollment.
+        tls_config["PYTAK_TLS_CLIENT_CERT"] = output_path
+
     ssl_ctx = get_ssl_ctx(tls_config)
 
     if ssl_ctx.check_hostname:
@@ -300,7 +347,10 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
     client_cert = tls_config.get("PYTAK_TLS_CLIENT_CERT")
     client_key = tls_config.get("PYTAK_TLS_CLIENT_KEY")
     client_cafile = tls_config.get("PYTAK_TLS_CLIENT_CAFILE")
-    client_password = tls_config.get("PYTAK_TLS_CLIENT_PASSWORD")
+    client_password = tls_config.get(
+        "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE",
+        tls_config.get("PYTAK_TLS_CLIENT_PASSWORD"),
+    )
 
     client_ciphers = tls_config.get("PYTAK_TLS_CLIENT_CIPHERS") or "ALL"
 

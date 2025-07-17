@@ -24,6 +24,17 @@ import logging
 import multiprocessing as mp
 import random
 
+
+import os
+import uuid
+import zipfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import List, Optional, Dict, Any
+import argparse
+import sys
+
+
 import xml.etree.ElementTree as ET
 
 from dataclasses import dataclass
@@ -474,3 +485,167 @@ class COTEvent(SimpleCOTEvent):
         )
         event = pytak.cot2xml(cotevent)
         return event
+
+
+class TAKDataPackage:
+    """
+    Generator for TAK Data Package formatted zip files.
+    """
+    
+    def __init__(self, name: str, uid: Optional[str] = None, on_receive_delete: bool = False):
+        """
+        Initialize TAK Data Package generator.
+        
+        Args:
+            name: Display name for the data package
+            uid: Unique identifier (auto-generated if None)
+            on_receive_delete: Whether to delete package after import
+        """
+        self.name = name
+        self.uid = uid or str(uuid.uuid4())
+        self.on_receive_delete = on_receive_delete
+        self.files: List[Dict[str, Any]] = []
+        
+    def add_file(self, file_path: str, ignore: bool = False, zip_entry_name: Optional[str] = None):
+        """
+        Add a file to the data package.
+        
+        Args:
+            file_path: Path to the file to include
+            ignore: Whether to ignore this file during import
+            zip_entry_name: Custom name for the file in the zip (uses filename if None)
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+            
+        entry_name = zip_entry_name or os.path.basename(file_path)
+        
+        self.files.append({
+            'path': file_path,
+            'zip_entry': entry_name,
+            'ignore': ignore
+        })
+        
+    def add_directory(self, dir_path: str, recursive: bool = True, ignore_pattern: Optional[str] = None):
+        """
+        Add all files from a directory to the data package.
+        
+        Args:
+            dir_path: Path to the directory
+            recursive: Whether to include subdirectories
+            ignore_pattern: File pattern to ignore (simple wildcard matching)
+        """
+        if not os.path.exists(dir_path):
+            raise FileNotFoundError(f"Directory not found: {dir_path}")
+            
+        dir_path = Path(dir_path)
+        
+        if recursive:
+            files = dir_path.rglob('*')
+        else:
+            files = dir_path.glob('*')
+            
+        for file_path in files:
+            if file_path.is_file():
+                # Simple pattern matching for ignore_pattern
+                if ignore_pattern and ignore_pattern in file_path.name:
+                    continue
+                    
+                # Calculate relative path for zip entry
+                relative_path = file_path.relative_to(dir_path)
+                self.add_file(str(file_path), zip_entry_name=str(relative_path))
+    
+    def _generate_manifest_xml(self) -> str:
+        """
+        Generate the manifest.xml content based on current configuration.
+        
+        Returns:
+            XML string for the manifest
+        """
+        # Create root element
+        root = ET.Element("MissionPackageManifest", version="2")
+        
+        # Configuration section
+        config = ET.SubElement(root, "Configuration")
+        
+        # Add parameters
+        uid_param = ET.SubElement(config, "Parameter")
+        uid_param.set("name", "uid")
+        uid_param.set("value", self.uid)
+        
+        name_param = ET.SubElement(config, "Parameter")
+        name_param.set("name", "name")
+        name_param.set("value", self.name)
+        
+        delete_param = ET.SubElement(config, "Parameter")
+        delete_param.set("name", "onReceiveDelete")
+        delete_param.set("value", str(self.on_receive_delete).lower())
+        
+        # Contents section
+        contents = ET.SubElement(root, "Contents")
+        
+        for file_info in self.files:
+            content = ET.SubElement(contents, "Content")
+            content.set("ignore", str(file_info['ignore']).lower())
+            content.set("zipEntry", file_info['zip_entry'])
+        
+        # Format XML with proper indentation
+        self._indent_xml(root)
+        
+        # Convert to string
+        xml_str = ET.tostring(root, encoding='unicode', xml_declaration=True)
+        return xml_str
+    
+    def _indent_xml(self, elem, level=0):
+        """Add proper indentation to XML elements."""
+        indent = "\n" + level * "  "
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = indent + "  "
+            if not elem.tail or not elem.tail.strip():
+                elem.tail = indent
+            for child in elem:
+                self._indent_xml(child, level + 1)
+            if not child.tail or not child.tail.strip():
+                child.tail = indent
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = indent
+    
+    def create_package(self, output_path: str, use_dpk_extension: bool = False, include_manifest: bool = True):
+        """
+        Create the TAK Data Package zip file.
+        
+        Args:
+            output_path: Path where to save the package
+            use_dpk_extension: Use .dpk extension instead of .zip
+            include_manifest: Whether to include the manifest (if False, files are imported serially)
+        """
+        if not self.files:
+            raise ValueError("No files added to the package")
+        
+        # Ensure proper extension
+        if use_dpk_extension and not output_path.endswith('.dpk'):
+            output_path = output_path.rsplit('.', 1)[0] + '.dpk'
+        elif not use_dpk_extension and not output_path.endswith('.zip'):
+            output_path = output_path.rsplit('.', 1)[0] + '.zip'
+        
+        # Create the zip file
+        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add all files
+            for file_info in self.files:
+                zipf.write(file_info['path'], file_info['zip_entry'])
+                print(f"Added: {file_info['zip_entry']}")
+            
+            # Add manifest if requested
+            if include_manifest:
+                manifest_xml = self._generate_manifest_xml()
+                
+                # Create MANIFEST directory and add manifest.xml
+                zipf.writestr('MANIFEST/manifest.xml', manifest_xml)
+                print("Added: MANIFEST/manifest.xml")
+        
+        print(f"\nTAK Data Package created: {output_path}")
+        print(f"Package UID: {self.uid}")
+        print(f"Files included: {len(self.files)}")
+

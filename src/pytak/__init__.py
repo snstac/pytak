@@ -46,6 +46,8 @@ from .constants import (  # NOQA
     DEFAULT_COT_VAL,
     DEFAULT_MAX_OUT_QUEUE,
     DEFAULT_MAX_IN_QUEUE,
+    ISO_8601_UTC,
+    DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
 )
 
 from .classes import (  # NOQA
@@ -56,6 +58,7 @@ from .classes import (  # NOQA
     CLITool,
     SimpleCOTEvent,
     COTEvent,
+    TAKDataPackage
 )
 
 from .functions import (  # NOQA
@@ -66,6 +69,8 @@ from .functions import (  # NOQA
     gen_cot,
     gen_cot_xml,
     cot2xml,
+    enroll_tak,
+    decode_response
 )
 
 from .client_functions import (  # NOQA

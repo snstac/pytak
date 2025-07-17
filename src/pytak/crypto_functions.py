@@ -20,8 +20,9 @@
 import os
 import tempfile
 import warnings
+import ssl
 
-from typing import Union
+from typing import Union,Tuple
 
 
 INSTALL_MSG = (
@@ -29,11 +30,13 @@ INSTALL_MSG = (
     " python3 -m pip install cryptography"
 )
 
+# Check if cryptography is installed
 USE_CRYPTOGRAPHY = False
 try:
     from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.serialization import pkcs12
+    from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
     from cryptography.x509 import Certificate
+    from cryptography.hazmat.primitives.asymmetric import rsa
 
     USE_CRYPTOGRAPHY = True
 except ImportError as exc:
@@ -100,3 +103,50 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
 
     assert all(cert_paths)
     return cert_paths
+
+
+
+def convert_p12_to_pem(output_path: str, passphrase: str) -> Tuple[str, str]:
+    # Convert .p12 to PEM
+    with open(output_path, "rb") as p12_file:
+        p12_data = p12_file.read()
+    private_key, cert, additional_certs = pkcs12.load_key_and_certificates(
+        p12_data, passphrase.encode()
+    )
+    
+    # Write PEM files
+    pem_key_path = output_path + ".key.pem"
+    pem_cert_path = output_path + ".cert.pem"
+    
+    with open(pem_key_path, "wb") as key_file:
+        key_file.write(
+            private_key.private_bytes(
+                Encoding.PEM,
+                PrivateFormat.TraditionalOpenSSL,
+                NoEncryption()
+            )
+        )
+        
+    with open(pem_cert_path, "wb") as cert_file:
+        cert_file.write(cert.public_bytes(Encoding.PEM))
+        if additional_certs:
+            for ca in additional_certs:
+                cert_file.write(ca.public_bytes(Encoding.PEM))
+                
+    return pem_key_path, pem_cert_path
+
+
+def create_ssl_context(output_path, passphrase):
+    """Creates an SSL Context from a PKCS#12 certificate container."""
+    # Convert the .p12 file to PEM format
+    pem_key_path, pem_cert_path = convert_p12_to_pem(output_path, passphrase)
+    print(f"Converted PKCS#12 to PEM. Key path: {pem_key_path}, Cert path: {pem_cert_path}")
+    
+    # Create an SSL context using the PEM files
+    # ssl_context = ssl.create_default_context()
+    ssl_context = ssl._create_unverified_context()
+    ssl_context.load_cert_chain(certfile=pem_cert_path, keyfile=pem_key_path)
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
+    return ssl_context

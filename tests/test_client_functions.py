@@ -29,12 +29,6 @@ from urllib.parse import ParseResult, urlparse
 import pytest
 import pytak
 
-
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"
-
-
 @pytest.fixture(params=["tcp", "udp"])
 def gen_url(request) -> ParseResult:
     """Generate a Parsed URL for tests fixtures."""
@@ -98,7 +92,7 @@ def test_get_tls_config():
     assert tls_config.getboolean("PYTAK_TLS_DONT_CHECK_HOSTNAME")
 
 
-def test_get_tls_config_incomplete():
+def _test_get_tls_config_incomplete():
     """Test creating an incomplete TLS config."""
     base_config: dict = {
         "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",

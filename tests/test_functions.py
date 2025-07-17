@@ -24,10 +24,6 @@ import urllib
 import pytest
 import pytak
 
-__author__ = "Greg Albrecht <gba@snstac.com>"
-__copyright__ = "Copyright Sensors & Signals LLC https://www.snstac.com"
-__license__ = "Apache License, Version 2.0"
-
 
 def test_parse_cot_url_https_noport():
     test_url1: str = "https://www.example.com/"
