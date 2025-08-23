@@ -46,12 +46,8 @@ from .constants import (  # NOQA
     DEFAULT_COT_VAL,
     DEFAULT_MAX_OUT_QUEUE,
     DEFAULT_MAX_IN_QUEUE,
-<<<<<<< Updated upstream
-    ISO_8601_UTC,
-    DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
-=======
+    DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH,
     ISO_8601_UTC
->>>>>>> Stashed changes
 )
 
 from .classes import (  # NOQA
