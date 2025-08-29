@@ -152,6 +152,10 @@ class TXWorker(Worker):
 
     async def send_data(self, data: bytes) -> None:
         """Send Data using the appropriate Protocol method."""
+        if data is None:
+            self._logger.warning("send_data called with None data, skipping send.")
+            return
+
         if self.use_protobuf:
             host, _ = pytak.parse_url(self.config.get("COT_URL", pytak.DEFAULT_COT_URL))
             is_multicast: bool = False
