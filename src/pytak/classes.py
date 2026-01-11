@@ -50,17 +50,24 @@ except ImportError:
     takproto = None
 
 
+# Optimized: Shared logger configuration to avoid duplication
+def _setup_logger(logger: logging.Logger, level: int = None) -> logging.Logger:
+    """Configure a logger with standard PyTAK formatting."""
+    if not logger.handlers:
+        log_level = level or pytak.LOG_LEVEL
+        logger.setLevel(log_level)
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(log_level)
+        console_handler.setFormatter(pytak.LOG_FORMAT)
+        logger.addHandler(console_handler)
+        logger.propagate = False
+    return logger
+
+
 class Worker:
     """Meta class for all other Worker Classes."""
 
-    _logger = logging.getLogger(__name__)
-    if not _logger.handlers:
-        _logger.setLevel(pytak.LOG_LEVEL)
-        _console_handler = logging.StreamHandler()
-        _console_handler.setLevel(pytak.LOG_LEVEL)
-        _console_handler.setFormatter(pytak.LOG_FORMAT)
-        _logger.addHandler(_console_handler)
-        _logger.propagate = False
+    _logger = _setup_logger(logging.getLogger(__name__))
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
     def __init__(
@@ -111,6 +118,16 @@ class Worker:
     async def handle_data(self, data: bytes) -> None:
         """Handle data (placeholder method, please override)."""
         pass
+
+    async def _handle_full_queue(self, queue: Union[asyncio.Queue, mp.Queue]) -> None:
+        """Handle a full queue by removing oldest item. Optimized to reduce code duplication."""
+        self._logger.warning(
+            "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
+        )
+        if isinstance(queue, asyncio.Queue):
+            await queue.get()
+        else:
+            queue.get_nowait()
 
     async def run_once(self) -> None:
         """Reads Data from Queue & passes data to next Handler."""
@@ -282,33 +299,21 @@ class QueueWorker(Worker):
         """Put Data onto the Queue."""
         _queue = queue_arg or self.queue
         self._logger.debug("Queue size=%s", _queue.qsize())
+        
+        # Optimized: Check for full queue once and handle uniformly
+        if _queue.full():
+            await self._handle_full_queue(_queue)
+        
         if isinstance(_queue, asyncio.Queue):
-            if _queue.full():
-                self._logger.warning(
-                    "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
-                )
-                await _queue.get()
             await _queue.put(data)
         else:
-            if _queue.full():
-                self._logger.warning(
-                    "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
-                )
-                _queue.get_nowait()
             _queue.put_nowait(data)
 
 
 class CLITool:
     """Wrapper Object for CLITools."""
 
-    _logger = logging.getLogger(__name__)
-    if not _logger.handlers:
-        _logger.setLevel(pytak.LOG_LEVEL)
-        _console_handler = logging.StreamHandler()
-        _console_handler.setLevel(pytak.LOG_LEVEL)
-        _console_handler.setFormatter(pytak.LOG_FORMAT)
-        _logger.addHandler(_console_handler)
-        _logger.propagate = False
+    _logger = _setup_logger(logging.getLogger(__name__))
     logging.getLogger("asyncio").setLevel(pytak.LOG_LEVEL)
 
     def __init__(

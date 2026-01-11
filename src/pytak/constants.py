@@ -63,9 +63,10 @@ ISO_8601_UTC = W3C_XML_DATETIME  # Issue 51: Not technically correct.
 TC_TOKEN_URL = "https://app-api.parteamconnect.com/api/v1/auth/token"
 DEFAULT_TC_TOKEN_URL = os.getenv("TC_TOKEN_URL", TC_TOKEN_URL)
 
-DEFAULT_TLS_PARAMS_REQ: list = []
+DEFAULT_TLS_PARAMS_REQ: tuple = ()
 
-DEFAULT_TLS_PARAMS_OPT: list = [
+# Optimized: Use tuple instead of list for immutable constant (faster access)
+DEFAULT_TLS_PARAMS_OPT: tuple = (
     "PYTAK_TLS_CLIENT_CERT",
     "PYTAK_TLS_CLIENT_KEY",
     "PYTAK_TLS_CLIENT_CAFILE",
@@ -77,11 +78,12 @@ DEFAULT_TLS_PARAMS_OPT: list = [
     "PYTAK_TLS_CERT_ENROLLMENT_USERNAME",
     "PYTAK_TLS_CERT_ENROLLMENT_PASSWORD",
     "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE",
-]
+)
 
 DEFAULT_IMPORT_OTHER_CONFIGS: str = "0"
 
-BOOLEAN_TRUTH: list = ["true", "yes", "y", "on", "1"]
+# Optimized: Use tuple for immutable truth values (faster lookups)
+BOOLEAN_TRUTH: tuple = ("true", "yes", "y", "on", "1")
 DEFAULT_COT_VAL: str = "9999999.0"
 
 # TAK Protocol to use for CoT output, one of: 0 (XML, default), 1 (Mesh/Stream).

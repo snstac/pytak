@@ -161,11 +161,13 @@ async def create_udp_client(
     is_broadcast: bool = "broadcast" in url.scheme
     is_multicast: bool = "multicast" in url.scheme
 
-    try:
-        is_multicast = ipaddress.ip_address(host).is_multicast
-    except ValueError:
-        # It's probably not an ip address...
-        pass
+    # Optimized: Single try-catch for IP address validation
+    if not is_multicast:
+        try:
+            is_multicast = ipaddress.ip_address(host).is_multicast
+        except ValueError:
+            # It's probably not an ip address...
+            pass
 
     # Create the Writer
     writer: DatagramClient = await dgconnect(

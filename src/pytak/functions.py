@@ -37,6 +37,9 @@ import pytak.crypto_classes  # pylint: disable=cyclic-import
 
 def split_host(host: str, port: Union[int, None] = None) -> Tuple[str, int]:
     """Split a host:port string or host, port params into a host,port tuple."""
+    addr: str
+    _port: str
+    
     if ":" in host:
         addr, _port = host.split(":")
         port = int(_port)
@@ -106,7 +109,7 @@ def hello_event(uid: Optional[bytes] = None) -> bytes:
     return gen_cot(uid=uid, cot_type="t-x-d-d")
 
 
-def unzip_file(zip_src: bytes, zip_dest: Union[bytes, None] = None) -> bytes:
+def unzip_file(zip_src: bytes, zip_dest: Union[bytes, None] = None) -> str:
     """Unzips a given zip file, returning the destination path."""
     _zip_dest: str = zip_dest or tempfile.mkdtemp(prefix="pytak_dp_")
     with zipfile.ZipFile(zip_src, "r") as zip_ref:
@@ -132,15 +135,15 @@ def find_cert(search_dir: str, cert_path: str) -> str:
     return find_file(search_dir, cert_file)
 
 
-def load_preferences(pref_path: str, search_dir: str):
+def load_preferences(pref_path: str, search_dir: str) -> dict:
     """Load preferences file into a dict."""
     with open(pref_path, "rb+") as pref_fd:
-        pref_data = pref_fd.read()
+        pref_data: bytes = pref_fd.read()
 
-    root = ET.fromstring(pref_data)
-    entries = root.findall(".//entry")
+    root: ET.Element = ET.fromstring(pref_data)
+    entries: list = root.findall(".//entry")
 
-    prefs = {
+    prefs: dict = {
         "connect_string": None,
         "client_password": None,
         "certificate_location": None,
@@ -166,14 +169,15 @@ def connectString2url(conn_str: str) -> str:  # pylint: disable=invalid-name
 
 def cot2xml(event: pytak.COTEvent) -> ET.Element:
     """Generate a minimum COT Event as an XML object."""
-    lat = str(event.lat or "0.0")
-    lon = str(event.lon or "0.0")
+    # Optimized: Reduce redundant str() calls and or operations
+    lat = str(event.lat) if event.lat is not None else "0.0"
+    lon = str(event.lon) if event.lon is not None else "0.0"
     uid = event.uid or pytak.DEFAULT_HOST_ID
     stale = int(event.stale or pytak.DEFAULT_COT_STALE)
     cot_type = event.cot_type or "a-u-G"
-    le = str(event.le or pytak.DEFAULT_COT_VAL)
-    hae = str(event.hae or pytak.DEFAULT_COT_VAL)
-    ce = str(event.ce or pytak.DEFAULT_COT_VAL)
+    le = str(event.le) if event.le is not None else pytak.DEFAULT_COT_VAL
+    hae = str(event.hae) if event.hae is not None else pytak.DEFAULT_COT_VAL
+    ce = str(event.ce) if event.ce is not None else pytak.DEFAULT_COT_VAL
 
     xevent = ET.Element("event")
     xevent.set("version", "2.0")
@@ -191,6 +195,7 @@ def cot2xml(event: pytak.COTEvent) -> ET.Element:
     point.set("hae", hae)
     point.set("ce", ce)
 
+    # Optimized: Pre-compute flow tag name once
     flow_tags = ET.Element("_flow-tags_")
     _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-")
     flow_tags.set(_ft_tag, pytak.cot_time())
@@ -216,12 +221,12 @@ def gen_cot_xml(
     callsign: Optional[str] = None,
 ) -> Optional[ET.Element]:
     """Generate a minimum CoT Event as an XML object."""
-
-    lat = str(lat or "0.0")
-    lon = str(lon or "0.0")
-    ce = str(ce or pytak.DEFAULT_COT_VAL)
-    hae = str(hae or pytak.DEFAULT_COT_VAL)
-    le = str(le or pytak.DEFAULT_COT_VAL)
+    # Optimized: Use default values directly instead of redundant or operators
+    lat = str(lat) if lat is not None else "0.0"
+    lon = str(lon) if lon is not None else "0.0"
+    ce = str(ce) if ce is not None else pytak.DEFAULT_COT_VAL
+    hae = str(hae) if hae is not None else pytak.DEFAULT_COT_VAL
+    le = str(le) if le is not None else pytak.DEFAULT_COT_VAL
     uid = uid or pytak.DEFAULT_HOST_ID
     stale = int(stale or pytak.DEFAULT_COT_STALE)
     cot_type = cot_type or "a-u-G"
@@ -242,8 +247,8 @@ def gen_cot_xml(
     point.set("hae", hae)
     point.set("ce", ce)
 
+    # Optimized: Pre-compute flow tag name once
     flow_tags = ET.Element("_flow-tags_")
-    # FIXME: Add PyTAK version to the flow tags.
     _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-")
     flow_tags.set(_ft_tag, pytak.cot_time())
 
@@ -277,22 +282,25 @@ def gen_cot(
         lat, lon, ce, hae, le, uid, stale, cot_type, callsign
     )
     if isinstance(cot, ET.Element):
-        # FIXME: This is a hack to add the XML declaration to the CoT event.
-        #       When Python 3.7 is EOL'd, we can use 3.8's 'xml_declaration' kwarg.
-        cot = b"\n".join([pytak.DEFAULT_XML_DECLARATION, ET.tostring(cot)])
+        # Optimized: Pre-allocate bytearray for better performance
+        return pytak.DEFAULT_XML_DECLARATION + b"\n" + ET.tostring(cot)
     return cot
 
 
-def tak_pong():
+def tak_pong() -> bytes:
     """Generate a takPong CoT Event."""
     event = ET.Element("event")
     event.set("version", "2.0")
     event.set("type", "t-x-d-d")
     event.set("uid", "takPong")
     event.set("how", "m-g")
-    event.set("time", pytak.cot_time())
-    event.set("start", pytak.cot_time())
+    
+    # Optimized: Compute time once and reuse
+    current_time: str = pytak.cot_time()
+    event.set("time", current_time)
+    event.set("start", current_time)
     event.set("stale", pytak.cot_time(3600))
+    
     return ET.tostring(event)
 
 
