@@ -329,7 +329,7 @@ async def create_tls_client(
 
     try:
         reader, writer = await asyncio.open_connection(
-            host, port, ssl=ssl_ctx, server_hostname=expected_server_hostname
+            host.strip("[]"), port, ssl=ssl_ctx, server_hostname=expected_server_hostname
         )
     except ssl.SSLCertVerificationError as exc:
         raise SyntaxError(
