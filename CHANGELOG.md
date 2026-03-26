@@ -1,8 +1,17 @@
-## PyTAK 7.1.0
+## PyTAK 7.3.0 (Draft)
 
-Happy Lunar New Year 2025 - Year of the Snake.
+Release draft for the next PyTAK version after `7.2.1`.
 
-- Fixes 
+- Added certificate enrollment workflow support in TLS client setup via `CertificateEnrollment`.
+- Added support for `PYTAK_TLS_CERT_ENROLLMENT_USERNAME`, `PYTAK_TLS_CERT_ENROLLMENT_PASSWORD`, and `PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE`.
+- Improved TLS behavior and diagnostics, including optional expected server hostname handling (`PYTAK_TLS_SERVER_EXPECTED_HOSTNAME`).
+- Improved queue and worker behavior with better handling of full queues and `None` payload edge cases (`TXWorker.send_data()`).
+- Added `PYTAK_NO_HELLO` to disable initial Hello events for deployments that require quiet startup.
+- Added multicast TTL configuration support for UDP/multicast workflows.
+- Added/expanded helper APIs including `SimpleCOTEvent`, `COTEvent`, and `cot2xml`.
+- Improved Python 3.12 compatibility and removed Python 3.6 support in CI and packaging metadata.
+- Improved packaging/release pipeline and version management (`VERSION` file based versioning).
+- Expanded examples, tests, and project documentation.
 
 
 ## PyTAK 7.0.1

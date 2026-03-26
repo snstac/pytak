@@ -7,6 +7,8 @@ This module handles certificate signing requests, key generation, and certificat
 Uses async/await for improved performance and modern Python patterns.
 """
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import json
@@ -190,7 +192,8 @@ class CertificateEnrollment:
             self.logger.error(f"Failed to generate private key: {e}")
             return None
 
-    def _create_session(self, trust_all: bool) -> aiohttp.ClientSession:
+    #def _create_session(self, trust_all: bool) -> aiohttp.ClientSession:
+    def _create_session(self, trust_all: bool):
         """
         Create an aiohttp session with appropriate SSL configuration.
 
