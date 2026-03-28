@@ -65,7 +65,7 @@ def parse_url(url: Union[str, ParseResult]) -> Tuple[str, int]:
     host: str = _url.netloc
 
     if ":" in _url.netloc:
-        host, port = _url.netloc.split(":")
+        host, port = _url.netloc.rsplit(":", 1)
     else:
         if "broadcast" in _url.scheme:
             port = pytak.DEFAULT_BROADCAST_PORT
