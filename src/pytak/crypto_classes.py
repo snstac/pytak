@@ -173,7 +173,8 @@ class CertificateEnrollment:
         except Exception as e:
             self.logger.error(f"Error in enrollment process: {e}")
 
-    def _generate_key(self, key_size: int = 4096) -> Optional[rsa.RSAPrivateKey]:
+    #def _generate_key(self, key_size: int = 4096) -> Optional[rsa.RSAPrivateKey]:
+    def _generate_key(self, key_size: int = 4096) -> Optional:
         """
         Generate a private RSA key.
 
