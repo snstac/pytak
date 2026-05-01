@@ -23,6 +23,8 @@ import ipaddress
 import logging
 import multiprocessing as mp
 import random
+import re
+from datetime import datetime, timezone, timedelta
 
 
 import os
@@ -266,6 +268,101 @@ class RXWorker(Worker):
             await asyncio.sleep(0)  # make sure other tasks have a chance to run
 
 
+def _extract_cot_events(text: str) -> list:
+    """Extract <event>...</event> blocks from a text blob (Marti API response)."""
+    return re.findall(r"<event\b[^>]*>.*?</event>", text, re.DOTALL)
+
+
+class MartiTXWorker(Worker):
+    """Transmit CoT events to a TAK Server via the Marti REST API.
+
+    Dequeues CoT bytes and POSTs each one to
+    ``POST /Marti/api/injectors/cot/uid`` as JSON
+    ``{"uid": "<client_uid>", "toInject": "<cot_xml>"}``.
+
+    Create via ``pytak.marti_txworker_factory()``.
+    """
+
+    def __init__(self, queue, config, session, base_url: str, client_uid: str) -> None:
+        super().__init__(queue, config)
+        self._session = session
+        self._base_url = base_url.rstrip("/")
+        self._client_uid = client_uid
+
+    async def handle_data(self, data: bytes) -> None:
+        cot_xml = data.decode("utf-8", errors="ignore").strip()
+        if not cot_xml:
+            return
+        payload = {"uid": self._client_uid, "toInject": cot_xml}
+        try:
+            async with self._session.post(
+                f"{self._base_url}/Marti/api/injectors/cot/uid",
+                json=payload,
+            ) as resp:
+                if resp.status not in (200, 201, 204):
+                    self._logger.warning(
+                        "Marti inject returned HTTP %s", resp.status
+                    )
+        except Exception as exc:
+            self._logger.error("Marti TX error: %s", exc)
+
+
+class MartiRXWorker(Worker):
+    """Receive CoT events from a TAK Server via the Marti REST API.
+
+    Polls ``GET /Marti/api/cot/sa`` on a timer and puts each received
+    CoT event onto the rx queue.
+
+    Create via ``pytak.marti_rxworker_factory()``.
+    """
+
+    def __init__(
+        self,
+        queue,
+        config,
+        session,
+        base_url: str,
+        poll_interval: int = pytak.DEFAULT_MARTI_POLL_INTERVAL,
+        seconds_ago: int = pytak.DEFAULT_MARTI_POLL_SECONDS_AGO,
+    ) -> None:
+        super().__init__(queue, config)
+        self._session = session
+        self._base_url = base_url.rstrip("/")
+        self._poll_interval = poll_interval
+        self._last_poll: Optional[datetime] = None
+        self._seconds_ago = seconds_ago
+
+    async def handle_data(self, data: bytes) -> None:
+        pass
+
+    async def run_once(self) -> None:
+        now = datetime.now(timezone.utc)
+        start = self._last_poll or (now - timedelta(seconds=self._seconds_ago))
+        self._last_poll = now
+
+        fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+        params = {"start": start.strftime(fmt), "end": now.strftime(fmt)}
+        try:
+            async with self._session.get(
+                f"{self._base_url}/Marti/api/cot/sa",
+                params=params,
+            ) as resp:
+                if resp.status == 200:
+                    text = await resp.text()
+                    for event_xml in _extract_cot_events(text):
+                        self.queue.put_nowait(event_xml.encode("utf-8"))
+                else:
+                    self._logger.debug("Marti RX returned HTTP %s", resp.status)
+        except Exception as exc:
+            self._logger.error("Marti RX error: %s", exc)
+
+    async def run(self, _=-1) -> None:
+        self._logger.info("Running: %s", self.__class__.__name__)
+        while True:
+            await self.run_once()
+            await asyncio.sleep(self._poll_interval)
+
+
 class QueueWorker(Worker):
     """Read non-CoT Messages from an async network client.
 
@@ -308,6 +405,27 @@ class QueueWorker(Worker):
             await _queue.put(data)
         else:
             _queue.put_nowait(data)
+
+
+async def _make_workers(tx_queue, rx_queue, config):
+    """Return (write_worker, read_worker) for the given config.
+
+    Dispatches to Marti HTTP workers when ``COT_URL`` uses the ``marti://``
+    or ``marti+http://`` scheme; otherwise falls back to the standard
+    socket-based TXWorker / RXWorker pair.
+    """
+    cot_url_str = config.get("COT_URL", "")
+    scheme = cot_url_str.split("://")[0].lower() if "://" in cot_url_str else ""
+
+    if scheme in ("marti", "marti+http"):
+        write_worker = await pytak.marti_txworker_factory(tx_queue, config)
+        read_worker = await pytak.marti_rxworker_factory(rx_queue, config)
+    else:
+        reader, writer = await pytak.protocol_factory(config)
+        write_worker = pytak.TXWorker(tx_queue, config, writer)
+        read_worker = pytak.RXWorker(rx_queue, config, reader)
+
+    return write_worker, read_worker
 
 
 class CLITool:
@@ -372,9 +490,7 @@ class CLITool:
             self.rx_queue = rx_queue
         self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
 
-        reader, writer = await pytak.protocol_factory(i_config)
-        write_worker = pytak.TXWorker(tx_queue, i_config, writer)
-        read_worker = pytak.RXWorker(rx_queue, i_config, reader)
+        write_worker, read_worker = await _make_workers(tx_queue, rx_queue, i_config)
         self.add_task(write_worker)
         self.add_task(read_worker)
 
@@ -383,10 +499,9 @@ class CLITool:
 
         Creates protocols, queue workers and adds them to our task list.
         """
-        # Create our TX & RX Protocol Worker
-        reader, writer = await pytak.protocol_factory(self.config)
-        write_worker = pytak.TXWorker(self.tx_queue, self.config, writer)
-        read_worker = pytak.RXWorker(self.rx_queue, self.config, reader)
+        write_worker, read_worker = await _make_workers(
+            self.tx_queue, self.rx_queue, self.config
+        )
         self.add_task(write_worker)
         self.add_task(read_worker)
 

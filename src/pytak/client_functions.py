@@ -19,6 +19,7 @@
 
 import argparse
 import asyncio
+import hashlib
 import importlib
 import ipaddress
 import logging
@@ -35,7 +36,9 @@ import tempfile
 
 from asyncio import get_running_loop
 from configparser import ConfigParser, SectionProxy
-from urllib.parse import ParseResult, urlparse
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from urllib.parse import ParseResult, urlparse, parse_qs, unquote
 from typing import Any, Tuple, Union
 
 import pytak
@@ -49,6 +52,211 @@ from pytak.asyncio_dgram import (
 )
 
 from pytak.crypto_functions import convert_cert
+
+
+def parse_tak_url(tak_url: str) -> dict:
+    """Parse a TAK enrollment deep-link URL.
+
+    Supported format:
+        tak://com.atakmap.app/enroll?host=<host>&username=<user>&token=<secret>
+
+    ``host`` may include an explicit port (e.g. ``takserver.example.com:8089``);
+    if omitted the default TAK streaming port is used.
+
+    Returns a dict with keys: hostname, port, username, token.
+    """
+    parsed = urlparse(tak_url.strip())
+    if parsed.scheme.lower() != "tak":
+        raise ValueError(f"Expected tak:// URL, got scheme {parsed.scheme!r}")
+
+    qs = parse_qs(parsed.query, keep_blank_values=False)
+
+    def _one(param: str) -> str:
+        vals = qs.get(param)
+        if not vals or not str(vals[0]).strip():
+            raise ValueError(f"TAK URL missing required parameter: {param!r}")
+        return unquote(str(vals[0]).strip())
+
+    host_param = _one("host")
+    username = _one("username")
+    token = _one("token")
+
+    if ":" in host_param:
+        hostname, port_str = host_param.rsplit(":", 1)
+        try:
+            port = int(port_str)
+        except ValueError:
+            hostname = host_param
+            port = pytak.DEFAULT_TAK_STREAMING_PORT
+    else:
+        hostname = host_param
+        port = pytak.DEFAULT_TAK_STREAMING_PORT
+
+    return {"hostname": hostname, "port": port, "username": username, "token": token}
+
+
+def _cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
+    """Return (p12_path, pass_path) for the on-disk cert cache."""
+    cache_dir = Path.home() / ".pytak" / "certs"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha256(f"{hostname}:{username}".encode()).hexdigest()[:16]
+    return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
+
+
+def _cached_cert_valid(
+    p12_path: str,
+    passphrase: str,
+    buffer_days: int = pytak.DEFAULT_CERT_CACHE_BUFFER_DAYS,
+) -> bool:
+    """Return True if the cached p12 exists and won't expire within buffer_days."""
+    if not os.path.exists(p12_path):
+        return False
+    try:
+        from cryptography.hazmat.primitives.serialization import pkcs12
+
+        with open(p12_path, "rb") as f:
+            data = f.read()
+        pw = passphrase.encode("utf-8") if passphrase else None
+        _, cert, _ = pkcs12.load_key_and_certificates(data, pw)
+        if cert is None:
+            return False
+        now = datetime.now(timezone.utc)
+        try:
+            expiry = cert.not_valid_after_utc
+        except AttributeError:
+            expiry = cert.not_valid_after.replace(tzinfo=timezone.utc)
+        return now < (expiry - timedelta(days=buffer_days))
+    except Exception as exc:
+        logging.debug("Cached cert check failed: %s", exc)
+        return False
+
+
+async def resolve_tak_url(tak_url: str) -> dict:
+    """Resolve a tak:// onboarding URL to PyTAK TLS config parameters.
+
+    Parses the URL, checks the cert cache (~/.pytak/certs/), re-enrolls only
+    when no valid cached cert is found, and returns a config dict ready for
+    ``config.update()``.
+
+    The returned dict sets:
+      - ``COT_URL`` → ``tls://<hostname>:<port>``
+      - ``PYTAK_TLS_CLIENT_CERT`` → path to the cached .p12
+      - ``PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE`` → p12 password
+      - ``PYTAK_TLS_DONT_VERIFY`` / ``PYTAK_TLS_DONT_CHECK_HOSTNAME`` → ``"1"``
+        (TAK servers routinely use self-signed certificates)
+    """
+    params = parse_tak_url(tak_url)
+    hostname = params["hostname"]
+    port = params["port"]
+    username = params["username"]
+    token = params["token"]
+
+    p12_path, pass_path = _cert_cache_paths(hostname, username)
+
+    passphrase: str = ""
+    if os.path.exists(pass_path):
+        with open(pass_path) as f:
+            passphrase = f.read().strip()
+
+    if passphrase and _cached_cert_valid(p12_path, passphrase):
+        logging.info("Using cached TAK client certificate for %s@%s", username, hostname)
+    else:
+        logging.info("Enrolling TAK client certificate for %s@%s", username, hostname)
+        from pytak.crypto_classes import CertificateEnrollment
+
+        passphrase = secrets.token_urlsafe(
+            pytak.DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
+        )
+        enrollment = CertificateEnrollment()
+        await enrollment.begin_enrollment(
+            domain=hostname,
+            username=username,
+            password=token,
+            output_path=p12_path,
+            passphrase=passphrase,
+            trust_all=True,
+        )
+        if not os.path.exists(p12_path):
+            raise RuntimeError(
+                f"TAK certificate enrollment failed for {username}@{hostname}"
+            )
+        with open(pass_path, "w") as f:
+            f.write(passphrase)
+        os.chmod(pass_path, 0o600)
+        os.chmod(p12_path, 0o600)
+        logging.info("TAK client certificate cached at %s", p12_path)
+
+    return {
+        "COT_URL": f"tls://{hostname}:{port}",
+        "PYTAK_TLS_CLIENT_CERT": p12_path,
+        "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE": passphrase,
+        "PYTAK_TLS_DONT_VERIFY": "1",
+        "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",
+    }
+
+
+async def _marti_session(config):
+    """Return (aiohttp.ClientSession, base_url, client_uid) for a marti:// COT_URL.
+
+    Uses the existing PYTAK_TLS_* config params for mTLS when present;
+    falls back to unverified SSL for ``marti://`` and plain HTTP for ``marti+http://``.
+    """
+    try:
+        import aiohttp
+    except ImportError as exc:
+        raise ImportError(
+            "Marti HTTP transport requires aiohttp. "
+            "Install with: pip install pytak[with_aiohttp]"
+        ) from exc
+
+    cot_url = get_cot_url(config)
+    use_tls = "http" not in cot_url.scheme  # marti:// → TLS; marti+http:// → plain
+    port = cot_url.port or pytak.DEFAULT_MARTI_PORT
+    scheme = "https" if use_tls else "http"
+    base_url = f"{scheme}://{cot_url.hostname}:{port}"
+    client_uid = config.get(
+        "MARTI_COT_UID",
+        config.get("COT_HOST_ID", pytak.DEFAULT_HOST_ID),
+    )
+
+    ssl_ctx: Any = None
+    if use_tls:
+        client_cert = config.get("PYTAK_TLS_CLIENT_CERT")
+        if client_cert:
+            try:
+                ssl_ctx = get_ssl_ctx(get_tls_config(config))
+            except Exception:
+                ssl_ctx = False  # fall back to no-verify
+        else:
+            ssl_ctx = False  # no cert configured → skip verification
+
+    connector = aiohttp.TCPConnector(ssl=ssl_ctx)
+    session = aiohttp.ClientSession(connector=connector)
+    return session, base_url, client_uid
+
+
+async def marti_txworker_factory(
+    queue: asyncio.Queue, config: SectionProxy
+) -> "pytak.MartiTXWorker":
+    """Create a MartiTXWorker that POSTs CoT to the Marti REST API."""
+    session, base_url, client_uid = await _marti_session(config)
+    return pytak.MartiTXWorker(queue, config, session, base_url, client_uid)
+
+
+async def marti_rxworker_factory(
+    queue: asyncio.Queue, config: SectionProxy
+) -> "pytak.MartiRXWorker":
+    """Create a MartiRXWorker that polls CoT from the Marti REST API."""
+    session, base_url, _ = await _marti_session(config)
+    poll_interval = int(
+        config.get("MARTI_POLL_INTERVAL", pytak.DEFAULT_MARTI_POLL_INTERVAL)
+    )
+    seconds_ago = int(
+        config.get("MARTI_POLL_SECONDS_AGO", pytak.DEFAULT_MARTI_POLL_SECONDS_AGO)
+    )
+    return pytak.MartiRXWorker(
+        queue, config, session, base_url, poll_interval, seconds_ago
+    )
 
 
 def get_cot_url(config) -> ParseResult:
@@ -123,6 +331,12 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         file_path = Path(path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         writer = open(file_path, 'wb+')
+
+    # TAK onboarding URL — enroll, cache cert, then connect as TLS
+    elif scheme == "tak":
+        tak_config = await resolve_tak_url(config.get("COT_URL", ""))
+        config.update(tak_config)
+        reader, writer = await create_tls_client(config, urlparse(tak_config["COT_URL"]))
 
     # Default
     if not reader and not writer:
@@ -570,6 +784,24 @@ def cli(app_name: str) -> None:
     if pref_package and os.path.exists(pref_package):
         pref_config = read_pref_package(pref_package)
         config.update(pref_config)
+
+    # Resolve tak:// onboarding URLs before starting the event loop.
+    # Honour TAK_URL env var or a tak:// scheme in COT_URL.
+    tak_url: str = config.get("TAK_URL", "")
+    if not tak_url:
+        _cot = config.get("COT_URL", "")
+        if _cot.lower().startswith("tak://"):
+            tak_url = _cot
+    if tak_url:
+        if sys.version_info[:2] >= (3, 7):
+            _tak_resolved = asyncio.run(resolve_tak_url(tak_url))
+        else:
+            _loop = asyncio.new_event_loop()
+            try:
+                _tak_resolved = _loop.run_until_complete(resolve_tak_url(tak_url))
+            finally:
+                _loop.close()
+        config.update(_tak_resolved)
 
     debug = config.getboolean("DEBUG")
     if debug:

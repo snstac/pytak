@@ -47,7 +47,13 @@ from .constants import (  # NOQA
     DEFAULT_MAX_OUT_QUEUE,
     DEFAULT_MAX_IN_QUEUE,
     ISO_8601_UTC,
-    DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
+    DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH,
+    DEFAULT_TAK_STREAMING_PORT,
+    DEFAULT_TAK_ENROLLMENT_PORT,
+    DEFAULT_CERT_CACHE_BUFFER_DAYS,
+    DEFAULT_MARTI_PORT,
+    DEFAULT_MARTI_POLL_INTERVAL,
+    DEFAULT_MARTI_POLL_SECONDS_AGO,
 )
 
 from .classes import (  # NOQA
@@ -58,7 +64,9 @@ from .classes import (  # NOQA
     CLITool,
     SimpleCOTEvent,
     COTEvent,
-    TAKDataPackage
+    TAKDataPackage,
+    MartiTXWorker,
+    MartiRXWorker,
 )
 
 from .functions import (  # NOQA
@@ -80,6 +88,10 @@ from .client_functions import (  # NOQA
     rxworker_factory,
     cli,
     read_pref_package,
+    parse_tak_url,
+    resolve_tak_url,
+    marti_txworker_factory,
+    marti_rxworker_factory,
 )
 
 from . import asyncio_dgram  # NOQA
