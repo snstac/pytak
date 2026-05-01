@@ -15,9 +15,14 @@ from unittest import mock
 try:
     from unittest.mock import AsyncMock
 except ImportError:
+    # Python < 3.8: keep __call__ sync so MagicMock records calls / fires side_effect
     class AsyncMock(mock.MagicMock):
-        async def __call__(self, *args, **kwargs):
-            return self.return_value
+        def __call__(self, *args, **kwargs):
+            super().__call__(*args, **kwargs)
+            ret = self.return_value
+            async def _coro():
+                return ret
+            return _coro()
 
 import pytest
 
@@ -46,6 +51,28 @@ SAMPLE_SA_RESPONSE = """
   </event>
 </events>
 """
+
+
+class _AsyncCM:
+    """Minimal async context manager for mocking aiohttp response objects.
+
+    Using a real class with class-level __aenter__/__aexit__ avoids the Python
+    3.7 pitfall where async-dunder resolution happens on the TYPE, not the
+    instance, so instance-level assignments to __aenter__ are silently ignored.
+    """
+
+    def __init__(self, status, text_value=None):
+        self.status = status
+        self._text_value = text_value
+
+    async def text(self):
+        return self._text_value
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -81,13 +108,8 @@ async def test_marti_tx_worker_posts_cot():
     queue = asyncio.Queue()
     config = {"COT_HOST_ID": "test-uid"}
 
-    mock_response = AsyncMock()
-    mock_response.status = 200
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = AsyncMock(return_value=False)
-
     mock_session = mock.MagicMock()
-    mock_session.post = mock.MagicMock(return_value=mock_response)
+    mock_session.post = mock.MagicMock(return_value=_AsyncCM(200))
 
     worker = MartiTXWorker(queue, config, mock_session, "https://tak.example.com:8443", "test-uid")
     await worker.handle_data(SAMPLE_COT)
@@ -115,13 +137,8 @@ async def test_marti_tx_worker_logs_non_200():
     """MartiTXWorker.handle_data() should log a warning on non-200 response."""
     queue = asyncio.Queue()
 
-    mock_response = AsyncMock()
-    mock_response.status = 500
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = AsyncMock(return_value=False)
-
     mock_session = mock.MagicMock()
-    mock_session.post = mock.MagicMock(return_value=mock_response)
+    mock_session.post = mock.MagicMock(return_value=_AsyncCM(500))
 
     worker = MartiTXWorker(queue, {}, mock_session, "https://tak.example.com:8443", "uid")
     # Should not raise even on a 500
@@ -139,14 +156,10 @@ async def test_marti_rx_worker_polls_and_enqueues():
     """MartiRXWorker.run_once() should GET /Marti/api/cot/sa and enqueue events."""
     queue = asyncio.Queue()
 
-    mock_response = AsyncMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value=SAMPLE_SA_RESPONSE)
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = AsyncMock(return_value=False)
-
     mock_session = mock.MagicMock()
-    mock_session.get = mock.MagicMock(return_value=mock_response)
+    mock_session.get = mock.MagicMock(
+        return_value=_AsyncCM(200, SAMPLE_SA_RESPONSE)
+    )
 
     worker = MartiRXWorker(queue, {}, mock_session, "https://tak.example.com:8443")
     await worker.run_once()
@@ -163,14 +176,8 @@ async def test_marti_rx_worker_handles_empty_response():
     """MartiRXWorker.run_once() should handle a response with no CoT events."""
     queue = asyncio.Queue()
 
-    mock_response = AsyncMock()
-    mock_response.status = 200
-    mock_response.text = AsyncMock(return_value="<events></events>")
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = AsyncMock(return_value=False)
-
     mock_session = mock.MagicMock()
-    mock_session.get = mock.MagicMock(return_value=mock_response)
+    mock_session.get = mock.MagicMock(return_value=_AsyncCM(200, "<events></events>"))
 
     worker = MartiRXWorker(queue, {}, mock_session, "https://tak.example.com:8443")
     await worker.run_once()
@@ -182,13 +189,8 @@ async def test_marti_rx_worker_handles_http_error():
     """MartiRXWorker.run_once() should not raise on non-200 response."""
     queue = asyncio.Queue()
 
-    mock_response = AsyncMock()
-    mock_response.status = 503
-    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = AsyncMock(return_value=False)
-
     mock_session = mock.MagicMock()
-    mock_session.get = mock.MagicMock(return_value=mock_response)
+    mock_session.get = mock.MagicMock(return_value=_AsyncCM(503))
 
     worker = MartiRXWorker(queue, {}, mock_session, "https://tak.example.com:8443")
     await worker.run_once()

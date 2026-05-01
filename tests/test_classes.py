@@ -32,10 +32,14 @@ from unittest import mock
 try:
     from unittest.mock import AsyncMock
 except ImportError:
-    # Python < 3.8
+    # Python < 3.8: keep __call__ sync so MagicMock records calls / fires side_effect
     class AsyncMock(mock.MagicMock):
-        async def __call__(self, *args, **kwargs):
-            return self.return_value
+        def __call__(self, *args, **kwargs):
+            super().__call__(*args, **kwargs)
+            ret = self.return_value
+            async def _coro():
+                return ret
+            return _coro()
 
 import pytest
 
