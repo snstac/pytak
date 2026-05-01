@@ -5,7 +5,7 @@ Test with a real certificate format that demonstrates the JSON escaping issue.
 
 import asyncio
 import logging
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 from cryptography.hazmat.primitives.asymmetric import rsa
 import pytest
 
@@ -26,8 +26,9 @@ async def test_json_escaped_certificate():
     # (generated for testing purposes)
     json_escaped_cert = """-----BEGIN CERTIFICATE-----\\nMIIDazCCAlOgAwIBAgIUKzF3KzKv1kF8Kf8V6LkVq8F9Kf8wDQYJKoZIhvcNAQEL\\nBQAwRTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM\\nGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yMzEwMDEwMDAwMDBaFw0yNDEw\\nMDEwMDAwMDBaMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEw\\nHwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwggEiMA0GCSqGSIb3DQEB\\nAQUAA4IBDwAwggEKAoIBAQC5Q7JaH1vVkoqpVBEoqNfgOTwmDy2pkYZm/ZpRNBEr\\nPwkpsr3PZmtkymbbPiDwrWHaDfE32HwqNfgOTwmDy2pkYZm/ZpRNBErPwkpsr3P\\nZmtkymbbPiDwrWHaDfE32HwqNfgOTwmDy2pkYZm/ZpRNBErPwkpsr3PZmtkymbb\\nPiDwrWHaDfE32HwqPHgOTwmDy2pkYZm/ZpRNBErPwkpsr3PZmtkymbbPiDwrWHa\\nDfE32HwqNfgOTwmDy2pkYZm/ZpRNBErPwkpsr3PZmtkymbbPiDwrWHaDfE32Hwq\\nNfgOTwmDy2pkYZm/ZpRNBErPwkpsr3PZmtkymbbPiDwrWHaDfE32HwwIDAQABo1\\nAwTjAdBgNVHQ4EFgQU1aKjqDWy6z4g8K1h2g3xN9h8KjX4MA8GA1UdEwEB/wQFMA\\nMBAf8wHwYDVR0jBBgwFoAU1aKjqDWy6z4g8K1h2g3xN9h8KjX4MA0GCSqGSIb3DQ\\nEBCwUAA4IBAQCM+K1h2g3xN9h8KjX4Dk8Jg8tqZGGZv2aUTQRKz8JKbK9z2ZrZMp\\nm2z4g8K1h2g3xN9h8KjX4Dk8Jg8tqZGGZv2aUTQRKz8JKbK9z2ZrZMpm2z4g8K1\\nh2g3xN9h8KjX4Dk8Jg8tqZGGZv2aUTQRKz8JKbK9z2ZrZMpm2z4g8K1h2g3xN9h\\n8KjX4Dk8Jg8tqZGGZv2aUTQRKz8JKbK9z2ZrZMpm2z4g8K1h2g3xN9h8KjX4Dk8\\nJg8tqZGGZv2aUTQRKz8JKbK9z2ZrZMpm2z4g8K1h2g3xN9h8\\n-----END CERTIFICATE-----"""
 
+    has_escaped_newlines = "\\n" in json_escaped_cert
     print(f"Testing JSON-escaped certificate (length: {len(json_escaped_cert)})")
-    print(f"Contains \\n sequences: {'\\n' in json_escaped_cert}")
+    print(f"Contains \\n sequences: {has_escaped_newlines}")
 
     # Test the PEM formatting fix
     try:

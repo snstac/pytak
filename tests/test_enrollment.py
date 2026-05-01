@@ -12,7 +12,7 @@ import sys
 import os
 
 
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 
 
 class AsyncTestCase(unittest.TestCase):

@@ -6,7 +6,7 @@ Test the v2 endpoint JSON parsing fix for incorrect content-type headers.
 import asyncio
 import json
 import logging
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 from cryptography.hazmat.primitives.asymmetric import rsa
 import pytest
 
