@@ -696,7 +696,7 @@ class CertificateEnrollment:
         ca_pems: List[str],
         private_key,
         output_path: Optional[str] = None,
-        passphrase: Optional[bytes] = None,
+        passphrase: Optional[str] = None,
     ) -> None:
         """
         Create a client certificate file (PKCS12 format).
@@ -744,14 +744,17 @@ class CertificateEnrollment:
                     raise
 
             # Create PKCS12 data
+            encryption = (
+                serialization.BestAvailableEncryption(passphrase.encode("utf-8"))
+                if passphrase
+                else serialization.NoEncryption()
+            )
             pkcs12_data = pkcs12.serialize_key_and_certificates(
                 name=b"TAK Client Cert",
                 key=private_key,
                 cert=certificate,
                 cas=ca_certificates if ca_certificates else None,
-                encryption_algorithm=serialization.BestAvailableEncryption(
-                    passphrase.encode("utf-8")
-                ),
+                encryption_algorithm=encryption,
             )
 
             # Save to file

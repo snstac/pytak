@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 import pytest
 
 
@@ -43,9 +43,9 @@ BAMMCVRlc3QgQ2VydDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQDTgvwjlRHZ9OY2
 
         # Mock the private key generation and certificate parsing
         with patch.object(enrollment, "_generate_key") as mock_gen_key, patch(
-            "certificate_enrollment.x509.load_pem_x509_certificate"
+            "pytak.crypto_classes.x509.load_pem_x509_certificate"
         ) as mock_load_cert, patch(
-            "certificate_enrollment.pkcs12.serialize_key_and_certificates"
+            "pytak.crypto_classes.pkcs12.serialize_key_and_certificates"
         ) as mock_serialize:
 
             # Set up mocks
@@ -73,11 +73,11 @@ BAMMCVRlc3QgQ2VydDBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQDTgvwjlRHZ9OY2
         print("Testing default output path (None)")
 
         with patch.object(enrollment, "_generate_key") as mock_gen_key, patch(
-            "certificate_enrollment.x509.load_pem_x509_certificate"
+            "pytak.crypto_classes.x509.load_pem_x509_certificate"
         ) as mock_load_cert, patch(
-            "certificate_enrollment.pkcs12.serialize_key_and_certificates"
+            "pytak.crypto_classes.pkcs12.serialize_key_and_certificates"
         ) as mock_serialize, patch(
-            "certificate_enrollment.Path.home"
+            "pytak.crypto_classes.Path.home"
         ) as mock_home:
 
             # Set up mocks
