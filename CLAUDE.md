@@ -98,3 +98,47 @@ def main():
 ```
 
 `pytak.cli()` handles everything else: arg parsing, config loading, TLS setup, worker wiring, and the asyncio event loop.
+
+### Transport additions (recent)
+
+- **`tak://` onboarding** — `resolve_tak_url()` in `client_functions.py` parses TAK enrollment deep-links, checks `~/.pytak/certs/` for a cached cert, re-enrolls via `CertificateEnrollment` if needed, then rewrites `COT_URL` to `tls://`. Requires `aiohttp` + `cryptography`.
+- **`marti://` REST API** — `marti_txworker_factory()` / `marti_rxworker_factory()` create `MartiTXWorker` / `MartiRXWorker` (in `classes.py`) that POST/poll CoT via the TAK Server Marti HTTP API. `marti://` uses TLS; `marti+http://` uses plain HTTP. Requires `aiohttp`.
+
+---
+
+## Documentation
+
+The docs live in `docs/` and are built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). The site is hosted at **pytak.rtfd.io** via Read the Docs.
+
+### Build and preview locally
+
+```bash
+pip install -r docs/requirements.txt
+mkdocs serve          # live-reload at http://127.0.0.1:8000
+mkdocs build          # static output to site/
+```
+
+### Doc structure
+
+| File | Purpose |
+|---|---|
+| `docs/index.md` | Home — includes `README.md` via `{!README.md!}` |
+| `docs/quickstart.md` | Zero-to-CoT in 5 minutes |
+| `docs/installation.md` | Debian pkg, pip, source, Windows |
+| `docs/configuration.md` | All env vars / config params |
+| `docs/examples.md` | Runnable code examples |
+| `docs/compatibility.md` | Supported TAK clients, protocols, Python version |
+| `docs/clients.md` | Known downstream PyTAK-based tools |
+| `docs/troubleshooting.md` | Common errors and fixes |
+| `docs/changelog.md` | Includes `CHANGELOG.md` via `{!CHANGELOG.md!}` |
+
+### Guidelines for future agents
+
+- **No placeholder text.** Never leave `TK`, `TK TK TK`, or `FIXME` in documentation.
+- **Fix RST-style double-backticks.** This project uses MkDocs (Markdown), not Sphinx (RST). Replace `` ``code`` `` with `` `code` ``.
+- **Keep examples runnable.** Every code block in `docs/examples.md` should work as-is (no personal paths, no dummy credentials that look real). Use `takserver.example.com` as the hostname placeholder.
+- **Keep config params in sync.** When adding a new config constant to `src/pytak/constants.py`, add a corresponding entry to `docs/configuration.md`.
+- **Use admonitions for warnings.** Use `!!! warning`, `!!! note`, and `!!! tip` callouts rather than inline parentheticals for important caveats.
+- **Test the build.** After editing docs, run `mkdocs build` to confirm there are no broken includes or YAML errors.
+- **`{!path!}` syntax** is the include-markdown plugin's delimiter (not RST). Use it to include files like `{!examples/send.py!}`.
+- **Nav lives in `mkdocs.yml`.** Add new pages there under the `nav:` key; they won't appear in the sidebar otherwise.

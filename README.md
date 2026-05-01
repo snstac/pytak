@@ -1,21 +1,60 @@
 ![ATAK Screenshot with PyTAK Logo.](https://pytak.readthedocs.io/en/stable/media/atak_screenshot_with_pytak_logo-x25.jpg)
 
-# Python Team Awareness Kit
+# Python Team Awareness Kit (PyTAK)
 
-PyTAK is a Python Module for creating Team Awareness Kit ([TAK](https://tak.gov)) clients, servers & gateways.
+PyTAK is a Python library for building [TAK](https://tak.gov) clients, servers & gateways — things that send and receive Cursor on Target (CoT) data on TAK networks.
+
+## Install
+
+```sh
+python3 -m pip install pytak
+```
+
+## Quick example
+
+```python
+import asyncio, xml.etree.ElementTree as ET
+from configparser import ConfigParser
+import pytak
+
+class MySender(pytak.QueueWorker):
+    async def handle_data(self, data):
+        await self.put_queue(data)
+    async def run(self):
+        while True:
+            root = ET.Element("event", version="2.0", type="t-x-d-d",
+                              uid="myMarker", how="m-g",
+                              time=pytak.cot_time(), start=pytak.cot_time(),
+                              stale=pytak.cot_time(3600))
+            await self.handle_data(ET.tostring(root))
+            await asyncio.sleep(20)
+
+async def main():
+    config = ConfigParser()
+    config["mytool"] = {"COT_URL": "tcp://takserver.example.com:8087"}
+    config = config["mytool"]
+    clitool = pytak.CLITool(config)
+    await clitool.setup()
+    clitool.add_tasks(set([MySender(clitool.tx_queue, config)]))
+    await clitool.run()
+
+asyncio.run(main())
+```
 
 ## Features
 
-- **TAK Protocol Support**: Connect with ATAK, WinTAK, iTAK, and TAK Server.
-- **Data Handling**: Manage TAK, Cursor on Target (CoT), and non-CoT data.
-- **Data Parsing and Serialization**: Parse and serialize TAK and CoT data.
-- **Network Communication**: Send and receive TAK and CoT data over a network.
-- **No External Dependencies**: Batteries-included Pythonic architecture requires no external libraries or modules.
+- **TAK Protocol support** — XML (TAK Protocol v0) and Protobuf (TAK Protocol v1, via `takproto`)
+- **Multiple transports** — TCP, TLS, UDP unicast, UDP multicast (Mesh SA), UDP broadcast, file, stdout
+- **TLS client auth** — PEM certs, PKCS#12 (`.p12`), password-protected keys
+- **TAK enrollment** — automatic certificate enrollment from a `tak://` onboarding URL
+- **Marti REST API** — send/receive CoT via TAK Server's HTTP API (`marti://` URL scheme)
+- **TAK Data Packages** — import `.zip` pref packages containing server connection settings and certs
+- **FreeTAKServer compat** — built-in rate-limiting mode (`FTS_COMPAT`)
+- **No required external deps** — pure-Python asyncio core; optional extras for TLS enrollment and Protobuf
 
 ## Documentation
 
-See [PyTAK documentation](https://pytak.rtfd.io/) for instructions on getting 
-started with PyTAK, examples, configuration & troubleshooting options.
+Full documentation at **[pytak.rtfd.io](https://pytak.rtfd.io/)** including installation, configuration, examples, and troubleshooting.
 
 ## License & Copyright
 
@@ -31,6 +70,5 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-asyncio_dgram is Copyright (c) 2019 Justin Bronder and is licensed under the MIT 
+asyncio_dgram is Copyright (c) 2019 Justin Bronder and is licensed under the MIT
 License, see pytak/asyncio_dgram/LICENSE for details.
-

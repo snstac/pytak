@@ -1,7 +1,9 @@
+# Compatibility
+
 ## Clients & Servers
 
-PyTAK is used in mission criticial environments, every day, across all official 
-[TAK Products](https://tak.gov>):
+PyTAK is used in mission critical environments, every day, across all official
+[TAK Products](https://tak.gov):
 
 * [WinTAK](https://tak.gov/)
 * [ATAK](https://play.google.com/store/apps/details?id=com.atakmap.app.civ)
@@ -9,66 +11,74 @@ PyTAK is used in mission criticial environments, every day, across all official
 * [TAKX](https://tak.gov/)
 * [TAK Server](https://tak.gov/)
 
-PyTAK has been tested and is compatible with many situational awareness (SA) & common 
-operating picture (COP) systems:
+PyTAK has also been tested with:
 
 * [taky](https://github.com/tkuester/taky)
 * [Free TAK Server (FTS/FreeTAKServer)](https://github.com/FreeTAKTeam/FreeTakServer)
 * RaptorX
 * COPERS
 
+---
 
-## Input, Output & Network Protocols
+## Network Protocols
 
-PyTAK supports the following I/O & network protocols:
+| URL scheme | Transport |
+|---|---|
+| `tcp://host:port` | TCP unicast (plain text) |
+| `tls://host:port` | TLS unicast (encrypted, mTLS) |
+| `udp://group:port` | UDP multicast (Mesh SA) |
+| `udp://host:port` | UDP unicast |
+| `udp+broadcast://network:port` | UDP broadcast |
+| `udp+wo://host:port` | UDP write-only (no port bind) |
+| `log://stdout` / `log://stderr` | Console output (debug) |
+| `marti://host:port` | TAK Server Marti REST API (TLS) |
+| `marti+http://host:port` | TAK Server Marti REST API (HTTP) |
+| `tak://...` | TAK enrollment deep-link |
 
-* TLS Unicast: ``tls://host:port``
-* TCP Unicast: ``tcp://host:port``
-* UDP Multicast: ``udp://group:port`` (aka **Mesh SA**)
-* UDP Unicast: ``udp://host:port``
-* UDP Broadcast: ``udp+broadcast://network:port``
-* UDP Write-only: ``udp+wo://host:port``
-* stdout or stderr: ``log://stdout`` or ``log://stderr``
+---
 
+## TAK Protocol Payload
 
-## TAK Protocol Payload - Version 1 (Protobuf)
+PyTAK natively sends and receives [TAK Protocol Payload - Version 0](https://github.com/deptofdefense/AndroidTacticalAssaultKit-CIV/blob/master/commoncommo/core/impl/protobuf/protocol.txt) (plain UTF-8 XML CoT). This is the default and works with all TAK clients.
 
-PyTAK natively sends & receives ["TAK Protocol Payload - Version 0"](https://github.com/deptofdefense/AndroidTacticalAssaultKit-CIV/blob/master/commoncommo/core/impl/protobuf/protocol.txt) (plain UTF-8 XML CoT).
+To enable TAK Protocol Payload - Version 1 (Protobuf), install the optional [takproto](https://github.com/snstac/takproto) module and set `TAK_PROTO=1`:
 
-To allow PyTAK to send & receive "TAK Protocol Payload - Version 1" Protobuf, install the optional [takproto](https://github.com/snstac/takproto) Python module::
+=== "pip"
+    ```sh
+    pip install pytak[with_takproto]
+    ```
 
-When installing PyTAK::
-
-    python3 -m pip install pytak[with_takproto]
-
-Alternative, installing from a Debian package::
-
-    sudo apt update -y
-    wget https://github.com/snstak/takproto/releases/latest/download/takproto_latest_all.deb
+=== "Debian package"
+    ```sh
+    wget https://github.com/snstac/takproto/releases/latest/download/takproto_latest_all.deb
     sudo apt install -f ./takproto_latest_all.deb
+    ```
 
+!!! warning "Protobuf and iTAK"
+    TAK Protocol v1 (Protobuf) may not work reliably with all versions of iTAK. Use `TAK_PROTO=0` (XML) unless you have confirmed Protobuf support on all clients.
 
-## Python 3.6+
+---
 
-PyTAK requires Python 3.6 or above and WILL NOT work on Python versions below 3.6. It 
-should run on almost any platform that supports Python 3.6+, including Linux, Windows, 
-Raspberry Pi, Android, et al.
+## Python Version
 
+PyTAK requires Python **3.7 or later**. It runs on Linux, Windows, macOS, Raspberry Pi, and Android (via Termux or similar).
+
+---
 
 ## FreeTAKServer
 
-FTS (Free TAK Server) has built-in anti-Denial-of-Service (DoS) support, which 
-restricts the number of CoT Events a client can send to a listening TCP Port. 
-Currently this FTS feature cannot be disabled or changed, so clients must meter 
-their input speed.
+Free TAK Server (FTS) has built-in anti-DoS rate limiting that restricts how fast clients can send CoT events. This cannot be disabled on the server side.
 
-To use a PyTAK-based client with FTS, set the ``FTS_COMPAT`` configuration parameter 
-to ``True``. This will cause the PyTAK client to sleep a random number of seconds 
-between transmitting CoT to a FTS server::
+To work with FTS, enable compatibility mode:
 
-    FTS_COMPAT=True
+```ini
+FTS_COMPAT = 1
+```
 
-Alternatively you can specify a static sleep period by setting ``PYTAK_SLEEP`` to an 
-integer number of seconds::
+Or use a fixed sleep between events:
 
-    PYTAK_SLEEP=3
+```ini
+PYTAK_SLEEP = 3
+```
+
+See [Configuration: FTS_COMPAT](configuration.md#fts_compat) for details.

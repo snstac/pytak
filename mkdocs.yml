@@ -1,19 +1,44 @@
 site_name: Python Team Awareness Kit (PyTAK)
 site_url: https://pytak.rtfd.io/
 repo_url: https://github.com/snstac/pytak/
-site_description: Python Team Awareness Kit (PyTAK) Documentation
+repo_name: snstac/pytak
+site_description: Python library for building TAK clients, servers & gateways
 site_author: Greg Albrecht <gba@snstac.com>
 copyright: Copyright Sensors & Signals LLC https://www.snstac.com/
 
 theme:
   name: material
-  highlightjs: true
+  logo: media/pytak_logo-256x264.png
+  favicon: media/pytak_logo-256x264.png
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 plugins:
   - include-markdown:
       opening_tag: "{!"
       closing_tag: "!}"
-  - search
+  - search:
+      lang: en
   - mkdocstrings:
       handlers:
         # See: https://mkdocstrings.github.io/python/usage/
@@ -25,5 +50,28 @@ markdown_extensions:
   - markdown_include.include:
       base_path: .
   - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.inlinehilite
   - toc:
-      permalink: True
+      permalink: true
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+  - Examples: examples.md
+  - Compatibility: compatibility.md
+  - Clients: clients.md
+  - Troubleshooting: troubleshooting.md
+  - Changelog: changelog.md
+  - License: license.md
