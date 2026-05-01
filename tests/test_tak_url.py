@@ -15,6 +15,13 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest import mock
 
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+    class AsyncMock(mock.MagicMock):
+        async def __call__(self, *args, **kwargs):
+            return self.return_value
+
 import pytest
 
 import pytak
@@ -201,7 +208,7 @@ async def test_resolve_tak_url_enrolls_when_no_cache(tmp_path):
         "pytak.client_functions._cached_cert_valid", return_value=False
     ), mock.patch(
         "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
-        new=mock.AsyncMock(side_effect=fake_enroll),
+        new=AsyncMock(side_effect=fake_enroll),
     ):
         result = await resolve_tak_url(url)
 
@@ -251,7 +258,7 @@ async def test_resolve_tak_url_raises_when_enrollment_fails(tmp_path):
         "pytak.client_functions._cached_cert_valid", return_value=False
     ), mock.patch(
         "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
-        new=mock.AsyncMock(),  # does nothing → file never written
+        new=AsyncMock(),  # does nothing → file never written
     ):
         with pytest.raises(RuntimeError, match="enrollment failed"):
             await resolve_tak_url(url)

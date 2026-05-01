@@ -12,6 +12,13 @@
 import asyncio
 from unittest import mock
 
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+    class AsyncMock(mock.MagicMock):
+        async def __call__(self, *args, **kwargs):
+            return self.return_value
+
 import pytest
 
 import pytak
@@ -74,10 +81,10 @@ async def test_marti_tx_worker_posts_cot():
     queue = asyncio.Queue()
     config = {"COT_HOST_ID": "test-uid"}
 
-    mock_response = mock.AsyncMock()
+    mock_response = AsyncMock()
     mock_response.status = 200
-    mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
 
     mock_session = mock.MagicMock()
     mock_session.post = mock.MagicMock(return_value=mock_response)
@@ -108,10 +115,10 @@ async def test_marti_tx_worker_logs_non_200():
     """MartiTXWorker.handle_data() should log a warning on non-200 response."""
     queue = asyncio.Queue()
 
-    mock_response = mock.AsyncMock()
+    mock_response = AsyncMock()
     mock_response.status = 500
-    mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
 
     mock_session = mock.MagicMock()
     mock_session.post = mock.MagicMock(return_value=mock_response)
@@ -132,11 +139,11 @@ async def test_marti_rx_worker_polls_and_enqueues():
     """MartiRXWorker.run_once() should GET /Marti/api/cot/sa and enqueue events."""
     queue = asyncio.Queue()
 
-    mock_response = mock.AsyncMock()
+    mock_response = AsyncMock()
     mock_response.status = 200
-    mock_response.text = mock.AsyncMock(return_value=SAMPLE_SA_RESPONSE)
-    mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+    mock_response.text = AsyncMock(return_value=SAMPLE_SA_RESPONSE)
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
 
     mock_session = mock.MagicMock()
     mock_session.get = mock.MagicMock(return_value=mock_response)
@@ -156,11 +163,11 @@ async def test_marti_rx_worker_handles_empty_response():
     """MartiRXWorker.run_once() should handle a response with no CoT events."""
     queue = asyncio.Queue()
 
-    mock_response = mock.AsyncMock()
+    mock_response = AsyncMock()
     mock_response.status = 200
-    mock_response.text = mock.AsyncMock(return_value="<events></events>")
-    mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+    mock_response.text = AsyncMock(return_value="<events></events>")
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
 
     mock_session = mock.MagicMock()
     mock_session.get = mock.MagicMock(return_value=mock_response)
@@ -175,10 +182,10 @@ async def test_marti_rx_worker_handles_http_error():
     """MartiRXWorker.run_once() should not raise on non-200 response."""
     queue = asyncio.Queue()
 
-    mock_response = mock.AsyncMock()
+    mock_response = AsyncMock()
     mock_response.status = 503
-    mock_response.__aenter__ = mock.AsyncMock(return_value=mock_response)
-    mock_response.__aexit__ = mock.AsyncMock(return_value=False)
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
 
     mock_session = mock.MagicMock()
     mock_session.get = mock.MagicMock(return_value=mock_response)
@@ -216,9 +223,9 @@ async def test_make_workers_marti_scheme():
     cfg = config["test"]
 
     with mock.patch(
-        "pytak.marti_txworker_factory", new=mock.AsyncMock(return_value=mock.MagicMock(spec=MartiTXWorker))
+        "pytak.marti_txworker_factory", new=AsyncMock(return_value=mock.MagicMock(spec=MartiTXWorker))
     ) as mock_tx, mock.patch(
-        "pytak.marti_rxworker_factory", new=mock.AsyncMock(return_value=mock.MagicMock(spec=MartiRXWorker))
+        "pytak.marti_rxworker_factory", new=AsyncMock(return_value=mock.MagicMock(spec=MartiRXWorker))
     ) as mock_rx:
         tx_q, rx_q = asyncio.Queue(), asyncio.Queue()
         write_worker, read_worker = await _make_workers(tx_q, rx_q, cfg)
