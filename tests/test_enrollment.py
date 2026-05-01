@@ -7,7 +7,7 @@ This script tests the basic functionality without requiring a live server.
 
 import asyncio
 import unittest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
 

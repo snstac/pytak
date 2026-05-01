@@ -29,6 +29,14 @@ from configparser import ConfigParser
 from typing import Any
 from unittest import mock
 
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+    # Python < 3.8
+    class AsyncMock(mock.MagicMock):
+        async def __call__(self, *args, **kwargs):
+            return self.return_value
+
 import pytest
 
 import pytak
@@ -97,15 +105,15 @@ async def test_eventworker() -> None:
     transport.is_closing = mock.Mock()
     
     protocol = mock.Mock()
-    protocol._drain_helper = mock.AsyncMock()
-    
+    protocol._drain_helper = AsyncMock()
+
     mock_reader = mock.Mock(spec=asyncio.StreamReader)
     mock_writer = mock.Mock(spec=asyncio.StreamWriter)
     mock_writer.transport = transport
-    
     mock_writer.write = transport.write
-    
-    with mock.patch('asyncio.open_connection', new=mock.AsyncMock(return_value=(mock_reader, mock_writer))):
+    mock_writer.drain = AsyncMock()
+
+    with mock.patch('asyncio.open_connection', new=AsyncMock(return_value=(mock_reader, mock_writer))):
         _, writer = await asyncio.open_connection()
         worker: pytak.Worker = pytak.TXWorker(event_queue, {}, writer)
         
