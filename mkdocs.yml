@@ -68,6 +68,7 @@ nav:
   - Home: index.md
   - Quick Start: quickstart.md
   - Installation: installation.md
+  - Docker: docker.md
   - Configuration: configuration.md
   - Examples: examples.md
   - Compatibility: compatibility.md

@@ -37,6 +37,12 @@ sudo apt install -y python3-aiohttp
 
 ---
 
+## Docker Images
+
+Prebuilt container images that install PyTAK from release packages are documented in [Docker](docker.md).
+
+---
+
 ## Python Package (pip)
 
 Install from [PyPI](https://pypi.org/project/pytak/) with `pip`. This works on any platform with Python 3.7+.

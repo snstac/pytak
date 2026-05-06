@@ -1,0 +1,22 @@
+FROM fedora:latest
+
+RUN dnf install -y \
+      ca-certificates \
+      python3 \
+      python3-aiohttp \
+      python3-cryptography \
+    && dnf clean all
+
+COPY dist/*.rpm /tmp/
+
+RUN dnf install -y /tmp/*.rpm \
+    && rm -rf /tmp/*.rpm \
+    && dnf clean all
+
+RUN useradd --create-home --home-dir /home/pytak --shell /bin/bash pytak
+
+WORKDIR /home/pytak
+USER pytak
+
+ENTRYPOINT ["pytak"]
+CMD ["--help"]

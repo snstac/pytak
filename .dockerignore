@@ -1,0 +1,16 @@
+.git
+.github
+.gitignore
+.pytest_cache
+.mypy_cache
+.vscode
+.venv
+build
+deb_dist
+site
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.tmp
