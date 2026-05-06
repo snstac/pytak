@@ -7,3 +7,8 @@ name = "pytak"
 authors = [{name = "Greg Albrecht", email = "oss@undef.net"}]
 dynamic = ["version", "description", "optional-dependencies", "readme", 
   "requires-python", "license", "maintainers", "keywords", "classifiers"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"

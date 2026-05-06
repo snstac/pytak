@@ -26,6 +26,7 @@ class AsyncTestCase(unittest.TestCase):
     def tearDown(self):
         """Clean up async test environment."""
         self.loop.close()
+        asyncio.set_event_loop(None)  # prevent stale closed loop for subsequent tests
 
     def async_test(self, coro):
         """Helper to run async tests."""
