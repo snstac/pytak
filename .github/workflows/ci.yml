@@ -61,7 +61,7 @@ jobs:
         run: dnf install -y git python3 python3-pip rpm-build python3-setuptools
       - uses: actions/checkout@v4
       - name: Build RPM package
-        run: python3 setup.py bdist_rpm
+        run: python3 setup.py bdist_rpm --python=/usr/bin/python3
       - uses: actions/upload-artifact@v4
         with:
           name: artifact-rpm
