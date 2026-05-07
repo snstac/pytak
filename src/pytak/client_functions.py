@@ -300,6 +300,25 @@ async def ws_factory(
     session = aiohttp.ClientSession()
     try:
         ws = await session.ws_connect(raw_url, ssl=ssl_ctx)
+    except aiohttp.WSServerHandshakeError as exc:
+        await session.close()
+        if exc.status == 403:
+            # Server rejected the cert — clear the cert cache so the next
+            # run forces a fresh enrollment with the new token.
+            cert_path = config.get("PYTAK_TLS_CLIENT_CERT", "")
+            if cert_path and os.path.exists(cert_path):
+                pass_path = cert_path.replace(".p12", ".pass")
+                for p in (cert_path, pass_path):
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
+                raise PermissionError(
+                    f"WebSocket connection rejected (403): server does not trust "
+                    f"the cached certificate. The stale cert has been deleted. "
+                    f"Re-run pytak with the same tak:// URL to re-enroll."
+                ) from exc
+        raise
     except Exception:
         await session.close()
         raise
