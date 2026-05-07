@@ -10,7 +10,7 @@ RUN dnf install -y \
 
 COPY dist/*.rpm /tmp/
 
-RUN dnf install -y /tmp/*.rpm \
+RUN dnf install -y --setopt=optional_metadata_types=filelists /tmp/*.rpm \
     && rm -rf /tmp/*.rpm \
     && dnf clean all \
     && python3 -m pytak --help > /dev/null
