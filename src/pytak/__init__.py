@@ -99,7 +99,11 @@ from .client_functions import (  # NOQA
     resolve_tak_url,
     marti_txworker_factory,
     marti_rxworker_factory,
-    ws_factory,
 )
+
+try:
+    from .client_functions import ws_factory  # NOQA
+except ImportError:
+    pass
 
 from . import asyncio_dgram  # NOQA
