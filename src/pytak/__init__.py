@@ -69,8 +69,6 @@ from .classes import (  # NOQA
     TAKDataPackage,
     MartiTXWorker,
     MartiRXWorker,
-    WSTXWorker,
-    WSRXWorker,
 )
 
 from .cli_main import (  # NOQA

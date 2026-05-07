@@ -42,7 +42,11 @@ import sys
 from configparser import RawConfigParser
 
 import pytak
-from pytak.constants import DEFAULT_WS_PATH
+
+try:
+    from pytak.constants import DEFAULT_WS_PATH
+except ImportError:
+    DEFAULT_WS_PATH = "/takproto/1"
 
 _LOG = logging.getLogger(__name__)
 
