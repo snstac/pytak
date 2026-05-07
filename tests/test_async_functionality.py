@@ -7,7 +7,7 @@ import asyncio
 import logging
 import pytest
 
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 
 @pytest.mark.asyncio
 async def test_async_enrollment():

@@ -23,6 +23,8 @@ import ipaddress
 import logging
 import multiprocessing as mp
 import random
+import re
+from datetime import datetime, timezone, timedelta
 
 
 import os
@@ -48,6 +50,83 @@ try:
     import takproto  # type: ignore
 except ImportError:
     takproto = None
+
+
+def _takmsg2xml(msg) -> Optional[bytes]:
+    """Convert a takproto TakMessage back to CoT XML bytes.
+
+    Reverses the xml2message() transform: extracts fields from msg.cotEvent
+    and reconstructs a minimal but complete <event> element.
+    """
+    try:
+        from datetime import timezone as _tz
+        cot = msg.cotEvent
+        if not cot.uid:
+            return None
+
+        def _ms2iso(ms: int) -> str:
+            return datetime.fromtimestamp(ms / 1000.0, tz=_tz.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        attrib = {
+            "type": cot.type,
+            "uid": cot.uid,
+            "how": cot.how,
+            "time": _ms2iso(cot.sendTime),
+            "start": _ms2iso(cot.startTime),
+            "stale": _ms2iso(cot.staleTime),
+            "version": "2.0",
+        }
+        if cot.access:
+            attrib["access"] = cot.access
+        if cot.qos:
+            attrib["qos"] = cot.qos
+
+        event = ET.Element("event", attrib)
+        ET.SubElement(event, "point", {
+            "lat": str(cot.lat),
+            "lon": str(cot.lon),
+            "hae": str(cot.hae),
+            "ce": str(cot.ce),
+            "le": str(cot.le),
+        })
+
+        detail = ET.SubElement(event, "detail")
+        d = cot.detail
+        if d.xmlDetail:
+            try:
+                # xmlDetail is a raw XML fragment; wrap it to parse, then graft children
+                frag = ET.fromstring(f"<x>{d.xmlDetail}</x>")
+                for child in frag:
+                    detail.append(child)
+            except ET.ParseError:
+                detail.text = (detail.text or "") + d.xmlDetail
+        if d.HasField("contact") and (d.contact.callsign or d.contact.endpoint):
+            ET.SubElement(detail, "contact", {
+                k: v for k, v in [("callsign", d.contact.callsign), ("endpoint", d.contact.endpoint)] if v
+            })
+        if d.HasField("group") and d.group.name:
+            ET.SubElement(detail, "__group", {"name": d.group.name, "role": d.group.role})
+        if d.HasField("track") and (d.track.speed or d.track.course):
+            ET.SubElement(detail, "track", {
+                "speed": str(d.track.speed),
+                "course": str(d.track.course),
+            })
+        if d.HasField("takv") and d.takv.version:
+            ET.SubElement(detail, "takv", {
+                k: v for k, v in [
+                    ("device", d.takv.device), ("platform", d.takv.platform),
+                    ("os", d.takv.os), ("version", d.takv.version),
+                ] if v
+            })
+
+        return ET.tostring(event, encoding="unicode").encode("utf-8")
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+try:
+    import aiohttp as _aiohttp  # type: ignore
+except ImportError:
+    _aiohttp = None
 
 
 # Optimized: Shared logger configuration to avoid duplication
@@ -266,6 +345,196 @@ class RXWorker(Worker):
             await asyncio.sleep(0)  # make sure other tasks have a chance to run
 
 
+def _extract_cot_events(text: str) -> list:
+    """Extract <event>...</event> blocks from a text blob (Marti API response)."""
+    return re.findall(r"<event\b[^>]*>.*?</event>", text, re.DOTALL)
+
+
+class MartiTXWorker(Worker):
+    """Transmit CoT events to a TAK Server via the Marti REST API.
+
+    Dequeues CoT bytes and POSTs each one to
+    ``POST /Marti/api/injectors/cot/uid`` as JSON
+    ``{"uid": "<client_uid>", "toInject": "<cot_xml>"}``.
+
+    Create via ``pytak.marti_txworker_factory()``.
+    """
+
+    def __init__(self, queue, config, session, base_url: str, client_uid: str) -> None:
+        super().__init__(queue, config)
+        self._session = session
+        self._base_url = base_url.rstrip("/")
+        self._client_uid = client_uid
+
+    async def handle_data(self, data: bytes) -> None:
+        cot_xml = data.decode("utf-8", errors="ignore").strip()
+        if not cot_xml:
+            return
+        payload = {"uid": self._client_uid, "toInject": cot_xml}
+        try:
+            async with self._session.post(
+                f"{self._base_url}/Marti/api/injectors/cot/uid",
+                json=payload,
+            ) as resp:
+                if resp.status not in (200, 201, 204):
+                    self._logger.warning(
+                        "Marti inject returned HTTP %s", resp.status
+                    )
+        except Exception as exc:
+            self._logger.error("Marti TX error: %s", exc)
+
+
+class MartiRXWorker(Worker):
+    """Receive CoT events from a TAK Server via the Marti REST API.
+
+    Polls ``GET /Marti/api/cot/sa`` on a timer and puts each received
+    CoT event onto the rx queue.
+
+    Create via ``pytak.marti_rxworker_factory()``.
+    """
+
+    def __init__(
+        self,
+        queue,
+        config,
+        session,
+        base_url: str,
+        poll_interval: int = pytak.DEFAULT_MARTI_POLL_INTERVAL,
+        seconds_ago: int = pytak.DEFAULT_MARTI_POLL_SECONDS_AGO,
+    ) -> None:
+        super().__init__(queue, config)
+        self._session = session
+        self._base_url = base_url.rstrip("/")
+        self._poll_interval = poll_interval
+        self._last_poll: Optional[datetime] = None
+        self._seconds_ago = seconds_ago
+
+    async def handle_data(self, data: bytes) -> None:
+        pass
+
+    async def run_once(self) -> None:
+        now = datetime.now(timezone.utc)
+        start = self._last_poll or (now - timedelta(seconds=self._seconds_ago))
+        self._last_poll = now
+
+        fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+        params = {"start": start.strftime(fmt), "end": now.strftime(fmt)}
+        try:
+            async with self._session.get(
+                f"{self._base_url}/Marti/api/cot/sa",
+                params=params,
+            ) as resp:
+                if resp.status == 200:
+                    text = await resp.text()
+                    for event_xml in _extract_cot_events(text):
+                        self.queue.put_nowait(event_xml.encode("utf-8"))
+                else:
+                    self._logger.debug("Marti RX returned HTTP %s", resp.status)
+        except Exception as exc:
+            self._logger.error("Marti RX error: %s", exc)
+
+    async def run(self, _=-1) -> None:
+        self._logger.info("Running: %s", self.__class__.__name__)
+        while True:
+            await self.run_once()
+            await asyncio.sleep(self._poll_interval)
+
+
+class WSTXWorker(Worker):
+    """Transmit CoT events to a TAK Server via WebSocket (ws:// or wss://).
+
+    Encodes CoT XML as TAK Protocol v1 Protobuf (STREAM variant) before
+    sending as a binary WebSocket frame.  Falls back to raw bytes if
+    ``takproto`` is not installed, which is useful for custom WS servers
+    that accept plain XML.
+
+    Create via ``pytak.ws_factory()``.
+    """
+
+    def __init__(
+        self,
+        queue: asyncio.Queue,
+        config,
+        ws,
+        session=None,
+    ) -> None:
+        super().__init__(queue, config)
+        self._ws = ws
+        self._session = session
+
+    async def handle_data(self, data: bytes) -> None:
+        if not data:
+            return
+        if takproto is not None:
+            try:
+                data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
+            except Exception as exc:
+                self._logger.warning("WS TX: Protobuf encode failed, sending raw: %s", exc)
+        try:
+            await self._ws.send_bytes(data)
+        except Exception as exc:
+            self._logger.error("WS TX send error: %s", exc)
+
+    async def close(self) -> None:
+        try:
+            await self._ws.close()
+        except Exception:
+            pass
+        if self._session:
+            await self._session.close()
+
+
+class WSRXWorker(Worker):
+    """Receive CoT events from a TAK Server via WebSocket (ws:// or wss://).
+
+    Reads binary WebSocket frames, decodes TAK Protocol v1 Protobuf to CoT
+    XML bytes, and puts each event onto the rx queue.
+
+    Create via ``pytak.ws_factory()``.
+    """
+
+    def __init__(
+        self,
+        queue: asyncio.Queue,
+        config,
+        ws,
+        session=None,
+    ) -> None:
+        super().__init__(queue, config)
+        self._ws = ws
+        self._session = session
+
+    async def handle_data(self, data: bytes) -> None:
+        pass  # data flows directly to queue in run_once
+
+    async def run_once(self) -> None:
+        if _aiohttp is None:
+            return
+        msg = await self._ws.receive()
+        if msg.type == _aiohttp.WSMsgType.BINARY:
+            payload: Optional[bytes] = msg.data
+            if takproto is not None:
+                tak_msg = takproto.parse_proto(payload)
+                if tak_msg and tak_msg != -1:
+                    if isinstance(tak_msg, bytes):
+                        payload = tak_msg
+                    else:
+                        payload = _takmsg2xml(tak_msg)
+                else:
+                    payload = None
+            if payload:
+                self.queue.put_nowait(payload)
+        elif msg.type in (_aiohttp.WSMsgType.CLOSE, _aiohttp.WSMsgType.CLOSED):
+            self._logger.warning("WebSocket closed by server")
+        elif msg.type == _aiohttp.WSMsgType.ERROR:
+            self._logger.error("WebSocket error: %s", self._ws.exception())
+
+    async def run(self, _=-1) -> None:
+        self._logger.info("Running: %s", self.__class__.__name__)
+        while True:
+            await self.run_once()
+
+
 class QueueWorker(Worker):
     """Read non-CoT Messages from an async network client.
 
@@ -308,6 +577,30 @@ class QueueWorker(Worker):
             await _queue.put(data)
         else:
             _queue.put_nowait(data)
+
+
+async def _make_workers(tx_queue, rx_queue, config):
+    """Return (write_worker, read_worker) for the given config.
+
+    Dispatches to the appropriate worker pair based on the ``COT_URL`` scheme:
+    - ``marti://`` / ``marti+http://`` → Marti REST API workers
+    - ``ws://`` / ``wss://`` → WebSocket workers
+    - everything else → standard socket TXWorker / RXWorker
+    """
+    cot_url_str = config.get("COT_URL", "")
+    scheme = cot_url_str.split("://")[0].lower() if "://" in cot_url_str else ""
+
+    if scheme in ("marti", "marti+http"):
+        write_worker = await pytak.marti_txworker_factory(tx_queue, config)
+        read_worker = await pytak.marti_rxworker_factory(rx_queue, config)
+    elif scheme in ("ws", "wss"):
+        write_worker, read_worker = await pytak.ws_factory(tx_queue, rx_queue, config)
+    else:
+        reader, writer = await pytak.protocol_factory(config)
+        write_worker = pytak.TXWorker(tx_queue, config, writer)
+        read_worker = pytak.RXWorker(rx_queue, config, reader)
+
+    return write_worker, read_worker
 
 
 class CLITool:
@@ -372,9 +665,7 @@ class CLITool:
             self.rx_queue = rx_queue
         self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
 
-        reader, writer = await pytak.protocol_factory(i_config)
-        write_worker = pytak.TXWorker(tx_queue, i_config, writer)
-        read_worker = pytak.RXWorker(rx_queue, i_config, reader)
+        write_worker, read_worker = await _make_workers(tx_queue, rx_queue, i_config)
         self.add_task(write_worker)
         self.add_task(read_worker)
 
@@ -383,10 +674,9 @@ class CLITool:
 
         Creates protocols, queue workers and adds them to our task list.
         """
-        # Create our TX & RX Protocol Worker
-        reader, writer = await pytak.protocol_factory(self.config)
-        write_worker = pytak.TXWorker(self.tx_queue, self.config, writer)
-        read_worker = pytak.RXWorker(self.rx_queue, self.config, reader)
+        write_worker, read_worker = await _make_workers(
+            self.tx_queue, self.rx_queue, self.config
+        )
         self.add_task(write_worker)
         self.add_task(read_worker)
 

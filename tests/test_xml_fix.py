@@ -3,7 +3,7 @@
 Test script to verify the XML parsing fix works with real TAK server XML.
 """
 
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 
 
 def test_real_xml():

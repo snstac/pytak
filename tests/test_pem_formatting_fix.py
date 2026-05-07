@@ -5,7 +5,7 @@ Test the PEM formatting fix for v2 JSON responses.
 
 import asyncio
 import logging
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 from cryptography.hazmat.primitives.asymmetric import rsa
 import pytest
 

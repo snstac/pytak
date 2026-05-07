@@ -29,6 +29,18 @@ from configparser import ConfigParser
 from typing import Any
 from unittest import mock
 
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+    # Python < 3.8: keep __call__ sync so MagicMock records calls / fires side_effect
+    class AsyncMock(mock.MagicMock):
+        def __call__(self, *args, **kwargs):
+            super().__call__(*args, **kwargs)
+            ret = self.return_value
+            async def _coro():
+                return ret
+            return _coro()
+
 import pytest
 
 import pytak
@@ -95,22 +107,29 @@ async def test_eventworker() -> None:
     transport = mock.Mock()
     transport.write = mock.Mock()
     transport.is_closing = mock.Mock()
-    protocol._drain_helper = make_mocked_coro()
+    
+    protocol = mock.Mock()
+    protocol._drain_helper = AsyncMock()
 
-    loop = asyncio.get_event_loop()
-    writer = asyncio.StreamWriter(transport, protocol, None, loop)
+    mock_reader = mock.Mock(spec=asyncio.StreamReader)
+    mock_writer = mock.Mock(spec=asyncio.StreamWriter)
+    mock_writer.transport = transport
+    mock_writer.write = transport.write
+    mock_writer.drain = AsyncMock()
 
-    worker: pytak.Worker = pytak.TXWorker(event_queue, {}, writer)
+    with mock.patch('asyncio.open_connection', new=AsyncMock(return_value=(mock_reader, mock_writer))):
+        _, writer = await asyncio.open_connection()
+        worker: pytak.Worker = pytak.TXWorker(event_queue, {}, writer)
+        
+        await worker.run_once()
+        
+        remaining_event = await event_queue.get()
+        assert b"taco2" == remaining_event
 
-    await worker.run_once()
-    remaining_event = await event_queue.get()
-    assert b"taco2" == remaining_event
-
-    popped = transport.write.mock_calls.pop()
-
-    # Python 3.7: popped[1][0]
-    # Python 3.8+: popped.args[0]
-    assert b"taco1" == popped[1][0]
+        popped = transport.write.mock_calls.pop()
+        # Python 3.7: popped[1][0]
+        # Python 3.8+: popped.args[0]
+        assert b"taco1" == popped[1][0]
 
 
 def test_simple_cot_event_to_xml() -> None:

@@ -1,178 +1,331 @@
-PyTAK's configuration parameters can be set two ways:
+# Configuration
 
-1. In an INI-style configuration file, typically ``config.ini``
-2. As environment variables.
+PyTAK configuration can be set in two ways:
 
-PyTAK has the following built-in configuration parameters:
+1. **Environment variables** — set before running your script
+2. **INI-style config file** — typically `config.ini`, passed via your `ConfigParser`
 
-* **`COT_URL`**
-    * Default: ``udp+wo://239.2.3.1:6969`` (TAK Mesh SA, Multicast UDP, write-only)
+Both methods work identically. Environment variables take precedence.
 
-    Destination for TAK Data (Cursor on Target Events). Supported values are:
-    
-    * TLS Unicast: ``tls://host:port``
-    * TCP Unicast: ``tcp://host:port``
-    * UDP Multicast: ``udp://group:port`` (aka **Mesh SA**)
-    * UDP Unicast: ``udp://host:port``
-    * UDP Broadcast: ``udp+broadcast://network:port``
-    * UDP Write-only: ``udp+wo://host:port``
-    * stdout or stderr: ``log://stdout`` or ``log://stderr``
+**Example `config.ini`:**
 
-    **N.B.** `+wo` modifier stands for 'write-only', and allows multiple PyTAK 
-    applications to run on a single bound-interface without monopolizing a port. If you're getting a 'cannot bind to port' or 'port occupied error', try adding the `+wo` modifier.
+```ini
+[mytool]
+COT_URL = tls://takserver.example.com:8089
+PYTAK_TLS_CLIENT_CERT = /etc/pytak/client.pem
+DEBUG = 0
+```
 
+**Equivalent environment variables:**
 
-* **`TAK_PROTO`**
-    * Default: `0` ("TAK Protocol - Version 0", XML)
+```sh
+export COT_URL=tls://takserver.example.com:8089
+export PYTAK_TLS_CLIENT_CERT=/etc/pytak/client.pem
+export DEBUG=0
+```
 
-    Sets TAK Protocol to use for CoT output, one of:
+---
 
-    * `0` ("TAK Protocol - Version 0", XML)
-    * `2` ("TAK Protocol - Version 1" Mesh, Protobuf)
-    * `3` ("TAK Protocol - Version 1" Stream, Protobuf) TK (FIXME: Is this correct?)
+## Core Parameters
 
+### `COT_URL`
 
-* **`DEBUG`**
-    * Default: `0` (False)
+**Default:** `udp+wo://239.2.3.1:6969` (ATAK Mesh SA multicast, write-only)
 
-    Sets debug-level logging. Any value other than `0` is considered True. False if unset.
+The destination for CoT events. Supported URL schemes:
 
+| Scheme | Description |
+|---|---|
+| `tcp://host:port` | TCP unicast (plain text) |
+| `tls://host:port` | TLS unicast (encrypted) |
+| `udp://group:port` | UDP multicast (Mesh SA) |
+| `udp://host:port` | UDP unicast |
+| `udp+broadcast://network:port` | UDP broadcast |
+| `udp+wo://host:port` | UDP write-only (no port binding) |
+| `log://stdout` | Print to stdout (debug) |
+| `log://stderr` | Print to stderr (debug) |
+| `marti://host:port` | TAK Server Marti REST API (TLS) |
+| `marti+http://host:port` | TAK Server Marti REST API (plain HTTP) |
+| `tak://...` | TAK enrollment deep-link (see below) |
 
-* **`FTS_COMPAT`** 
-    * Default: `0` (disabled)
-    
-    If set, implements random-seconds-sleep period to avoid FTS DoS protections.
+!!! tip "Port already in use?"
+    Add the `+wo` modifier (`udp+wo://`) to run write-only without binding the port. This lets multiple PyTAK applications share a network interface.
 
+---
 
-* **`PYTAK_SLEEP`**
-    * Default: `0` (disabled)
+### `TAK_PROTO`
 
-    If set, implements given sleep period of seconds between emitting CoT Events. Only supports integers (seconds), not sub-seconds.
+**Default:** `0`
 
+TAK Protocol version for CoT output:
 
-* **`PREF_PACKAGE`**
-    
-    **N.B.** PyTAK must be installed with *with_crypto* support, or the Python `cryptography` module must be installed.
+| Value | Protocol |
+|---|---|
+| `0` | TAK Protocol v0 — plain XML (default, recommended) |
+| `1` | TAK Protocol v1 — Protobuf (requires `pytak[with_takproto]`) |
 
-    PyTAK supports importing TAK Data Packages containing TAK Server connection settings, TLS certificates, etc. 
+!!! warning "Protobuf compatibility"
+    TAK Protocol v1 may not work with all TAK clients (notably some versions of iTAK). Stick with `TAK_PROTO=0` unless you have a specific need for Protobuf.
 
-    To use a .zip file with PyTAK, set the ``PREF_PACKAGE`` config parameter to the path to the .zip file.
+---
 
-    For example, given a Pref Package named ``ADSB3_FIRE.zip``, you could either:
+### `DEBUG`
 
-    * Using ``config.ini``: Add the line ``PREF_PACKAGE=ADSB3_FIRE.zip``
-    * Using the commandline of a utility: Add the argument ``-p ADSB3_FIRE.zip``
+**Default:** `0`
 
+Set to `1` to enable verbose debug logging.
 
-* **`PYTAK_MULTICAST_LOCAL_ADDR`**
-    * Default: `0.0.0.0`
+---
 
-    For systems with multiple IP network interfaces, specifies which IP interface to use for the multicast group.
+### `FTS_COMPAT`
 
-* **`PYTAK_MULTICAST_TTL`**
-    * Default: `1`
+**Default:** `0`
 
-    For clients that are more than one hop away from the TAK broadcast network, specifies the time-to-live (TTL) of multicast packets. This is helpful when the client is hosted in a virtual machine or container with an overlay network.
+Set to `1` to enable FreeTAKServer compatibility mode. PyTAK will sleep a random number of seconds between transmissions to avoid FTS's built-in rate-limit / anti-DoS protections.
 
-* **`PYTAK_NO_HELLO`**
-    * Default: `False`
+---
 
-    Disable the "Hello" Event transmitted by PyTAK on initial connection to a TCP or UDP host.
+### `PYTAK_SLEEP`
 
+**Default:** `0` (disabled)
 
-## CoT Event Attributes
+Sleep interval in whole seconds between CoT transmissions. Use instead of `FTS_COMPAT` for a fixed sleep period.
 
-* **`COT_STALE`**
-    * Default: `120` (2 minutes)
+```ini
+PYTAK_SLEEP = 3
+```
 
-    CoT Event stale time in seconds.
+---
 
+### `PYTAK_NO_HELLO`
+
+**Default:** `False`
+
+Set to `True` to suppress the initial "Hello" CoT event that PyTAK sends when connecting to a TCP or UDP endpoint. Useful for deployments that require a quiet startup.
+
+---
+
+### `COT_STALE`
+
+**Default:** `120` (2 minutes)
+
+CoT event stale time in seconds. Events older than this are considered expired by TAK clients.
+
+---
+
+### `MAX_OUT_QUEUE`
+
+**Default:** `100`
+
+Maximum number of outgoing CoT events to buffer before dropping the oldest. Increase this if your sender produces bursts faster than the network can absorb them.
+
+---
+
+### `MAX_IN_QUEUE`
+
+**Default:** `500`
+
+Maximum number of incoming CoT events to buffer. Increase this if your receiver is processing events slower than they arrive.
+
+---
+
+## Multicast Parameters
+
+### `PYTAK_MULTICAST_LOCAL_ADDR`
+
+**Default:** `0.0.0.0`
+
+On systems with multiple network interfaces, specifies which interface IP to use for multicast. Set this to the IP of the interface connected to your TAK network.
+
+```ini
+PYTAK_MULTICAST_LOCAL_ADDR = 192.168.1.100
+```
+
+---
+
+### `PYTAK_MULTICAST_TTL`
+
+**Default:** `1`
+
+Time-to-live for multicast packets. Increase this if your TAK client is more than one network hop away (e.g. inside a VM or container with an overlay network).
+
+---
+
+## TAK Data Package Support
+
+### `PREF_PACKAGE`
+
+!!! note "Requires `pytak[with_crypto]`"
+    Install with `pip install pytak[with_crypto]` or `apt install python3-cryptography`.
+
+Path to a TAK Data Package `.zip` file containing TAK Server connection settings, TLS certificates, etc. PyTAK will import these settings automatically on startup.
+
+```ini
+PREF_PACKAGE = /path/to/MyServer.zip
+```
+
+Or pass via command line argument: `-p MyServer.zip`
+
+---
+
+## tak:// Onboarding URL {#tak-onboarding-url}
+
+!!! note "Requires `pytak[with_aiohttp]` and `pytak[with_crypto]`"
+
+PyTAK supports TAK enrollment deep-link URLs in the format used by ATAK's QR-code onboarding flow:
+
+```
+tak://com.atakmap.app/enroll?host=<host>&username=<user>&token=<secret>
+```
+
+Set this as `COT_URL` (or the `TAK_URL` environment variable):
+
+```ini
+COT_URL = tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken
+```
+
+What PyTAK does with a `tak://` URL:
+
+1. Parses the host, username, and token from the URL
+2. Checks `~/.pytak/certs/` for a valid cached certificate
+3. If no valid cert is cached, performs a full CSR → PKCS#12 enrollment against the TAK Server
+4. Caches the certificate and passphrase to disk
+5. Automatically sets `COT_URL` to `tls://<host>:8089` and configures TLS using the enrolled cert
+
+Certificates are re-enrolled automatically when they are within 7 days of expiry.
+
+---
+
+## marti:// REST API Transport
+
+!!! note "Requires `pytak[with_aiohttp]`"
+
+Send and receive CoT via the TAK Server Marti REST API instead of a raw TCP/TLS socket:
+
+```ini
+# TLS (default port 8443)
+COT_URL = marti://takserver.example.com:8443
+
+# Plain HTTP
+COT_URL = marti+http://takserver.example.com:8080
+```
+
+Additional Marti parameters:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `MARTI_COT_UID` | host ID | Client UID used to filter received CoT |
+| `MARTI_POLL_INTERVAL` | `5` | Seconds between polling for new CoT events |
+| `MARTI_POLL_SECONDS_AGO` | `30` | How far back (seconds) to fetch events per poll |
+
+---
 
 ## TLS Support
 
-PyTAK supports sending & receiving TAK Data over TLS. This section describes the various configuration parameters that can be set for TLS network connections.
+PyTAK supports full mutual-TLS (mTLS) connections to TAK Servers. Use `tls://` in `COT_URL`.
 
-**Minimum TLS Configuration**
+**Minimum TLS configuration:**
 
-At a minimum, to use TLS with PyTAK, the following two conditions must be met:
+```ini
+COT_URL = tls://takserver.example.com:8089
+PYTAK_TLS_CLIENT_CERT = /etc/pytak/client.pem
+```
 
-1. Specify ``tls://`` in the ``COT_URL`` config parameter.
-    
-    For example: ``COT_URL=tls://takserver.example.com:8089``
+The matching `CoreConfig.xml` stanza on the TAK Server:
 
-2. Specify the path to the TLS cert with the ``PYTAK_TLS_CLIENT_CERT`` config parameter.
+```xml
+<input auth="x509" _name="tlsx509" protocol="tls" port="8089" archive="false"/>
+```
 
-    For example: ``PYTAK_TLS_CLIENT_CERT=/etc/pytak-cert.pem``
+!!! note "Certificate format"
+    All cert and key files must be in unencrypted PEM format, **or** use a PKCS#12 `.p12` file combined with `PYTAK_TLS_CLIENT_PASSWORD`.
 
-**Please Note**
+### TLS Parameters
 
-* Client Certificates, Client Key, CA Certificate & Key must be specified in PEM format.
+#### `PYTAK_TLS_CLIENT_CERT`
 
-### TLS Verifications
+Path to the PEM-format client certificate. This file may contain both the certificate and the private key, or the certificate alone (in which case also set `PYTAK_TLS_CLIENT_KEY`).
 
-PyTAK uses standard TLS Verifications when establishing TLS sockets to TAK Servers.
+```ini
+PYTAK_TLS_CLIENT_CERT = /etc/pytak/client_cert_and_key.pem
+```
 
-1. TLS Server Common Name Verification
+---
 
-2. TLS Server Certificate Verification
+#### `PYTAK_TLS_CLIENT_KEY` *(optional)*
 
-### TLS Configuration Parameters
+Path to the PEM-format client private key, if not bundled with `PYTAK_TLS_CLIENT_CERT`.
 
-PyTAK can send & receive data over TLS by setting the following configuration parameters:
+---
 
-* **`PYTAK_TLS_CLIENT_CERT`**
+#### `PYTAK_TLS_CLIENT_CAFILE` *(optional)*
 
-    Path to a file containing the unencrypted plain-text PEM format Client Certificate.
-    
-    This file can contain both the Client Cert & Client Key, or the Client Cert alone. In the later case (cert alone), ``PYTAK_TLS_CLIENT_KEY`` must be set to the Client Key.
+Path to a PEM-format CA trust chain file. Required when the TAK Server uses a private CA that is not in the system trust store.
 
-    For example, to connect to a TAK Server using TLS on port 8089:
+```ini
+PYTAK_TLS_CLIENT_CAFILE = /etc/pytak/ca-chain.pem
+```
 
-        PYTAK_TLS_CLIENT_CERT=/etc/pytak_client_cert_and_key.pem
-        COT_URL=tls://takserver.example.com:8089
+---
 
-    For reference, the TAK Server `CoreConfig.xml` would contain a line like this:
+#### `PYTAK_TLS_CLIENT_PASSWORD` *(optional)*
 
-        <input auth="x509" _name="tlsx509" protocol="tls" port="8089" archive="false"/>
+Password for an encrypted private key or a PKCS#12 (`.p12`) certificate file.
 
-* **`PYTAK_TLS_CLIENT_KEY`** (optional)
+```ini
+PYTAK_TLS_CLIENT_PASSWORD = atakatak
+```
 
-    Path to a file containing the unencrypted plain-text PEM format Client Private Key for the associated 
-    ``PYTAK_TLS_CLIENT_CERT``. 
+---
 
+#### `PYTAK_TLS_DONT_VERIFY`
 
-* **`PYTAK_TLS_DONT_VERIFY`**
-    * Default: `0` (verify)
+**Default:** `0` (verify)
 
-    When set to `1` (don't verify), Disable destination TLS Certificate Verification. Will print a WARNING if set to `1`.
+Set to `1` to disable remote certificate verification. **Use with caution** — this makes the connection vulnerable to man-in-the-middle attacks. A WARNING is printed when enabled.
 
+---
 
-* **`PYTAK_TLS_DONT_CHECK_HOSTNAME`**
-    * Default: `0` (verify)
+#### `PYTAK_TLS_DONT_CHECK_HOSTNAME`
 
-    When set to `1` (don't verify), disables destination TLS Certificate Common Name (CN) Verification. Will print a WARNING if set to `1`.
+**Default:** `0` (check)
 
+Set to `1` to disable TLS hostname (CN) verification. A WARNING is printed when enabled.
 
-* **`PYTAK_TLS_CLIENT_CAFILE`** (optional)
+---
 
-    Path to a file containing the CA Trust Store to use for remote certificate verification.
+#### `PYTAK_TLS_SERVER_EXPECTED_HOSTNAME` *(optional)*
 
+Expected hostname or Common Name (CN) of the TAK Server certificate. Only used when hostname verification is active.
 
-* **`PYTAK_TLS_SERVER_EXPECTED_HOSTNAME`** (optional)
+---
 
-  Expected hostname or CN of the connected server. Not used unless verifying hostname.
+#### `PYTAK_TLS_CLIENT_CIPHERS` *(optional)*
 
+**Default:** `ALL`
 
-* **`PYTAK_TLS_CLIENT_CIPHERS`** (optional)
-    * Default: ``ALL`` 
+Colon-separated list of TLS cipher suites. Example for FIPS-only ciphers:
 
-    Colon ("`:`") seperated list of TLS Cipher Suites to allow. 
+```ini
+PYTAK_TLS_CLIENT_CIPHERS = ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
+```
 
-    For example, to set FIPS-only ciphers:
-    
-    ``PYTAK_TLS_CLIENT_CIPHERS=ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384``
+---
 
+## Certificate Enrollment Parameters
 
-* **`PYTAK_TLS_CLIENT_PASSWORD`** (optional)
+!!! note "Requires `pytak[with_aiohttp]` and `pytak[with_crypto]`"
 
-    Password for PKCS#12 (.p12) password protected certificates or password protected Private Keys.
+These parameters trigger automatic certificate enrollment from a TAK Server. Alternatively, use a `tak://` URL which handles all of this automatically.
+
+#### `PYTAK_TLS_CERT_ENROLLMENT_USERNAME`
+
+TAK Server username for certificate enrollment.
+
+#### `PYTAK_TLS_CERT_ENROLLMENT_PASSWORD`
+
+TAK Server password for certificate enrollment.
+
+#### `PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE`
+
+Passphrase to protect the enrolled certificate. If not set, a random passphrase is generated and cached to disk alongside the certificate.

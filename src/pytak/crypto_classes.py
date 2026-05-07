@@ -32,16 +32,22 @@ try:
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives.serialization import pkcs12
     USE_CRYPTOGRAPHY = True
-except ImportError as exc:
-    warnings.warn(str(exc))
+except ImportError:
+    warnings.warn(
+        "The 'cryptography' package is required but not installed. "
+        "Install it with: python3 -m pip install pytak[with-crypto]"
+    )
 
 USE_AIOHTTP = False
 try:
     import aiohttp
     from aiohttp import BasicAuth, ClientTimeout
     USE_AIOHTTP = True
-except ImportError as exc:
-    warnings.warn(str(exc))
+except ImportError:
+    warnings.warn(
+        "The 'aiohttp' package is required but not installed. "
+        "Install it with: python3 -m pip install pytak[with-aiohttp]"
+    )
 
 
 class CertificateEnrollment:
@@ -70,9 +76,8 @@ class CertificateEnrollment:
 
         if not USE_AIOHTTP:
             raise ValueError(
-                "This module requires aiohttp for asynchronous HTTP requests. "
-                "Please install it using 'pip install aiohttp'. " 
-                "See https://pytak.rtfd.io/ for more details."
+                "The 'aiohttp' package is required but not installed. "
+                "Install it with: python3 -m pip install pytak[with-aiohttp]"
             )
 
         self.logger = logging.getLogger(__name__)
@@ -173,7 +178,8 @@ class CertificateEnrollment:
         except Exception as e:
             self.logger.error(f"Error in enrollment process: {e}")
 
-    def _generate_key(self, key_size: int = 4096) -> Optional[rsa.RSAPrivateKey]:
+    #def _generate_key(self, key_size: int = 4096) -> Optional[rsa.RSAPrivateKey]:
+    def _generate_key(self, key_size: int = 4096) -> Optional:
         """
         Generate a private RSA key.
 
@@ -695,7 +701,7 @@ class CertificateEnrollment:
         ca_pems: List[str],
         private_key,
         output_path: Optional[str] = None,
-        passphrase: Optional[bytes] = None,
+        passphrase: Optional[str] = None,
     ) -> None:
         """
         Create a client certificate file (PKCS12 format).
@@ -743,14 +749,17 @@ class CertificateEnrollment:
                     raise
 
             # Create PKCS12 data
+            encryption = (
+                serialization.BestAvailableEncryption(passphrase.encode("utf-8"))
+                if passphrase
+                else serialization.NoEncryption()
+            )
             pkcs12_data = pkcs12.serialize_key_and_certificates(
                 name=b"TAK Client Cert",
                 key=private_key,
                 cert=certificate,
                 cas=ca_certificates if ca_certificates else None,
-                encryption_algorithm=serialization.BestAvailableEncryption(
-                    passphrase.encode("utf-8")
-                ),
+                encryption_algorithm=encryption,
             )
 
             # Save to file

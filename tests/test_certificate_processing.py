@@ -3,7 +3,7 @@
 Test the improved certificate processing functionality.
 """
 
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 
 import tempfile
 import os

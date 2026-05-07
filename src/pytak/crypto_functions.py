@@ -26,8 +26,8 @@ from typing import Union,Tuple
 
 
 INSTALL_MSG = (
-    "Python cryptography module not installed. Install with: "
-    " python3 -m pip install cryptography"
+    "The 'cryptography' package is required but not installed. "
+    "Install it with: python3 -m pip install pytak[with-crypto]"
 )
 
 # Check if cryptography is installed
@@ -39,8 +39,8 @@ try:
     from cryptography.hazmat.primitives.asymmetric import rsa
 
     USE_CRYPTOGRAPHY = True
-except ImportError as exc:
-    warnings.warn(str(exc))
+except ImportError:
+    warnings.warn(INSTALL_MSG)
 
 
 def save_pem(pem: bytes, dest: Union[str, None] = None) -> str:

@@ -7,12 +7,12 @@ This script tests the basic functionality without requiring a live server.
 
 import asyncio
 import unittest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
 
 
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 
 
 class AsyncTestCase(unittest.TestCase):
@@ -26,6 +26,7 @@ class AsyncTestCase(unittest.TestCase):
     def tearDown(self):
         """Clean up async test environment."""
         self.loop.close()
+        asyncio.set_event_loop(None)  # prevent stale closed loop for subsequent tests
 
     def async_test(self, coro):
         """Helper to run async tests."""

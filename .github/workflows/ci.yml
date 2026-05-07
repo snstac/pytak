@@ -1,0 +1,198 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['*']
+  pull_request:
+
+jobs:
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test requirements
+        run: make install_test_requirements
+      - name: Install package (editable)
+        run: make editable
+      - name: Lint with pylint
+        run: make pylint
+      - name: Lint with flake8
+        run: make flake8
+      - name: Test with pytest-cov
+        run: make test_cov
+
+  package-deb:
+    name: Build Debian Package
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    env:
+      DEB_BUILD_OPTIONS: nocheck
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Debian build dependencies
+        run: sudo bash debian/install_pkg_build_deps.sh
+      - name: Build Debian package
+        run: make clean install_test_requirements package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-deb
+          path: deb_dist/*.deb
+
+  package-rpm:
+    name: Build RPM Package
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    container:
+      image: fedora:latest
+    steps:
+      - name: Install build dependencies
+        run: dnf install -y git python3 python3-pip rpm-build python3-setuptools
+      - uses: actions/checkout@v4
+      - name: Build RPM package
+        run: python3 setup.py bdist_rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-rpm
+          path: dist/*.rpm
+
+  package-docker:
+    name: Build and Publish Docker Images
+    needs: [package-deb, package-rpm]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact-deb
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact-rpm
+          path: dist/
+      - name: Set release metadata
+        id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "$TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            STABLE="true"
+          else
+            STABLE="false"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "stable=$STABLE" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push deb image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/pytak-deb"
+          TAG="${{ steps.meta.outputs.tag }}"
+          docker buildx build \
+            --file Dockerfile.deb \
+            --platform linux/amd64 \
+            --tag "$IMAGE:$TAG" \
+            --push \
+            .
+          if [[ "${{ steps.meta.outputs.stable }}" == "true" ]]; then
+            docker buildx build \
+              --file Dockerfile.deb \
+              --platform linux/amd64 \
+              --tag "$IMAGE:latest" \
+              --push \
+              .
+          fi
+      - name: Build and push rpm image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/pytak-rpm"
+          TAG="${{ steps.meta.outputs.tag }}"
+          docker buildx build \
+            --file Dockerfile.rpm \
+            --platform linux/amd64 \
+            --tag "$IMAGE:$TAG" \
+            --push \
+            .
+          if [[ "${{ steps.meta.outputs.stable }}" == "true" ]]; then
+            docker buildx build \
+              --file Dockerfile.rpm \
+              --platform linux/amd64 \
+              --tag "$IMAGE:latest" \
+              --push \
+              .
+          fi
+      - name: Smoke test images
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          docker run --rm "ghcr.io/${{ github.repository_owner }}/pytak-deb:$TAG" --help >/dev/null
+          docker run --rm "ghcr.io/${{ github.repository_owner }}/pytak-rpm:$TAG" --help >/dev/null
+      - name: Publish summary
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          {
+            echo "## Container Images"
+            echo ""
+            echo "- ghcr.io/${{ github.repository_owner }}/pytak-deb:$TAG"
+            echo "- ghcr.io/${{ github.repository_owner }}/pytak-rpm:$TAG"
+            if [[ "${{ steps.meta.outputs.stable }}" == "true" ]]; then
+              echo "- ghcr.io/${{ github.repository_owner }}/pytak-deb:latest"
+              echo "- ghcr.io/${{ github.repository_owner }}/pytak-rpm:latest"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  package-pypi:
+    name: Publish to PyPI
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install build tools
+        run: pip install build
+      - name: Build distribution
+        run: python3 -m build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    name: Create GitHub Release
+    needs: [package-deb, package-rpm, package-docker]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact-deb
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact-rpm
+          path: dist/
+      - name: Create release and upload packages
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

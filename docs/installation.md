@@ -1,8 +1,8 @@
+# Installation
+
 ## Debian, Ubuntu, Raspberry Pi
 
-PyTAK is distributed as a Debian package (``.deb``). PyTAK should be compatible with most contemporary system-Python versions from Python 3.6 onward. 
-
-To install PyTAK, download the pytak package and install using apt:
+PyTAK is distributed as a Debian package (`.deb`) and is compatible with Python 3.7 and later.
 
 ```sh
 sudo apt update -qq
@@ -10,59 +10,111 @@ wget https://github.com/snstac/pytak/releases/latest/download/pytak_latest_all.d
 sudo apt install -f ./pytak_latest_all.deb
 ```
 
-### Optional TAK Data Package Support
+### Optional: TAK Data Package support
 
-To use Data Packages with PyTAK, install the optional [cryptography](https://cryptography.io/en/latest/installation/) Python package:
+Required for importing `.zip` pref packages (TLS certs, server settings):
 
 ```sh
-sudo apt update -qq
 sudo apt install -y python3-cryptography
 ```
 
-### Optional TAK Protocol - Version 1 Protobuf Support
+### Optional: TAK Protocol v1 (Protobuf) support
 
-To use "TAK Protocol - Version 1" Protobuf support, install the optional [takproto](https://github.com/snstac/takproto) Python package.
+Required for Protobuf-encoded CoT (`TAK_PROTO=1`):
 
 ```sh
-sudo apt update -qq
-wget https://github.com/snstak/takproto/releases/latest/download/takproto_latest_all.deb
+wget https://github.com/snstac/takproto/releases/latest/download/takproto_latest_all.deb
 sudo apt install -f ./takproto_latest_all.deb
 ```
 
-## Python Package
+### Optional: Marti REST API / certificate enrollment support
 
-You can install from [Python Package Index (PyPI)](https://pypi.org/) or from source. Both of these methods will require manual installation of additional libraries.
-
-### Prerequisites
-
-#### Debian, Ubuntu & Raspberry Pi OS
-
-Install [LibFFI](https://sourceware.org/libffi/):
-```sh
-sudo apt update -qq
-sudo apt install libffi-dev
-```
-
-#### CentOS & RedHat
-
-Install LibFFI:
+Required for `marti://` transport and automatic `tak://` certificate enrollment:
 
 ```sh
-sudo yum install libffi-devel
+sudo apt install -y python3-aiohttp
 ```
 
-### Install PyTAK
+---
+
+## Docker Images
+
+Prebuilt container images that install PyTAK from release packages are documented in [Docker](docker.md).
+
+---
+
+## Python Package (pip)
+
+Install from [PyPI](https://pypi.org/project/pytak/) with `pip`. This works on any platform with Python 3.7+.
 
 ```sh
 python3 -m pip install pytak
-python3 -m pip install pytak[with_crypto]
-python3 -m pip install pytak[with_takproto]
 ```
 
-## Install from Source
+### Optional extras
+
+Install one or more optional extras to unlock additional features:
+
+| Extra | Feature | Command |
+|---|---|---|
+| `with_crypto` | TAK Data Packages (`.zip` pref import) | `pip install pytak[with_crypto]` |
+| `with_takproto` | TAK Protocol v1 Protobuf | `pip install pytak[with_takproto]` |
+| `with_aiohttp` | Marti REST API & cert enrollment | `pip install pytak[with_aiohttp]` |
+
+Install everything at once:
+
+```sh
+python3 -m pip install pytak[with_crypto,with_takproto,with_aiohttp]
+```
+
+### System prerequisites
+
+Some systems need `libffi` installed before pip can build certain dependencies:
+
+=== "Debian / Ubuntu / Raspberry Pi"
+    ```sh
+    sudo apt update -qq
+    sudo apt install -y libffi-dev
+    ```
+
+=== "CentOS / RHEL"
+    ```sh
+    sudo yum install libffi-devel
+    ```
+
+---
+
+## Install from source
 
 ```sh
 git clone https://github.com/snstac/pytak.git
 cd pytak/
-python3 -m pip install .
+python3 -m pip install -e .
+```
+
+---
+
+## Windows
+
+PyTAK works on Windows with standard Python 3.7+ from [python.org](https://www.python.org/downloads/).
+
+```powershell
+python -m pip install pytak
+```
+
+!!! note "UDP multicast on Windows"
+    Windows restricts multicast socket binding. If `udp://` (Mesh SA) does not work, use `udp+wo://` (write-only) instead, or connect directly to a TAK Server via `tcp://` or `tls://`.
+
+!!! tip "Setting environment variables in PowerShell"
+    ```powershell
+    $env:COT_URL = "tcp://takserver.example.com:8087"
+    $env:DEBUG = "1"
+    ```
+
+---
+
+## Verify installation
+
+```sh
+python3 -c "import pytak; print(pytak.__version__)"
 ```

@@ -1,44 +1,209 @@
+# Troubleshooting
 
-# Common Problems
+## CoT events not appearing in TAK
 
-## My CoT Events are NOT showing up in TAK
+Work through these steps in order:
 
-1. Try setting your `COT_URL` to stdout: `COT_URL=log://stdout` - This will print the CoT events to your console or log. Use this to verify your PyTAK-derived tool is actually spitting out CoT Events.
-2. Try settting your `COT_URL` to the IP of your EUD (ATAK, iTAK, WinTAK): `COT_URL=tcp://my-phone-ip-address:4242`.
-3. If using Mesh SA, ensure your network supports Multicast. 
+**1. Verify CoT is being generated**
 
+Set `COT_URL=log://stdout` and run your tool. If CoT XML prints to the console, PyTAK is working and the problem is network connectivity or configuration.
 
-## `Enter PEM pass phrase:` Prompt
+```sh
+COT_URL=log://stdout python3 send.py
+```
 
-The `Enter PEM pass phrase:` prompt can be the result of using a private-key encrypted (password-protected) [**PYTAK_TLS_CLIENT_KEY**](https://pytak.readthedocs.io/en/latest/configuration/#tls-configuration-parameters) file. This is the default behavior of TAK Server's `makeCert.sh` tool. TAK Server's default password is defined in `CoreConfig.xml`.
+**2. Connect directly to an EUD**
 
-Depending on the security requirements in your operating environment, there are three possible procedures to choose from to resolve this prompt: 
+Bypass the TAK Server and connect directly to an ATAK/iTAK/WinTAK device on the same network:
 
-1. Set the encryption password with the [**PYTAK_TLS_CLIENT_PASSWORD**](https://pytak.readthedocs.io/en/latest/configuration/#tls-configuration-parameters) configuration parameter. For example: **PYTAK_TLS_CLIENT_PASSWORD=abc123**
-2. Remove the PEM pass phrase: `openssl rsa -in pytak.key -out pytak.nopass.key`
-2. Accept this as the way of life and enter a pass phrase every time you restart this software.
+```ini
+COT_URL = tcp://192.168.1.50:4242
+```
 
+Replace `192.168.1.50` with the device's IP. In ATAK, enable the streaming server under *Settings → Network → Streaming*.
 
-# `certificate verify failed:` Error
+**3. Check multicast support**
 
-`ssl.SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:1131)`
+If using `udp://` (Mesh SA), confirm your network switch and router support multicast. Many managed switches disable multicast by default. Try switching to `tcp://` or `udp+wo://` to rule out multicast issues.
 
-The `certificate verify failed` error indicates that the TAK Server is using a certificate that PyTAK does not trust, because it cannot be verified. This is expected behavior for TAK Servers built from the *TAK Server Setup Guide*. 
+**4. Enable debug logging**
 
-Many organizations have established their own custom Certificate Authorities (CA). With this comes the need to propagate & establish the CA's authority throughout the organization, including on end-user devices (EUD) like smartphones, tablets and computers. If and EUD holds a copy of the CA's trusted certificate, it can verify (and thus, trust) certificates signed by the CA. If an EUD lacks the CA's authoritative trust (for example, the CA's trust chain PEM is not installed on the EUD), it cannot verify or trust certificates signed by that CA. 
+```sh
+DEBUG=1 python3 send.py
+```
 
-Depending on the security requirements in your operating environment, there are two possible procedures to follow to resolve this error:
+Look for connection errors, dropped packets, or queue warnings in the output.
 
-1. Set the [**PYTAK_TLS_CLIENT_CAFILE**](https://pytak.readthedocs.io/en/latest/configuration/#tls-configuration-parameters) configuration parameter to a PEM encoded file containing the custom CA trust chain? root? store? TK
-2. Bypass remote host TLS certificate verification by setting [**PYTAK_TLS_DONT_VERIFY**](https://pytak.readthedocs.io/en/latest/configuration/#tls-configuration-parameters) to True.
+---
 
+## `Enter PEM pass phrase:` prompt
 
-# Windows Problems
+This prompt appears when your private key is password-protected (the default when using TAK Server's `makeCert.sh`).
 
-Set DEBUG env var in PowerShell:
+**Option 1 — Set the password in config (recommended):**
 
-`$env:DEBUG=1`
+```ini
+PYTAK_TLS_CLIENT_PASSWORD = atakatak
+```
 
-Check with:
+**Option 2 — Remove the passphrase from the key:**
 
-`$env:DEBUG`
+```sh
+openssl rsa -in pytak.key -out pytak.nopass.key
+```
+
+Then point `PYTAK_TLS_CLIENT_KEY` at the new file.
+
+**Option 3 — Accept the prompt** and enter the password each time PyTAK starts.
+
+---
+
+## `certificate verify failed` error
+
+```
+ssl.SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
+self signed certificate in certificate chain
+```
+
+The TAK Server is using a self-signed certificate or a certificate signed by a private CA that your system doesn't trust. This is expected for most TAK Server deployments.
+
+**Option 1 — Provide the CA chain (recommended):**
+
+Export your TAK Server's CA certificate (`ca.pem`) and set:
+
+```ini
+PYTAK_TLS_CLIENT_CAFILE = /etc/pytak/ca.pem
+```
+
+The CA cert is typically found at `/opt/tak/certs/files/ca.pem` on the TAK Server.
+
+**Option 2 — Disable verification (development only):**
+
+```ini
+PYTAK_TLS_DONT_VERIFY = 1
+```
+
+!!! warning
+    Disabling verification removes protection against man-in-the-middle attacks. Only use in isolated test environments.
+
+---
+
+## `hostname mismatch` / CN verification error
+
+```
+ssl.SSLCertVerificationError: hostname ... doesn't match
+```
+
+The certificate's Common Name (CN) doesn't match the hostname in `COT_URL`.
+
+**Option 1 — Set the expected hostname:**
+
+```ini
+PYTAK_TLS_SERVER_EXPECTED_HOSTNAME = takserver.example.com
+```
+
+**Option 2 — Disable hostname checking (development only):**
+
+```ini
+PYTAK_TLS_DONT_CHECK_HOSTNAME = 1
+```
+
+---
+
+## `aiohttp` not installed
+
+```
+ImportError: Marti HTTP transport requires aiohttp. Install with: pip install pytak[with_aiohttp]
+```
+
+The `marti://` URL scheme and `tak://` certificate enrollment require the `aiohttp` extra:
+
+```sh
+pip install pytak[with_aiohttp]
+```
+
+Or on Debian/Ubuntu:
+
+```sh
+sudo apt install -y python3-aiohttp
+```
+
+---
+
+## `takproto` not installed
+
+```
+TAK_PROTO is set to '1', but the 'takproto' Python module is not installed.
+```
+
+Install the `takproto` extra:
+
+```sh
+pip install pytak[with_takproto]
+```
+
+---
+
+## Queue full warnings
+
+```
+Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE
+```
+
+Your sender is producing events faster than the network (or your receiver) can consume them. Increase the queue size:
+
+```ini
+MAX_OUT_QUEUE = 500
+MAX_IN_QUEUE = 1000
+```
+
+Or reduce your send rate by increasing `PYTAK_SLEEP`.
+
+---
+
+## FreeTAKServer: events dropped or connection refused
+
+FTS has built-in anti-DoS rate limiting that rejects clients sending too fast. Enable compatibility mode:
+
+```ini
+FTS_COMPAT = 1
+```
+
+Or set a fixed sleep interval:
+
+```ini
+PYTAK_SLEEP = 3
+```
+
+---
+
+## Windows-specific issues
+
+**UDP multicast doesn't work**
+
+Windows restricts how multicast sockets bind. Try:
+
+- Use `udp+wo://` (write-only) instead of `udp://`
+- Connect directly via `tcp://` or `tls://`
+
+**Setting environment variables in PowerShell:**
+
+```powershell
+$env:COT_URL = "tcp://takserver.example.com:8087"
+$env:DEBUG = "1"
+$env:PYTAK_TLS_CLIENT_PASSWORD = "atakatak"
+```
+
+Check a variable:
+
+```powershell
+$env:COT_URL
+```
+
+---
+
+## Still stuck?
+
+1. Run with `DEBUG=1` and capture the full output
+2. Check [open issues](https://github.com/snstac/pytak/issues) to see if it's a known problem
+3. Open a new issue and include: your OS, Python version, PyTAK version, `COT_URL` (redact passwords), and the debug output

@@ -20,14 +20,30 @@
 
 
 import asyncio
+import os
 
 from configparser import ConfigParser, SectionProxy
 import io
+from argparse import Namespace
 from unittest import mock
 from urllib.parse import ParseResult, urlparse
 
 import pytest
 import pytak
+
+try:
+    from unittest.mock import AsyncMock
+except ImportError:
+
+    class AsyncMock(mock.MagicMock):
+        def __call__(self, *args, **kwargs):
+            super().__call__(*args, **kwargs)
+            ret = self.return_value
+
+            async def _coro():
+                return ret
+
+            return _coro()
 
 @pytest.fixture(params=["tcp", "udp"])
 def gen_url(request) -> ParseResult:
@@ -191,3 +207,103 @@ async def test_protocol_factory_unknown_url():
     config: dict = {"COT_URL": test_url1}
     with pytest.raises(Exception):
         await pytak.protocol_factory(config)
+
+
+@pytest.mark.asyncio
+async def test_main_bootstraps_downstream_create_tasks():
+    """main() should invoke the downstream create_tasks(config, clitool) contract."""
+    config_p = ConfigParser()
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+
+    fake_app = mock.MagicMock()
+    fake_tasks = {mock.sentinel.worker}
+    fake_app.create_tasks.return_value = fake_tasks
+
+    fake_clitool = mock.MagicMock()
+    fake_clitool.create_workers = AsyncMock()
+    fake_clitool.run = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.importlib.__import__", return_value=fake_app
+    ), mock.patch(
+        "pytak.client_functions.pytak.CLITool", return_value=fake_clitool
+    ):
+        await pytak.client_functions.main("fakeapp", config, config_p)
+
+    assert fake_clitool.create_workers.call_count == 1
+    assert fake_clitool.create_workers.call_args == mock.call(config)
+    fake_app.create_tasks.assert_called_once_with(config, fake_clitool)
+    fake_clitool.add_tasks.assert_called_once_with(fake_tasks)
+    assert fake_clitool.run.call_count == 1
+    assert fake_clitool.run.call_args == mock.call()
+
+
+@pytest.mark.asyncio
+async def test_main_bootstraps_import_other_configs():
+    """main() should create workers for additional config sections when enabled."""
+    config_p = ConfigParser()
+    config_p.add_section("fakeapp")
+    config_p.set("fakeapp", "IMPORT_OTHER_CONFIGS", "1")
+    config_p.add_section("secondary")
+    config_p.set("secondary", "COT_URL", "udp://239.2.3.1:6969")
+
+    config = config_p["fakeapp"]
+
+    fake_app = mock.MagicMock()
+    fake_tasks = {mock.sentinel.worker}
+    fake_app.create_tasks.return_value = fake_tasks
+
+    fake_clitool = mock.MagicMock()
+    fake_clitool.create_workers = AsyncMock()
+    fake_clitool.run = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.importlib.__import__", return_value=fake_app
+    ), mock.patch(
+        "pytak.client_functions.pytak.CLITool", return_value=fake_clitool
+    ):
+        await pytak.client_functions.main("fakeapp", config, config_p)
+
+    assert fake_clitool.create_workers.call_count == 2
+    assert fake_clitool.create_workers.call_args_list == [
+        mock.call(config),
+        mock.call(config_p["secondary"]),
+    ]
+    fake_app.create_tasks.assert_called_once_with(config, fake_clitool)
+    fake_clitool.add_tasks.assert_called_once_with(fake_tasks)
+    assert fake_clitool.run.call_count == 1
+    assert fake_clitool.run.call_args == mock.call()
+
+
+def test_cli_builds_downstream_config_and_calls_main():
+    """cli() should build config defaults expected by downstream command wrappers."""
+    fake_app = mock.MagicMock()
+    fake_app.DEFAULT_COT_STALE = "42"
+
+    fake_main = AsyncMock()
+
+    with mock.patch.dict(os.environ, {}, clear=True), mock.patch(
+        "pytak.client_functions.importlib.__import__", return_value=fake_app
+    ), mock.patch(
+        "pytak.client_functions.argparse.ArgumentParser.parse_args",
+        return_value=Namespace(CONFIG_FILE="missing.ini", PREF_PACKAGE=None),
+    ), mock.patch(
+        "pytak.client_functions.os.path.exists", return_value=False
+    ), mock.patch(
+        "pytak.client_functions.main", new=fake_main
+    ), mock.patch(
+        "pytak.client_functions.platform.node", return_value="testnode"
+    ):
+        pytak.client_functions.cli("fakeapp")
+
+    assert fake_main.call_count == 1
+    app_name, config, full_config = fake_main.call_args[0]
+
+    assert app_name == "fakeapp"
+    assert isinstance(config, SectionProxy)
+    assert isinstance(full_config, ConfigParser)
+    assert config.get("COT_URL") == pytak.DEFAULT_COT_URL
+    assert config.get("COT_HOST_ID") == "fakeapp@testnode"
+    assert config.get("COT_STALE") == "42"
+    assert config.get("TAK_PROTO") == pytak.DEFAULT_TAK_PROTO

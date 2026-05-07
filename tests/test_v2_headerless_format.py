@@ -5,7 +5,7 @@ Test the v2 endpoint format with headerless PEM certificates.
 
 import asyncio
 import logging
-from src.pytak.crypto_classes import CertificateEnrollment
+from pytak.crypto_classes import CertificateEnrollment
 from cryptography.hazmat.primitives.asymmetric import rsa
 import pytest
 
