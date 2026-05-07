@@ -19,6 +19,7 @@
 """Python Team Awareness Kit (PyTAK) Module Tests."""
 
 import asyncio
+import queue
 import urllib
 
 import pytest
@@ -31,7 +32,7 @@ __license__ = "Apache License, Version 2.0"
 
 @pytest.fixture
 def my_queue():
-    return asyncio.Queue()
+    return queue.Queue()
 
 
 @pytest.fixture
@@ -55,11 +56,12 @@ def my_writer():
 
 
 @pytest.mark.asyncio
-async def test_EventWorker(my_queue, my_writer):
+async def test_EventWorker(my_writer):
     """Tests that EventWorker processes CoT Events from a CoT Event Queue."""
     test_data = b"test test"
-    test_eventworker = pytak.TXWorker(my_queue, {}, my_writer)
-    await my_queue.put(test_data)
+    tx_queue = asyncio.Queue()
+    test_eventworker = pytak.TXWorker(tx_queue, {}, my_writer)
+    await tx_queue.put(test_data)
     await test_eventworker.run_once()
 
     assert my_writer.events.pop() == test_data
