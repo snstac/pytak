@@ -65,3 +65,17 @@ async def test_EventWorker(my_writer):
     await test_eventworker.run_once()
 
     assert my_writer.events.pop() == test_data
+
+
+def test_public_exports_for_downstream_apps():
+    """Public pytak exports used by downstream apps should remain importable."""
+    assert hasattr(pytak, "Worker")
+    assert hasattr(pytak, "QueueWorker")
+    assert hasattr(pytak, "CLITool")
+    assert hasattr(pytak, "cli")
+    assert hasattr(pytak, "parse_tak_url")
+    assert hasattr(pytak, "resolve_tak_url")
+    assert hasattr(pytak, "DEFAULT_XML_DECLARATION")
+    assert hasattr(pytak, "DEFAULT_HOST_ID")
+    assert hasattr(pytak, "DEFAULT_COT_ACCESS")
+    assert hasattr(pytak, "DEFAULT_TAK_STREAMING_PORT")

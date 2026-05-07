@@ -237,6 +237,40 @@ async def test_main_bootstraps_downstream_create_tasks():
     fake_clitool.run.assert_awaited_once_with()
 
 
+@pytest.mark.asyncio
+async def test_main_bootstraps_import_other_configs():
+    """main() should create workers for additional config sections when enabled."""
+    config_p = ConfigParser()
+    config_p.add_section("fakeapp")
+    config_p.set("fakeapp", "IMPORT_OTHER_CONFIGS", "1")
+    config_p.add_section("secondary")
+    config_p.set("secondary", "COT_URL", "udp://239.2.3.1:6969")
+
+    config = config_p["fakeapp"]
+
+    fake_app = mock.MagicMock()
+    fake_tasks = {mock.sentinel.worker}
+    fake_app.create_tasks.return_value = fake_tasks
+
+    fake_clitool = mock.MagicMock()
+    fake_clitool.create_workers = AsyncMock()
+    fake_clitool.run = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.importlib.__import__", return_value=fake_app
+    ), mock.patch(
+        "pytak.client_functions.pytak.CLITool", return_value=fake_clitool
+    ):
+        await pytak.client_functions.main("fakeapp", config, config_p)
+
+    assert fake_clitool.create_workers.await_count == 2
+    fake_clitool.create_workers.assert_any_await(config)
+    fake_clitool.create_workers.assert_any_await(config_p["secondary"])
+    fake_app.create_tasks.assert_called_once_with(config, fake_clitool)
+    fake_clitool.add_tasks.assert_called_once_with(fake_tasks)
+    fake_clitool.run.assert_awaited_once_with()
+
+
 def test_cli_builds_downstream_config_and_calls_main():
     """cli() should build config defaults expected by downstream command wrappers."""
     fake_app = mock.MagicMock()
