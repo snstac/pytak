@@ -59,10 +59,31 @@ def _pretty_xml(data: bytes) -> bytes:
     """Return *data* pretty-printed as indented XML, or the original bytes on failure."""
     try:
         root = ET.fromstring(data.decode("utf-8", errors="replace"))
-        ET.indent(root, space="  ")
+        # xml.etree.ElementTree.indent() is available in Python >=3.9.
+        # Keep a local fallback for Python 3.7/3.8 test compatibility.
+        if hasattr(ET, "indent"):
+            ET.indent(root, space="  ")
+        else:
+            _indent_xml(root, space="  ")
         return ET.tostring(root, encoding="unicode").encode("utf-8")
     except ET.ParseError:
         return data
+
+
+def _indent_xml(elem: ET.Element, level: int = 0, space: str = "  ") -> None:
+    """In-place indentation fallback for Python versions without ET.indent."""
+    indent = "\n" + (level * space)
+    child_indent = "\n" + ((level + 1) * space)
+    children = list(elem)
+    if children:
+        if not elem.text or not elem.text.strip():
+            elem.text = child_indent
+        for child in children:
+            _indent_xml(child, level + 1, space)
+            if not child.tail or not child.tail.strip():
+                child.tail = child_indent
+        if not children[-1].tail or not children[-1].tail.strip():
+            children[-1].tail = indent
 
 
 def _frame_cot_xml_events(buf: bytes):
