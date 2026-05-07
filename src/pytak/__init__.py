@@ -54,6 +54,8 @@ from .constants import (  # NOQA
     DEFAULT_MARTI_PORT,
     DEFAULT_MARTI_POLL_INTERVAL,
     DEFAULT_MARTI_POLL_SECONDS_AGO,
+    DEFAULT_WS_PATH,
+    DEFAULT_WS_PORT,
 )
 
 from .classes import (  # NOQA
@@ -67,6 +69,13 @@ from .classes import (  # NOQA
     TAKDataPackage,
     MartiTXWorker,
     MartiRXWorker,
+    WSTXWorker,
+    WSRXWorker,
+)
+
+from .cli_main import (  # NOQA
+    StdinWorker,
+    StdoutWorker,
 )
 
 from .functions import (  # NOQA
@@ -92,6 +101,7 @@ from .client_functions import (  # NOQA
     resolve_tak_url,
     marti_txworker_factory,
     marti_rxworker_factory,
+    ws_factory,
 )
 
 from . import asyncio_dgram  # NOQA

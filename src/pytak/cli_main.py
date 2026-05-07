@@ -42,6 +42,7 @@ import sys
 from configparser import RawConfigParser
 
 import pytak
+from pytak.constants import DEFAULT_WS_PATH
 
 _LOG = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ async def _resolve_tak_url(raw_url: str, cfg: dict) -> None:
     # For the CLI we use WebSocket instead: wss://hostname/takproto/1
     tak_params = pytak.parse_tak_url(raw_url)
     hostname = tak_params["hostname"]
-    ws_url = f"wss://{hostname}{pytak.DEFAULT_WS_PATH}"
+    ws_url = f"wss://{hostname}{DEFAULT_WS_PATH}"
 
     cfg.update(resolved)
     cfg["COT_URL"] = ws_url
