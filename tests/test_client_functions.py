@@ -298,7 +298,7 @@ def test_cli_builds_downstream_config_and_calls_main():
         pytak.client_functions.cli("fakeapp")
 
     assert fake_main.call_count == 1
-    app_name, config, full_config = fake_main.call_args.args
+    app_name, config, full_config = fake_main.call_args[0]
 
     assert app_name == "fakeapp"
     assert isinstance(config, SectionProxy)
