@@ -14,12 +14,13 @@ COPY dist/*.deb /tmp/
 
 RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends /tmp/*.deb \
-    && rm -rf /tmp/*.deb /var/lib/apt/lists/*
+    && rm -rf /tmp/*.deb /var/lib/apt/lists/* \
+    && python3 -m pytak --help > /dev/null
 
 RUN useradd --create-home --home-dir /home/pytak --shell /bin/bash pytak
 
 WORKDIR /home/pytak
 USER pytak
 
-ENTRYPOINT ["pytak"]
+ENTRYPOINT ["python3", "-m", "pytak"]
 CMD ["--help"]

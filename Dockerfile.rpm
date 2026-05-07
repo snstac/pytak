@@ -11,12 +11,13 @@ COPY dist/*.rpm /tmp/
 
 RUN dnf install -y /tmp/*.rpm \
     && rm -rf /tmp/*.rpm \
-    && dnf clean all
+    && dnf clean all \
+    && python3 -m pytak --help > /dev/null
 
 RUN useradd --create-home --home-dir /home/pytak --shell /bin/bash pytak
 
 WORKDIR /home/pytak
 USER pytak
 
-ENTRYPOINT ["pytak"]
+ENTRYPOINT ["python3", "-m", "pytak"]
 CMD ["--help"]
