@@ -3,6 +3,7 @@ FROM fedora:latest
 RUN dnf install -y \
       ca-certificates \
       python3 \
+      python-unversioned-command \
       python3-aiohttp \
       python3-cryptography \
     && dnf clean all
