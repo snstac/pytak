@@ -231,10 +231,12 @@ async def test_main_bootstraps_downstream_create_tasks():
     ):
         await pytak.client_functions.main("fakeapp", config, config_p)
 
-    fake_clitool.create_workers.assert_awaited_once_with(config)
+    assert fake_clitool.create_workers.call_count == 1
+    assert fake_clitool.create_workers.call_args == mock.call(config)
     fake_app.create_tasks.assert_called_once_with(config, fake_clitool)
     fake_clitool.add_tasks.assert_called_once_with(fake_tasks)
-    fake_clitool.run.assert_awaited_once_with()
+    assert fake_clitool.run.call_count == 1
+    assert fake_clitool.run.call_args == mock.call()
 
 
 @pytest.mark.asyncio
@@ -263,12 +265,15 @@ async def test_main_bootstraps_import_other_configs():
     ):
         await pytak.client_functions.main("fakeapp", config, config_p)
 
-    assert fake_clitool.create_workers.await_count == 2
-    fake_clitool.create_workers.assert_any_await(config)
-    fake_clitool.create_workers.assert_any_await(config_p["secondary"])
+    assert fake_clitool.create_workers.call_count == 2
+    assert fake_clitool.create_workers.call_args_list == [
+        mock.call(config),
+        mock.call(config_p["secondary"]),
+    ]
     fake_app.create_tasks.assert_called_once_with(config, fake_clitool)
     fake_clitool.add_tasks.assert_called_once_with(fake_tasks)
-    fake_clitool.run.assert_awaited_once_with()
+    assert fake_clitool.run.call_count == 1
+    assert fake_clitool.run.call_args == mock.call()
 
 
 def test_cli_builds_downstream_config_and_calls_main():
@@ -292,7 +297,7 @@ def test_cli_builds_downstream_config_and_calls_main():
     ):
         pytak.client_functions.cli("fakeapp")
 
-    fake_main.assert_awaited_once()
+    assert fake_main.call_count == 1
     app_name, config, full_config = fake_main.call_args.args
 
     assert app_name == "fakeapp"
