@@ -18,8 +18,10 @@
 .vagrant/
 RELEASE-VERSION.txt
 build/
+deb_dist/
 cover/
 dist/
+.venv/
 dump.rdb
 flake8.log
 local/
@@ -30,6 +32,7 @@ output.xml
 pylint.log
 redis-server.log
 redis-server/
+site/
 __pycache__
 .ipynb_checkpoints/
 config.ini

@@ -30,3 +30,12 @@ pytak = "pytak.cli_main:main"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
+testpaths = ["tests"]
+norecursedirs = [
+  ".git",
+  ".venv",
+  "build",
+  "deb_dist",
+  "dist",
+  "site",
+]
