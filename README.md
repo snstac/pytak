@@ -2,7 +2,7 @@
 
 # Python Team Awareness Kit (PyTAK)
 
-PyTAK is a Python library for building [TAK](https://tak.gov) clients, servers & gateways — things that send and receive Cursor on Target (CoT) data on TAK networks.
+PyTAK is a Python library and command-line TAK client for building small, usable [TAK](https://tak.gov) clients, servers, and gateways. It can be embedded in another application or used directly to send and receive Cursor on Target (CoT) data on TAK networks.
 
 ## Install
 
@@ -57,14 +57,14 @@ asyncio.run(main())
 
 ## Features
 
-- **TAK Protocol support** — XML (TAK Protocol v0) and Protobuf (TAK Protocol v1, via `takproto`)
-- **Multiple transports** — TCP, TLS, UDP unicast, UDP multicast (Mesh SA), UDP broadcast, file, stdout
-- **TLS client auth** — PEM certs, PKCS#12 (`.p12`), password-protected keys
-- **TAK enrollment** — automatic certificate enrollment from a `tak://` onboarding URL
-- **Marti REST API** — send/receive CoT via TAK Server's HTTP API (`marti://` URL scheme)
-- **TAK Data Packages** — import `.zip` pref packages containing server connection settings and certs
-- **FreeTAKServer compat** — built-in rate-limiting mode (`FTS_COMPAT`)
-- **No required external deps** — pure-Python asyncio core; optional extras for TLS enrollment and Protobuf
+- **TAK Protocol support**: XML (TAK Protocol v0) and Protobuf (TAK Protocol v1, via `takproto`)
+- **Multiple transports**: TCP, TLS, UDP unicast, UDP multicast (Mesh SA), UDP broadcast, file, stdout
+- **TLS client auth**: PEM certs, PKCS#12 (`.p12`), password-protected keys
+- **TAK enrollment**: automatic certificate enrollment from a `tak://` onboarding URL
+- **Marti REST API**: send/receive CoT via TAK Server's HTTP API (`marti://` URL scheme)
+- **TAK Data Packages**: import `.zip` pref packages containing server connection settings and certs
+- **FreeTAKServer compat**: built-in rate-limiting mode (`FTS_COMPAT`)
+- **No required external deps**: pure-Python asyncio core; optional extras for TLS enrollment and Protobuf
 
 ## Documentation
 
