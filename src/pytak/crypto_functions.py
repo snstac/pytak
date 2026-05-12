@@ -95,13 +95,17 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
     cert_paths["pk_pem_path"] = save_pem(pk_pem)
 
     cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
+    if additional_certificates:
+        for ca_cert in additional_certificates:
+            cert_pem += ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
     cert_paths["cert_pem_path"] = save_pem(cert_pem)
 
-    ca_cert: Certificate = additional_certificates[0]
-    ca_pem = ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
-    cert_paths["ca_pem_path"] = save_pem(ca_pem)
+    if additional_certificates:
+        ca_cert_obj: Certificate = additional_certificates[0]
+        ca_pem = ca_cert_obj.public_bytes(encoding=serialization.Encoding.PEM)
+        cert_paths["ca_pem_path"] = save_pem(ca_pem)
 
-    assert all(cert_paths)
+    assert cert_paths["pk_pem_path"] and cert_paths["cert_pem_path"]
     return cert_paths
 
 

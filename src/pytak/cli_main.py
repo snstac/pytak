@@ -36,11 +36,13 @@ Unix pipe interface to the TAK network:
 
 import argparse
 import asyncio
+import hashlib
 import logging
 import os
 import sys
 import xml.etree.ElementTree as ET
 from configparser import RawConfigParser
+from pathlib import Path
 
 import pytak
 
@@ -201,7 +203,7 @@ class StdoutWorker(pytak.QueueWorker):
 
 
 async def _resolve_tak_url(raw_url: str, cfg: dict) -> None:
-    """Enroll via a tak:// URL and update cfg in place with wss:// settings.
+    """Enroll via a tak:// URL and update cfg in place with tls:// settings.
 
     Prints progress to stderr so stdout stays clean for CoT data.
     """
@@ -221,15 +223,107 @@ async def _resolve_tak_url(raw_url: str, cfg: dict) -> None:
         print(f"[pytak] ERROR: Enrollment failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # resolve_tak_url returns COT_URL=tls://hostname:8089 (streaming port).
-    # For the CLI we use WebSocket instead: wss://hostname:8443/takproto/1
+    # resolve_tak_url returns a concrete WSS/TLS target for the enrolled cert.
+    # The default tak:// path uses the WebSocket/Marti listener on 8446, while
+    # explicit tak://...:8443 URLs keep 8443 available for test environments
+    # that expose WebSocket/Marti there.
+    cfg.update(resolved)
+    cot_url = resolved.get("COT_URL", "")
+    print(f"[pytak] Enrolled. Connecting to {cot_url}", file=sys.stderr, flush=True)
+
+
+def _is_ssl_transport_error(exc: Exception) -> bool:
+    """Return True if *exc* looks like a TLS/SSL transport failure."""
+    cur = exc
+    for _ in range(8):
+        text = f"{type(cur).__name__}: {cur}".lower()
+        if any(
+            token in text
+            for token in (
+                "ssl",
+                "tls",
+                "certificate",
+                "handshake",
+                "clientoserror",
+                "wsserverhandshakeerror",
+            )
+        ):
+            return True
+        nxt = getattr(cur, "__cause__", None) or getattr(cur, "__context__", None)
+        if not isinstance(nxt, Exception):
+            break
+        cur = nxt
+    return False
+
+
+def _is_certificate_rejected_error(exc: Exception) -> bool:
+    """Return True if *exc* indicates client certificate rejection."""
+    cur = exc
+    for _ in range(8):
+        text = f"{type(cur).__name__}: {cur}".lower()
+        if any(
+            token in text
+            for token in (
+                "certificate_unknown",
+                "unknown ca",
+                "unknown_ca",
+                "bad certificate",
+                "bad_certificate",
+                "sslv3_alert_certificate_unknown",
+            )
+        ):
+            return True
+        nxt = getattr(cur, "__cause__", None) or getattr(cur, "__context__", None)
+        if not isinstance(nxt, Exception):
+            break
+        cur = nxt
+    return False
+
+
+def _clear_tak_cert_cache(raw_url: str) -> None:
+    """Delete cached tak:// enrollment cert + passphrase for this host/user."""
+    params = pytak.parse_tak_url(raw_url)
+    hostname = params["hostname"]
+    username = params["username"]
+
+    cache_dir = Path.home() / ".pytak" / "certs"
+    key = hashlib.sha256(f"{hostname}:{username}".encode()).hexdigest()[:16]
+    p12_path = cache_dir / f"{key}.p12"
+    pass_path = cache_dir / f"{key}.pass"
+    for path in (p12_path, pass_path):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+
+
+def _tak_connection_candidates(raw_url: str, resolved_cot_url: str) -> list:
+    """Build ordered COT_URL candidates for tak:// enrollment connections."""
     tak_params = pytak.parse_tak_url(raw_url)
     hostname = tak_params["hostname"]
-    ws_url = f"wss://{hostname}:{pytak.DEFAULT_WS_PORT}{DEFAULT_WS_PATH}"
+    explicit_port = tak_params.get("explicit_port", False)
+    port = tak_params["port"] if explicit_port else pytak.DEFAULT_MARTI_PORT
 
-    cfg.update(resolved)
-    cfg["COT_URL"] = ws_url
-    print(f"[pytak] Enrolled. Connecting to {ws_url}", file=sys.stderr, flush=True)
+    candidates = [resolved_cot_url]
+
+    if resolved_cot_url.startswith("wss://"):
+        candidates.append(f"marti://{hostname}:{port}")
+        if explicit_port and port != pytak.DEFAULT_MARTI_PORT:
+            candidates.append(f"wss://{hostname}:{pytak.DEFAULT_MARTI_PORT}{DEFAULT_WS_PATH}")
+            candidates.append(f"marti://{hostname}:{pytak.DEFAULT_MARTI_PORT}")
+    elif resolved_cot_url.startswith("tls://"):
+        # Keep a streaming fallback only when the tak:// URL explicitly names
+        # the streaming port.
+        candidates.append(f"tls://{hostname}:{port}")
+
+    # Keep order but drop duplicates.
+    deduped = []
+    for url in candidates:
+        if url and url not in deduped:
+            deduped.append(url)
+    return deduped
 
 
 async def _run(args) -> None:
@@ -254,35 +348,105 @@ async def _run(args) -> None:
         cfg["PYTAK_TLS_DONT_CHECK_HOSTNAME"] = "1"
 
     # Resolve tak:// onboarding URL before building the CLITool
+    transport_candidates = [raw_url]
     if raw_url.lower().startswith("tak://"):
         await _resolve_tak_url(raw_url, cfg)
-
-    # Build a ConfigParser SectionProxy (what CLITool expects)
-    full_config = RawConfigParser()
-    full_config.add_section("pytak")
-    for k, v in cfg.items():
-        full_config.set("pytak", k, str(v))
-    config = full_config["pytak"]
-
-    clitool = pytak.CLITool(config)
-    await clitool.setup()
-
-    tasks = set()
+        transport_candidates = _tak_connection_candidates(raw_url, cfg.get("COT_URL", ""))
 
     tx_source = _get_tx_source(args, sys.stdin.isatty())
-    if tx_source == "stdin":
-        tasks.add(StdinWorker(clitool.tx_queue, config))
-    elif tx_source == "file":
-        tasks.add(FileWorker(clitool.tx_queue, config, args.tx_file))
 
-    # RX: write received CoT to stdout
-    if not args.tx_only:
-        tasks.add(StdoutWorker(clitool.rx_queue, config))
+    last_exc = None
+    is_tak_url = raw_url.lower().startswith("tak://")
+    re_enrolled_once = False
 
-    if tasks:
-        clitool.add_tasks(tasks)
+    while True:
+        cert_rejected_in_cycle = False
 
-    await clitool.run()
+        for idx, candidate_url in enumerate(transport_candidates):
+            cfg["COT_URL"] = candidate_url
+            if is_tak_url:
+                print(
+                    f"[pytak] Trying transport {idx + 1}/{len(transport_candidates)}: {candidate_url}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+            # Build a ConfigParser SectionProxy (what CLITool expects)
+            full_config = RawConfigParser()
+            full_config.add_section("pytak")
+            for k, v in cfg.items():
+                full_config.set("pytak", k, str(v))
+            config = full_config["pytak"]
+
+            clitool = pytak.CLITool(config)
+
+            try:
+                await clitool.setup()
+
+                tasks = set()
+
+                if tx_source == "stdin":
+                    tasks.add(StdinWorker(clitool.tx_queue, config))
+                elif tx_source == "file":
+                    tasks.add(FileWorker(clitool.tx_queue, config, args.tx_file))
+
+                # RX: write received CoT to stdout
+                if not args.tx_only:
+                    tasks.add(StdoutWorker(clitool.rx_queue, config))
+
+                if tasks:
+                    clitool.add_tasks(tasks)
+
+                await clitool.run()
+                return
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                last_exc = exc
+
+                has_more_candidates = idx < (len(transport_candidates) - 1)
+                if is_tak_url and has_more_candidates and _is_ssl_transport_error(exc):
+                    if _is_certificate_rejected_error(exc):
+                        cert_rejected_in_cycle = True
+                    print(
+                        f"[pytak] Transport failed ({type(exc).__name__}: {exc}). Retrying...",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    continue
+                if is_tak_url:
+                    break
+                raise
+
+        if is_tak_url and cert_rejected_in_cycle and not re_enrolled_once:
+            re_enrolled_once = True
+            print(
+                "[pytak] Certificate appears rejected by server. "
+                "Clearing cache and re-enrolling once...",
+                file=sys.stderr,
+                flush=True,
+            )
+            _clear_tak_cert_cache(raw_url)
+            await _resolve_tak_url(raw_url, cfg)
+            transport_candidates = _tak_connection_candidates(
+                raw_url, cfg.get("COT_URL", "")
+            )
+            continue
+
+        break
+
+    if last_exc is not None:
+        if is_tak_url:
+            print(
+                "[pytak] All enrolled transport candidates failed.",
+                file=sys.stderr,
+                flush=True,
+            )
+            print(
+                "[pytak] Final failure: "
+                f"{type(last_exc).__name__}: {last_exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+        raise last_exc
 
 
 def main() -> None:
@@ -299,7 +463,8 @@ URL schemes
   udp://group:port          UDP multicast — Mesh SA
   udp+wo://host:port        UDP write-only
   ws://host/path            WebSocket plain (TAK Protocol v1 Protobuf)
-  wss://host:8443/path       WebSocket TLS   (TAK Protocol v1 Protobuf)
+    wss://host:8446/path       WebSocket TLS   (default for tak://)
+    wss://host:8443/path       WebSocket TLS   (explicit tak://...:8443)
   marti://host:port         TAK Server Marti REST API (TLS)
   marti+http://host:port    TAK Server Marti REST API (plain HTTP)
   tak://...                 TAK enrollment deep-link — auto-enrolls, connects via wss://
@@ -383,6 +548,9 @@ Examples
         asyncio.run(_run(args))
     except KeyboardInterrupt:
         pass
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(f"[pytak] ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

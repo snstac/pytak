@@ -33,8 +33,14 @@ def test_convert_cert():
     # Mock the load_cert function
     with mock.patch("pytak.crypto_functions.load_cert") as mock_load_cert:
         mock_private_key = mock.Mock()
+        mock_private_key.private_bytes.return_value = b"private-key-pem"
+
         mock_cert = mock.Mock()
-        mock_additional_certificates = [mock.Mock()]
+        mock_cert.public_bytes.return_value = b"cert-pem"
+
+        mock_ca = mock.Mock()
+        mock_ca.public_bytes.return_value = b"ca-cert-pem"
+        mock_additional_certificates = [mock_ca]
 
         mock_load_cert.return_value = (
             mock_private_key,

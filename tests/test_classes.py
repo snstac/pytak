@@ -281,3 +281,53 @@ def test_clitool_init(config, tx_queue, rx_queue):
 async def test_clitool_hello_event(cli_tool, tx_queue):
     await cli_tool.hello_event()
     assert tx_queue.qsize() == 1
+
+
+@pytest.mark.asyncio
+async def test_clitool_run_propagates_worker_exception(cli_tool):
+    class _FailingWorker:
+        async def run(self):
+            raise RuntimeError("boom")
+
+        async def close(self):
+            return
+
+    cli_tool.add_task(_FailingWorker())
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await cli_tool.run()
+
+
+@pytest.mark.asyncio
+async def test_clitool_run_closes_workers_on_exception(cli_tool):
+    class _FailingWorker:
+        def __init__(self):
+            self.closed = False
+
+        async def run(self):
+            raise RuntimeError("boom")
+
+        async def close(self):
+            self.closed = True
+
+    class _BlockingWorker:
+        def __init__(self):
+            self.closed = False
+
+        async def run(self):
+            while True:
+                await asyncio.sleep(1)
+
+        async def close(self):
+            self.closed = True
+
+    failing = _FailingWorker()
+    blocking = _BlockingWorker()
+    cli_tool.add_task(failing)
+    cli_tool.add_task(blocking)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await cli_tool.run()
+
+    assert failing.closed is True
+    assert blocking.closed is True

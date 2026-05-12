@@ -221,6 +221,10 @@ class Worker:
             await self.run_once()
             await asyncio.sleep(0)  # make sure other tasks have a chance to run
 
+    async def close(self) -> None:
+        """Release resources held by this worker (override where needed)."""
+        return
+
 
 class TXWorker(Worker):
     """Works data queue and hands off to Protocol Workers.
@@ -350,6 +354,30 @@ def _extract_cot_events(text: str) -> list:
     return re.findall(r"<event\b[^>]*>.*?</event>", text, re.DOTALL)
 
 
+def _is_fatal_tls_cert_error(exc: Exception) -> bool:
+    """Return True when *exc* indicates server-side client-cert rejection."""
+    cur = exc
+    for _ in range(8):
+        text = f"{type(cur).__name__}: {cur}".lower()
+        if any(
+            token in text
+            for token in (
+                "certificate_unknown",
+                "unknown ca",
+                "unknown_ca",
+                "bad certificate",
+                "bad_certificate",
+                "sslv3_alert_certificate_unknown",
+            )
+        ):
+            return True
+        nxt = getattr(cur, "__cause__", None) or getattr(cur, "__context__", None)
+        if not isinstance(nxt, Exception):
+            break
+        cur = nxt
+    return False
+
+
 class MartiTXWorker(Worker):
     """Transmit CoT events to a TAK Server via the Marti REST API.
 
@@ -381,7 +409,15 @@ class MartiTXWorker(Worker):
                         "Marti inject returned HTTP %s", resp.status
                     )
         except Exception as exc:
+            if _is_fatal_tls_cert_error(exc):
+                raise PermissionError(
+                    f"Marti TX rejected client certificate: {exc}"
+                ) from exc
             self._logger.error("Marti TX error: %s", exc)
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
 
 
 class MartiRXWorker(Worker):
@@ -431,7 +467,15 @@ class MartiRXWorker(Worker):
                 else:
                     self._logger.debug("Marti RX returned HTTP %s", resp.status)
         except Exception as exc:
+            if _is_fatal_tls_cert_error(exc):
+                raise PermissionError(
+                    f"Marti RX rejected client certificate: {exc}"
+                ) from exc
             self._logger.error("Marti RX error: %s", exc)
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
 
     async def run(self, _=-1) -> None:
         self._logger.info("Running: %s", self.__class__.__name__)
@@ -473,7 +517,7 @@ class WSTXWorker(Worker):
         try:
             await self._ws.send_bytes(data)
         except Exception as exc:
-            self._logger.error("WS TX send error: %s", exc)
+            raise ConnectionError(f"WebSocket TX send failed: {exc}") from exc
 
     async def close(self) -> None:
         try:
@@ -525,9 +569,9 @@ class WSRXWorker(Worker):
             if payload:
                 self.queue.put_nowait(payload)
         elif msg.type in (_aiohttp.WSMsgType.CLOSE, _aiohttp.WSMsgType.CLOSED):
-            self._logger.warning("WebSocket closed by server")
+            raise ConnectionAbortedError("WebSocket closed by server")
         elif msg.type == _aiohttp.WSMsgType.ERROR:
-            self._logger.error("WebSocket error: %s", self._ws.exception())
+            raise ConnectionError(f"WebSocket error: {self._ws.exception()}")
 
     async def run(self, _=-1) -> None:
         self._logger.info("Running: %s", self.__class__.__name__)
@@ -699,8 +743,24 @@ class CLITool:
     def run_task(self, task):
         """Run the given coroutine task."""
         self._logger.debug("Run Task: %s", task)
-        self.running_tasks.add(asyncio.ensure_future(task.run()))
+        future = asyncio.ensure_future(task.run())
+        setattr(future, "_pytak_worker", task)
+        self.running_tasks.add(future)
         # self.running_tasks.add(run_coroutine_in_thread(task.run()))
+
+    async def _close_running_workers(self, tasks: Set[asyncio.Task]) -> None:
+        """Close worker resources associated with completed/pending tasks."""
+        workers = []
+        for task in tasks:
+            worker = getattr(task, "_pytak_worker", None)
+            if worker is not None and worker not in workers:
+                workers.append(worker)
+
+        for worker in workers:
+            try:
+                await worker.close()
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                self._logger.debug("Worker close error for %s: %s", worker, exc)
 
     def run_tasks(self, tasks=None):
         """Run the given list or set of couroutine tasks."""
@@ -718,12 +778,26 @@ class CLITool:
 
         self.run_tasks()
 
-        done, _ = await asyncio.wait(
-            self.running_tasks, return_when=asyncio.FIRST_COMPLETED
+        done, pending = await asyncio.wait(
+            self.running_tasks, return_when=asyncio.FIRST_EXCEPTION
         )
 
-        for task in done:
-            self._logger.info("Complete: %s", task)
+        failing_exc = None
+        try:
+            for task in done:
+                self._logger.info("Complete: %s", task)
+                exc = task.exception()
+                if exc is not None and failing_exc is None:
+                    failing_exc = exc
+
+            if failing_exc is not None:
+                for pending_task in pending:
+                    pending_task.cancel()
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+                raise failing_exc
+        finally:
+            await self._close_running_workers(done | pending)
 
 
 @dataclass

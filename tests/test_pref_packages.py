@@ -78,10 +78,16 @@ def test_load_convert_cert():
         with open(pk_pem_path, "rb+") as pk_fd:
             assert pk_fd.read() == test_pk
 
-    with open(__folder__ + "/data/test_user_cert.pem", "rb+") as tc_fd:
-        test_cert = tc_fd.read()
-        with open(cert_pem_path, "rb+") as ck_fd:
-            assert ck_fd.read() == test_cert
+    with open(__folder__ + "/data/test_user_cert.pem", "rb") as tc_fd:
+        test_leaf_cert = tc_fd.read()
+    with open(__folder__ + "/data/test_ca_cert.pem", "rb") as ca_fd:
+        test_ca_cert = ca_fd.read()
+    with open(cert_pem_path, "rb") as ck_fd:
+        cert_chain = ck_fd.read()
+    # cert_pem_path must contain the leaf cert and (when present) the CA cert
+    assert cert_chain.startswith(test_leaf_cert)
+    if test_ca_cert:
+        assert test_ca_cert in cert_chain
 
     with open(__folder__ + "/data/test_ca_cert.pem", "rb+") as tc_fd:
         test_cert = tc_fd.read()

@@ -11,7 +11,9 @@
 
 import asyncio
 import io
+import hashlib
 from argparse import Namespace
+from pathlib import Path
 from unittest import mock
 
 try:
@@ -34,9 +36,13 @@ from pytak.cli_main import (
     FileWorker,
     StdinWorker,
     StdoutWorker,
+    _clear_tak_cert_cache,
+    _is_certificate_rejected_error,
     _frame_cot_xml_events,
     _get_tx_source,
+    _is_ssl_transport_error,
     _resolve_tak_url,
+    _tak_connection_candidates,
 )
 
 
@@ -212,8 +218,8 @@ def test_get_tx_source_raises_on_ambiguous_input():
 
 
 @pytest.mark.asyncio
-async def test_resolve_tak_url_sets_wss_url():
-    """_resolve_tak_url should convert tls:// in resolved config to wss://."""
+async def test_resolve_tak_url_sets_tls_url():
+    """_resolve_tak_url should use the tls:// COT_URL from resolve_tak_url directly."""
     tak_url = (
         "tak://com.atakmap.app/enroll?host=takserver.example.com&"
         "username=user&token=tok"
@@ -233,8 +239,7 @@ async def test_resolve_tak_url_sets_wss_url():
     ):
         await _resolve_tak_url(tak_url, cfg)
 
-    assert cfg["COT_URL"].startswith("wss://takserver.example.com")
-    assert "/takproto/1" in cfg["COT_URL"]
+    assert cfg["COT_URL"] == "tls://takserver.example.com:8089"
     assert cfg["PYTAK_TLS_CLIENT_CERT"] == "/tmp/fake.p12"
 
 
@@ -255,6 +260,77 @@ async def test_resolve_tak_url_exits_on_import_error(capsys):
 
     captured = capsys.readouterr()
     assert "pip install" in captured.err
+
+
+def test_tak_connection_candidates_order_and_uniqueness():
+    """tak:// candidate list should be ordered and deduplicated."""
+    tak_url = (
+        "tak://com.atakmap.app/enroll?host=takserver.example.com&"
+        "username=user&token=tok"
+    )
+    candidates = _tak_connection_candidates(
+        tak_url,
+        "wss://takserver.example.com:8443/takproto/1",
+    )
+
+    assert candidates[0] == "wss://takserver.example.com:8443/takproto/1"
+    assert "marti://takserver.example.com:8443" in candidates
+    assert candidates.index("wss://takserver.example.com:8443/takproto/1") < candidates.index("marti://takserver.example.com:8443")
+    assert len(candidates) == len(set(candidates))
+
+
+def test_tak_connection_candidates_keep_explicit_8443():
+    """tak://...:8443 should keep 8443 in the candidate list."""
+    tak_url = (
+        "tak://com.atakmap.app/enroll?host=takserver.example.com:8443&"
+        "username=user&token=tok"
+    )
+    candidates = _tak_connection_candidates(
+        tak_url,
+        "wss://takserver.example.com:8443/takproto/1",
+    )
+
+    assert candidates[0] == "wss://takserver.example.com:8443/takproto/1"
+    assert "marti://takserver.example.com:8443" in candidates
+    assert candidates.index("wss://takserver.example.com:8443/takproto/1") < candidates.index("marti://takserver.example.com:8443")
+
+
+def test_is_ssl_transport_error_detects_nested_causes():
+    """SSL helper should detect SSL failures in nested exception causes."""
+    root = RuntimeError("SSLV3_ALERT_CERTIFICATE_UNKNOWN")
+    wrapper = RuntimeError("transport failed")
+    wrapper.__cause__ = root
+
+    assert _is_ssl_transport_error(wrapper) is True
+    assert _is_ssl_transport_error(RuntimeError("plain error")) is False
+
+
+def test_is_certificate_rejected_error_detects_known_strings():
+    """Certificate rejection helper should catch typical TLS alert strings."""
+    err = RuntimeError("[SSL: SSLV3_ALERT_CERTIFICATE_UNKNOWN]")
+    assert _is_certificate_rejected_error(err) is True
+    assert _is_certificate_rejected_error(RuntimeError("other ssl error")) is False
+
+
+def test_clear_tak_cert_cache_removes_cached_files(tmp_path):
+    """Cache clearing helper should remove both p12 and pass files."""
+    tak_url = (
+        "tak://com.atakmap.app/enroll?host=takserver.example.com&"
+        "username=user&token=tok"
+    )
+    cache_dir = tmp_path / ".pytak" / "certs"
+    cache_dir.mkdir(parents=True)
+    key = hashlib.sha256("takserver.example.com:user".encode()).hexdigest()[:16]
+    p12 = cache_dir / f"{key}.p12"
+    pwd = cache_dir / f"{key}.pass"
+    p12.write_text("x")
+    pwd.write_text("y")
+
+    with mock.patch("pytak.cli_main.Path.home", return_value=Path(tmp_path)):
+        _clear_tak_cert_cache(tak_url)
+
+    assert not p12.exists()
+    assert not pwd.exists()
 
 
 # ---------------------------------------------------------------------------

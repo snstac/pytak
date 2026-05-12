@@ -50,6 +50,7 @@ def test_parse_tak_url_full():
     assert result["port"] == 8089
     assert result["username"] == "alice"
     assert result["token"] == "supersecrettoken"
+    assert result["explicit_port"] is True
 
 
 def test_parse_tak_url_no_port():
@@ -58,6 +59,7 @@ def test_parse_tak_url_no_port():
     assert result["hostname"] == "tak.example.com"
     assert result["port"] == pytak.DEFAULT_TAK_STREAMING_PORT
     assert result["username"] == "bob"
+    assert result["explicit_port"] is False
 
 
 def test_parse_tak_url_default_port_value():
@@ -90,6 +92,7 @@ def test_parse_tak_url_url_encoded_values():
     assert result["hostname"] == "tak.example.com"
     assert result["port"] == 8089
     assert result["username"] == "alice@org"
+    assert result["explicit_port"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -245,8 +248,33 @@ async def test_resolve_tak_url_uses_cached_cert(tmp_path):
         result = await resolve_tak_url(url)
         mock_enroll.assert_not_called()
 
-    assert result["COT_URL"] == f"tls://tak.example.com:{pytak.DEFAULT_TAK_STREAMING_PORT}"
+    assert result["COT_URL"] == f"wss://tak.example.com:{pytak.DEFAULT_MARTI_PORT}{pytak.DEFAULT_WS_PATH}"
     assert result["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == "stored_passphrase"
+
+
+@pytest.mark.asyncio
+async def test_resolve_tak_url_defaults_to_wss_8446_when_no_port(tmp_path):
+    """resolve_tak_url should prefer the 8446 WebSocket/Marti listener by default."""
+    url = "tak://com.atakmap.app/enroll?host=tak.example.com&username=alice&token=secret"
+
+    mock_p12 = tmp_path / "cert.p12"
+
+    def fake_enroll(*a, **kw):
+        mock_p12.write_bytes(b"fakep12data")
+        return None
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(mock_p12), str(tmp_path / "cert.pass")),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=False
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ):
+        result = await resolve_tak_url(url)
+
+    assert result["COT_URL"] == f"wss://tak.example.com:{pytak.DEFAULT_MARTI_PORT}{pytak.DEFAULT_WS_PATH}"
 
 
 @pytest.mark.asyncio

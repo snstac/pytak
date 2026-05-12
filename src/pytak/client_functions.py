@@ -60,10 +60,10 @@ def parse_tak_url(tak_url: str) -> dict:
     Supported format:
         tak://com.atakmap.app/enroll?host=<host>&username=<user>&token=<secret>
 
-    ``host`` may include an explicit port (e.g. ``takserver.example.com:8089``);
-    if omitted the default TAK streaming port is used.
+    ``host`` may include an explicit port (e.g. ``takserver.example.com:8443``).
+    If omitted, PyTAK uses the default TAK WebSocket/Marti port.
 
-    Returns a dict with keys: hostname, port, username, token.
+    Returns a dict with keys: hostname, port, username, token, explicit_port.
     """
     parsed = urlparse(tak_url.strip())
     if parsed.scheme.lower() != "tak":
@@ -85,14 +85,23 @@ def parse_tak_url(tak_url: str) -> dict:
         hostname, port_str = host_param.rsplit(":", 1)
         try:
             port = int(port_str)
+            explicit_port = True
         except ValueError:
             hostname = host_param
             port = pytak.DEFAULT_TAK_STREAMING_PORT
+            explicit_port = False
     else:
         hostname = host_param
         port = pytak.DEFAULT_TAK_STREAMING_PORT
+        explicit_port = False
 
-    return {"hostname": hostname, "port": port, "username": username, "token": token}
+    return {
+        "hostname": hostname,
+        "port": port,
+        "username": username,
+        "token": token,
+        "explicit_port": explicit_port,
+    }
 
 
 def _cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
@@ -138,8 +147,13 @@ async def resolve_tak_url(tak_url: str) -> dict:
     when no valid cached cert is found, and returns a config dict ready for
     ``config.update()``.
 
-    The returned dict sets:
-      - ``COT_URL`` → ``tls://<hostname>:<port>``
+        The returned dict sets:
+            - ``COT_URL`` → ``wss://<hostname>:8443/takproto/1`` by default when the
+                URL omits an explicit port
+            - ``COT_URL`` → ``wss://<hostname>:<port>/takproto/1`` when the URL
+                explicitly names a non-streaming port such as ``8443``
+            - ``COT_URL`` → ``tls://<hostname>:8089`` when the URL explicitly names
+                the TAK streaming port
       - ``PYTAK_TLS_CLIENT_CERT`` → path to the cached .p12
       - ``PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE`` → p12 password
       - ``PYTAK_TLS_DONT_VERIFY`` / ``PYTAK_TLS_DONT_CHECK_HOSTNAME`` → ``"1"``
@@ -148,6 +162,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
     params = parse_tak_url(tak_url)
     hostname = params["hostname"]
     port = params["port"]
+    explicit_port = params["explicit_port"]
     username = params["username"]
     token = params["token"]
 
@@ -186,8 +201,15 @@ async def resolve_tak_url(tak_url: str) -> dict:
         os.chmod(p12_path, 0o600)
         logging.info("TAK client certificate cached at %s", p12_path)
 
+    if explicit_port and port == pytak.DEFAULT_TAK_STREAMING_PORT:
+        cot_url = f"tls://{hostname}:{port}"
+    else:
+        if not explicit_port:
+            port = pytak.DEFAULT_MARTI_PORT
+        cot_url = f"wss://{hostname}:{port}{pytak.DEFAULT_WS_PATH}"
+
     return {
-        "COT_URL": f"tls://{hostname}:{port}",
+        "COT_URL": cot_url,
         "PYTAK_TLS_CLIENT_CERT": p12_path,
         "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE": passphrase,
         "PYTAK_TLS_DONT_VERIFY": "1",

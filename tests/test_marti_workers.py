@@ -146,6 +146,23 @@ async def test_marti_tx_worker_logs_non_200():
     mock_session.post.assert_called_once()
 
 
+@pytest.mark.asyncio
+async def test_marti_tx_worker_raises_on_cert_rejection():
+    """MartiTXWorker should fail fast when server rejects client certificate."""
+    queue = asyncio.Queue()
+
+    mock_session = mock.MagicMock()
+    mock_session.post = mock.MagicMock(
+        side_effect=RuntimeError(
+            "[SSL: SSLV3_ALERT_CERTIFICATE_UNKNOWN] sslv3 alert certificate unknown"
+        )
+    )
+
+    worker = MartiTXWorker(queue, {}, mock_session, "https://tak.example.com:8443", "uid")
+    with pytest.raises(PermissionError):
+        await worker.handle_data(SAMPLE_COT)
+
+
 # ---------------------------------------------------------------------------
 # MartiRXWorker
 # ---------------------------------------------------------------------------
@@ -195,6 +212,23 @@ async def test_marti_rx_worker_handles_http_error():
     worker = MartiRXWorker(queue, {}, mock_session, "https://tak.example.com:8443")
     await worker.run_once()
     assert queue.qsize() == 0
+
+
+@pytest.mark.asyncio
+async def test_marti_rx_worker_raises_on_cert_rejection():
+    """MartiRXWorker should fail fast when server rejects client certificate."""
+    queue = asyncio.Queue()
+
+    mock_session = mock.MagicMock()
+    mock_session.get = mock.MagicMock(
+        side_effect=RuntimeError(
+            "[SSL: SSLV3_ALERT_CERTIFICATE_UNKNOWN] sslv3 alert certificate unknown"
+        )
+    )
+
+    worker = MartiRXWorker(queue, {}, mock_session, "https://tak.example.com:8443")
+    with pytest.raises(PermissionError):
+        await worker.run_once()
 
 
 # ---------------------------------------------------------------------------
