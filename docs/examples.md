@@ -70,6 +70,18 @@ After the first run, the enrolled certificate is cached in `~/.pytak/certs/` and
 
 If your TAK admin provided a `tak://` onboarding URL (e.g. via QR code), pass it directly as `COT_URL`. PyTAK handles enrollment and TLS setup automatically.
 
+Command-line usage:
+
+```sh
+pytak "tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken"
+```
+
+If you need to force a specific WebSocket/Marti port, include it in `host=`:
+
+```sh
+pytak "tak://com.atakmap.app/enroll?host=takserver.example.com:8443&username=myuser&token=mytoken"
+```
+
 ```python
 import asyncio
 from configparser import ConfigParser

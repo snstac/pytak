@@ -10,6 +10,20 @@ PyTAK is a Python library for building [TAK](https://tak.gov) clients, servers &
 python3 -m pip install pytak
 ```
 
+## Command-line example
+
+Connect with a TAK onboarding URL directly from the CLI:
+
+```sh
+pytak "tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken"
+```
+
+To force a specific WebSocket/Marti port, include it in the `host=` value:
+
+```sh
+pytak "tak://com.atakmap.app/enroll?host=takserver.example.com:8443&username=myuser&token=mytoken"
+```
+
 ## Quick example
 
 ```python

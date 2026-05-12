@@ -184,13 +184,27 @@ Set this as `COT_URL` (or the `TAK_URL` environment variable):
 COT_URL = tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken
 ```
 
+CLI usage:
+
+```sh
+pytak "tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken"
+```
+
+To force a specific WebSocket/Marti port, include it in `host=`:
+
+```sh
+pytak "tak://com.atakmap.app/enroll?host=takserver.example.com:8443&username=myuser&token=mytoken"
+```
+
 What PyTAK does with a `tak://` URL:
 
 1. Parses the host, username, and token from the URL
 2. Checks `~/.pytak/certs/` for a valid cached certificate
 3. If no valid cert is cached, performs a full CSR → PKCS#12 enrollment against the TAK Server
 4. Caches the certificate and passphrase to disk
-5. Automatically sets `COT_URL` to `tls://<host>:8089` and configures TLS using the enrolled cert
+5. Automatically sets `COT_URL` to `wss://<host>:8443/takproto/1` by default and configures TLS using the enrolled cert
+
+If the onboarding URL explicitly includes a port in `host=`, PyTAK uses that port instead. When the explicit port is the TAK streaming port (`8089`), PyTAK keeps `tls://<host>:8089`.
 
 Certificates are re-enrolled automatically when they are within 7 days of expiry.
 
