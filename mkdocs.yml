@@ -70,6 +70,7 @@ nav:
   - Installation: installation.md
   - Docker: docker.md
   - Configuration: configuration.md
+  - Onboarding packages: onboarding.md
   - Examples: examples.md
   - Compatibility: compatibility.md
   - Clients: clients.md

@@ -343,3 +343,31 @@ def test_cli_workers_exported():
     import pytak
     assert hasattr(pytak, "StdinWorker")
     assert hasattr(pytak, "StdoutWorker")
+
+
+def test_main_dispatches_dp_subcommand():
+    """main() should route 'pytak dp ...' to dp_main."""
+    tak_url = (
+        "tak://com.atakmap.app/enroll?host=tak.example.com&"
+        "username=u&token=t"
+    )
+    fake_result = {
+        "package_folder": "/tmp/pkg",
+        "data_package_zip": "/tmp/pkg/u-atak-connection.zip",
+        "data_package_itak_zip": "/tmp/pkg/u-itak-connection.zip",
+        "streaming_connect_string": "tak.example.com:8089:ssl",
+        "pkcs12_password": "secret",
+        "enrollment": {
+            "pkcs12_path": "/tmp/pkg/certs/u.p12",
+            "certificate_path": "/tmp/pkg/certs/u.pem",
+            "private_key_path": "/tmp/pkg/certs/u-key.pem",
+            "ca_bundle_path": "/tmp/pkg/certs/u-ca.pem",
+            "pkcs12_truststore_path": "/tmp/pkg/certs/u-trust.p12",
+        },
+    }
+    with mock.patch("pytak.cli_main.dp_main") as dp_mock:
+        with mock.patch("sys.argv", ["pytak", "dp", tak_url]):
+            from pytak.cli_main import main
+
+            main()
+    dp_mock.assert_called_once_with([tak_url])

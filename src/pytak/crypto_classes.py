@@ -22,7 +22,7 @@ from pathlib import Path
 import urllib
 import warnings
 
-from pytak.crypto_functions import INSTALL_MSG
+from pytak.crypto_functions import INSTALL_MSG, serialize_pkcs12_bundle
 
 
 USE_CRYPTOGRAPHY = False
@@ -748,18 +748,13 @@ class CertificateEnrollment:
                     )
                     raise
 
-            # Create PKCS12 data
-            encryption = (
-                serialization.BestAvailableEncryption(passphrase.encode("utf-8"))
-                if passphrase
-                else serialization.NoEncryption()
-            )
-            pkcs12_data = pkcs12.serialize_key_and_certificates(
+            # PKCS#12 with ATAK-compatible encryption (legacy PBE, not PBES2/AES-256).
+            pkcs12_data = serialize_pkcs12_bundle(
+                private_key=private_key,
+                certificate=certificate,
+                ca_certificates=ca_certificates,
+                passphrase=passphrase or "",
                 name=b"TAK Client Cert",
-                key=private_key,
-                cert=certificate,
-                cas=ca_certificates if ca_certificates else None,
-                encryption_algorithm=encryption,
             )
 
             # Save to file

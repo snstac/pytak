@@ -18,11 +18,13 @@ Connect with a TAK onboarding URL directly from the CLI:
 pytak "tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken"
 ```
 
-To force a specific WebSocket/Marti port, include it in the `host=` value:
+Generate onboarding data packages (PKCS#12, PEM, ATAK + iTAK ZIPs) without connecting:
 
 ```sh
-pytak "tak://com.atakmap.app/enroll?host=takserver.example.com:8443&username=myuser&token=mytoken"
+pytak dp 'tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken'
 ```
+
+See [Onboarding data packages](https://pytak.rtfd.io/en/latest/onboarding/) in the docs.
 
 ## Quick example
 
@@ -58,12 +60,11 @@ asyncio.run(main())
 ## Features
 
 - **TAK Protocol support**: XML (TAK Protocol v0) and Protobuf (TAK Protocol v1, via `takproto`)
-- **Multiple transports**: TCP, TLS, UDP unicast, UDP multicast (Mesh SA), UDP broadcast, file, stdout
+- **Multiple transports**: TCP, TLS, UDP unicast, UDP multicast (Mesh SA), UDP broadcast, file, stdout, WebSockets
 - **TLS client auth**: PEM certs, PKCS#12 (`.p12`), password-protected keys
-- **TAK enrollment**: automatic certificate enrollment from a `tak://` onboarding URL
+- **TAK enrollment**: automatic certificate enrollment from a `tak://` onboarding URL; `pytak dp` exports ATAK/iTAK connection packages
 - **Marti REST API**: send/receive CoT via TAK Server's HTTP API (`marti://` URL scheme)
 - **TAK Data Packages**: import `.zip` pref packages containing server connection settings and certs
-- **FreeTAKServer compat**: built-in rate-limiting mode (`FTS_COMPAT`)
 - **No required external deps**: pure-Python asyncio core; optional extras for TLS enrollment and Protobuf
 
 ## Documentation

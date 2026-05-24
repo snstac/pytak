@@ -449,8 +449,128 @@ async def _run(args) -> None:
         raise last_exc
 
 
+def dp_main(argv: list = None) -> None:
+    """Enroll via ``tak://`` URL and write onboarding data packages."""
+    parser = argparse.ArgumentParser(
+        prog="pytak dp",
+        description=(
+            "Enroll via a TAK deep-link and write PKCS#12/PEM certs plus "
+            "ATAK and iTAK connection data packages."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples
+--------
+  pytak dp 'tak://com.atakmap.app/enroll?host=takserver.example.com&username=user&token=secret'
+  pytak dp 'tak://...' -o ./packages --package-stem mydevice -v
+""",
+    )
+    parser.add_argument(
+        "enrollment_url",
+        help="ATAK enrollment URI (tak://com.atakmap.app/enroll?host=...&username=...&token=...)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        default="data-packages",
+        metavar="DIR",
+        help="Parent directory; creates <stem>/ with certs/ and ZIPs (default: data-packages)",
+    )
+    parser.add_argument(
+        "--package-stem",
+        metavar="NAME",
+        help="Subfolder and file base name (default: sanitized enrollment username)",
+    )
+    parser.add_argument(
+        "--streaming-host",
+        metavar="HOST",
+        help="Hostname in CoT connectString (default: host from enrollment URL)",
+    )
+    parser.add_argument(
+        "--streaming-port",
+        type=int,
+        default=pytak.DEFAULT_TAK_STREAMING_PORT,
+        help=f"CoT streaming port in connectString (default: {pytak.DEFAULT_TAK_STREAMING_PORT})",
+    )
+    parser.add_argument(
+        "--dp-callsign",
+        metavar="CALLSIGN",
+        help="locationCallsign in data package prefs (default: enrollment username)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print extra detail on stderr",
+    )
+
+    args = parser.parse_args(argv)
+
+    if not args.enrollment_url.strip().lower().startswith("tak://"):
+        parser.error("enrollment_url must be a tak:// enrollment deep-link")
+
+    log_level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.basicConfig(level=log_level, format="%(levelname)s %(name)s: %(message)s")
+
+    print("[pytak] Enrolling via TAK URL ...", file=sys.stderr, flush=True)
+    try:
+        from pytak.onboarding_packages import enroll_onboarding_package
+    except ImportError as exc:
+        print(
+            "[pytak] ERROR: pytak dp requires pytak[with-aiohttp,with-crypto].\n"
+            "        python3 -m pip install pytak[with-aiohttp,with-crypto]\n"
+            f"        {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    try:
+        result = asyncio.run(
+            enroll_onboarding_package(
+                args.enrollment_url,
+                args.output_dir,
+                package_stem=args.package_stem,
+                streaming_host=args.streaming_host,
+                streaming_port=args.streaming_port,
+                location_callsign=args.dp_callsign,
+            )
+        )
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(f"[pytak] ERROR: Enrollment failed: {exc}", file=sys.stderr)
+        if args.verbose:
+            import traceback
+
+            traceback.print_exc()
+        sys.exit(1)
+
+    pkg = result["package_folder"]
+    enroll = result["enrollment"]
+    print(f"package_dir={pkg}")
+    print(f"atak_zip={result['data_package_zip']}")
+    print(f"itak_zip={result['data_package_itak_zip']}")
+    print(f"p12={enroll['pkcs12_path']}")
+    print(f"cert_pem={enroll['certificate_path']}")
+    print(f"key_pem={enroll['private_key_path']}")
+    if enroll.get("ca_bundle_path"):
+        print(f"ca_pem={enroll['ca_bundle_path']}")
+    if enroll.get("pkcs12_truststore_path"):
+        print(f"trust_p12={enroll['pkcs12_truststore_path']}")
+    print(f"connect_string={result['streaming_connect_string']}")
+
+    if args.verbose:
+        print(
+            f"\nPKCS#12 password (client + trust bundles): {result['pkcs12_password']}",
+            file=sys.stderr,
+        )
+        print(f"Wrote onboarding package under {pkg}", file=sys.stderr)
+
+
 def main() -> None:
     """Entry point for the ``pytak`` command."""
+    if len(sys.argv) > 1 and sys.argv[1] == "dp":
+        dp_main(sys.argv[2:])
+        return
+
     parser = argparse.ArgumentParser(
         prog="pytak",
         description="TAK network client — reads CoT from stdin, writes CoT to stdout.",
@@ -469,6 +589,8 @@ URL schemes
   marti+http://host:port    TAK Server Marti REST API (plain HTTP)
   tak://...                 TAK enrollment deep-link — auto-enrolls, connects via wss://
   log://stdout              Print CoT to stdout (debug / dry-run)
+
+  pytak dp tak://...        Enroll only — write PKCS#12/PEM + ATAK/iTAK connection ZIPs
 
 Examples
 --------

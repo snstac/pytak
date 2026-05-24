@@ -22,7 +22,7 @@ import tempfile
 import warnings
 import ssl
 
-from typing import Union,Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 INSTALL_MSG = (
@@ -33,9 +33,16 @@ INSTALL_MSG = (
 # Check if cryptography is installed
 USE_CRYPTOGRAPHY = False
 try:
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.serialization import (
+        pkcs12,
+        Encoding,
+        PrivateFormat,
+        NoEncryption,
+    )
     from cryptography.x509 import Certificate
+    from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives.asymmetric import rsa
 
     USE_CRYPTOGRAPHY = True
@@ -108,6 +115,176 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
     assert cert_paths["pk_pem_path"] and cert_paths["cert_pem_path"]
     return cert_paths
 
+
+def _require_crypto() -> None:
+    if not USE_CRYPTOGRAPHY:
+        raise ValueError(INSTALL_MSG)
+
+
+def _pkcs12_friendly_name(cert: Certificate) -> Optional[bytes]:
+    """PKCS#12 bag friendlyName (CN); matches TAK Server exports."""
+    try:
+        attrs = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+        if attrs:
+            return attrs[0].value.encode("utf-8")
+    except (ValueError, UnicodeEncodeError):
+        pass
+    return None
+
+
+def _cas_for_pkcs12(ca_list: List[Certificate]) -> Optional[Tuple[Any, ...]]:
+    if not ca_list:
+        return None
+    return tuple(
+        pkcs12.PKCS12Certificate(c, _pkcs12_friendly_name(c)) for c in ca_list
+    )
+
+
+def pkcs12_encryption_for_atak_compatible(
+    password: Union[str, bytes],
+) -> serialization.KeySerializationEncryption:
+    """PKCS#12 encryption ATAK/Android KeyStore accepts for cot_streams bundles."""
+    _require_crypto()
+    pwb = password.encode("utf-8") if isinstance(password, str) else password
+    return (
+        PrivateFormat.PKCS12.encryption_builder()
+        .hmac_hash(hashes.SHA1())
+        .kdf_rounds(2048)
+        .key_cert_algorithm(pkcs12.PBES.PBESv1SHA1And3KeyTripleDESCBC)
+        .build(pwb)
+    )
+
+
+def serialize_pkcs12_bundle(
+    *,
+    private_key,
+    certificate: Certificate,
+    ca_certificates: Optional[List[Certificate]],
+    passphrase: str,
+    name: bytes = b"TAK Client Cert",
+) -> bytes:
+    """Serialize identity or trust PKCS#12 with ATAK-compatible encryption."""
+    _require_crypto()
+    encryption = (
+        pkcs12_encryption_for_atak_compatible(passphrase)
+        if passphrase
+        else NoEncryption()
+    )
+    return pkcs12.serialize_key_and_certificates(
+        name=name,
+        key=private_key,
+        cert=certificate,
+        cas=_cas_for_pkcs12(ca_certificates or []),
+        encryption_algorithm=encryption,
+    )
+
+
+def serialize_trust_pkcs12(
+    ca_certificates: List[Certificate],
+    passphrase: str,
+    name: bytes = b"cadata",
+) -> bytes:
+    """Serialize CA-only PKCS#12 trust store with ATAK-compatible encryption."""
+    _require_crypto()
+    if not ca_certificates:
+        raise ValueError("No CA certificates for trust PKCS#12")
+    encryption = pkcs12_encryption_for_atak_compatible(passphrase)
+    return pkcs12.serialize_key_and_certificates(
+        name=name,
+        key=None,
+        cert=None,
+        cas=_cas_for_pkcs12(ca_certificates),
+        encryption_algorithm=encryption,
+    )
+
+
+def rewrite_pkcs12_atak_compatible(p12_path: str, passphrase: str) -> None:
+    """Re-encode an existing PKCS#12 file using ATAK-compatible encryption."""
+    _require_crypto()
+    private_key, cert, additional = load_cert(p12_path, passphrase)
+    if cert is None:
+        raise ValueError(f"No certificate in PKCS#12: {p12_path}")
+    cas = list(additional or [])
+    blob = serialize_pkcs12_bundle(
+        private_key=private_key,
+        certificate=cert,
+        ca_certificates=cas,
+        passphrase=passphrase,
+        name=os.path.basename(p12_path).encode("utf-8"),
+    )
+    with open(p12_path, "wb") as f:
+        f.write(blob)
+    os.chmod(p12_path, 0o600)
+
+
+def write_enrollment_artifacts(
+    p12_path: str,
+    passphrase: str,
+    output_dir: str,
+    stem: str,
+) -> Dict[str, Optional[str]]:
+    """Write PEM files and ATAK-compatible client/trust PKCS#12 under *output_dir*."""
+    _require_crypto()
+    os.makedirs(output_dir, exist_ok=True)
+    private_key, cert, additional = load_cert(p12_path, passphrase)
+    if cert is None:
+        raise ValueError(f"No certificate in PKCS#12: {p12_path}")
+    ca_list = list(additional or [])
+
+    key_path = os.path.join(output_dir, f"{stem}-key.pem")
+    cert_path = os.path.join(output_dir, f"{stem}.pem")
+    ca_path = os.path.join(output_dir, f"{stem}-ca.pem") if ca_list else None
+    trust_p12_path = os.path.join(output_dir, f"{stem}-trust.p12") if ca_list else None
+    client_p12_path = os.path.join(output_dir, f"{stem}.p12")
+
+    with open(key_path, "wb") as f:
+        f.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+    os.chmod(key_path, 0o600)
+
+    with open(cert_path, "wb") as f:
+        f.write(cert.public_bytes(encoding=serialization.Encoding.PEM))
+    os.chmod(cert_path, 0o644)
+
+    if ca_list:
+        with open(ca_path, "w", encoding="utf-8") as f:
+            for ca_cert in ca_list:
+                f.write(
+                    ca_cert.public_bytes(encoding=serialization.Encoding.PEM).decode(
+                        "utf-8"
+                    )
+                )
+        os.chmod(ca_path, 0o644)
+
+        trust_blob = serialize_trust_pkcs12(ca_list, passphrase)
+        with open(trust_p12_path, "wb") as f:
+            f.write(trust_blob)
+        os.chmod(trust_p12_path, 0o600)
+
+    client_blob = serialize_pkcs12_bundle(
+        private_key=private_key,
+        certificate=cert,
+        ca_certificates=ca_list,
+        passphrase=passphrase,
+        name=stem.encode("utf-8"),
+    )
+    with open(client_p12_path, "wb") as f:
+        f.write(client_blob)
+    os.chmod(client_p12_path, 0o600)
+
+    return {
+        "private_key_path": key_path,
+        "certificate_path": cert_path,
+        "ca_bundle_path": ca_path,
+        "pkcs12_path": client_p12_path,
+        "pkcs12_truststore_path": trust_p12_path,
+        "pkcs12_password": passphrase,
+    }
 
 
 def convert_p12_to_pem(output_path: str, passphrase: str) -> Tuple[str, str]:

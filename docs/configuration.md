@@ -208,6 +208,14 @@ If the onboarding URL explicitly includes a port in `host=`, PyTAK uses that por
 
 Certificates are re-enrolled automatically when they are within 7 days of expiry.
 
+### Export onboarding packages (`pytak dp`)
+
+To enroll and write PKCS#12/PEM files plus ATAK and iTAK connection data packages **without** connecting to the server, use the `dp` subcommand. See [Onboarding packages](onboarding.md).
+
+```sh
+pytak dp 'tak://com.atakmap.app/enroll?host=takserver.example.com&username=myuser&token=mytoken'
+```
+
 ---
 
 ## marti:// REST API Transport

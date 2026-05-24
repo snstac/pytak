@@ -109,3 +109,13 @@ except ImportError:
     pass
 
 from . import asyncio_dgram  # NOQA
+
+try:
+    from .onboarding_packages import (  # NOQA
+        enroll_onboarding_package,
+        build_connection_config_pref_xml,
+        build_connection_manifest_xml,
+        build_connection_data_package_zip,
+    )
+except ImportError:
+    pass
