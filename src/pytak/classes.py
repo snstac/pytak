@@ -143,6 +143,34 @@ def _setup_logger(logger: logging.Logger, level: int = None) -> logging.Logger:
     return logger
 
 
+async def _drop_oldest_queue_item(
+    queue: Union[asyncio.Queue, mp.Queue], logger: logging.Logger
+) -> None:
+    """Remove the oldest item from a full queue."""
+    logger.warning(
+        "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
+    )
+    if isinstance(queue, asyncio.Queue):
+        await queue.get()
+    else:
+        queue.get_nowait()
+
+
+async def _safe_queue_put(
+    queue: Union[asyncio.Queue, mp.Queue],
+    data: bytes,
+    logger: logging.Logger,
+) -> None:
+    """Put data on a queue, dropping the oldest item if full."""
+    logger.debug("Queue size=%s", queue.qsize())
+    if queue.full():
+        await _drop_oldest_queue_item(queue, logger)
+    if isinstance(queue, asyncio.Queue):
+        await queue.put(data)
+    else:
+        queue.put_nowait(data)
+
+
 class Worker:
     """Meta class for all other Worker Classes."""
 
@@ -200,13 +228,13 @@ class Worker:
 
     async def _handle_full_queue(self, queue: Union[asyncio.Queue, mp.Queue]) -> None:
         """Handle a full queue by removing oldest item. Optimized to reduce code duplication."""
-        self._logger.warning(
-            "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
-        )
-        if isinstance(queue, asyncio.Queue):
-            await queue.get()
-        else:
-            queue.get_nowait()
+        await _drop_oldest_queue_item(queue, self._logger)
+
+    async def put_queue(
+        self, data: bytes, queue_arg: Union[asyncio.Queue, mp.Queue, None] = None
+    ) -> None:
+        """Put data onto the queue, dropping the oldest item if full."""
+        await _safe_queue_put(queue_arg or self.queue, data, self._logger)
 
     async def run_once(self) -> None:
         """Reads Data from Queue & passes data to next Handler."""
@@ -339,7 +367,7 @@ class RXWorker(Worker):
             data: bytes = await self.readcot()
             if data:
                 self._logger.debug("RX data: %s", data)
-                self.queue.put_nowait(data)
+                await self.put_queue(data)
 
     async def run(self, _=-1) -> None:
         """Run this worker."""
@@ -463,7 +491,7 @@ class MartiRXWorker(Worker):
                 if resp.status == 200:
                     text = await resp.text()
                     for event_xml in _extract_cot_events(text):
-                        self.queue.put_nowait(event_xml.encode("utf-8"))
+                        await self.put_queue(event_xml.encode("utf-8"))
                 else:
                     self._logger.debug("Marti RX returned HTTP %s", resp.status)
         except Exception as exc:
@@ -567,7 +595,7 @@ class WSRXWorker(Worker):
                 else:
                     payload = None
             if payload:
-                self.queue.put_nowait(payload)
+                await self.put_queue(payload)
         elif msg.type in (_aiohttp.WSMsgType.CLOSE, _aiohttp.WSMsgType.CLOSED):
             raise ConnectionAbortedError("WebSocket closed by server")
         elif msg.type == _aiohttp.WSMsgType.ERROR:
@@ -605,22 +633,6 @@ class QueueWorker(Worker):
     async def handle_data(self, data: bytes) -> None:
         """Handle data (placeholder method, please override)."""
         pass
-
-    async def put_queue(
-        self, data: bytes, queue_arg: Union[asyncio.Queue, mp.Queue, None] = None
-    ) -> None:
-        """Put Data onto the Queue."""
-        _queue = queue_arg or self.queue
-        self._logger.debug("Queue size=%s", _queue.qsize())
-        
-        # Optimized: Check for full queue once and handle uniformly
-        if _queue.full():
-            await self._handle_full_queue(_queue)
-        
-        if isinstance(_queue, asyncio.Queue):
-            await _queue.put(data)
-        else:
-            _queue.put_nowait(data)
 
 
 async def _make_workers(tx_queue, rx_queue, config):
@@ -728,7 +740,7 @@ class CLITool:
         """Send a 'hello world' style event to the Queue."""
         hello = pytak.hello_event(self.config.get("COT_HOST_ID"))
         if hello:
-            self.tx_queue.put_nowait(hello)
+            await _safe_queue_put(self.tx_queue, hello, self._logger)
 
     def add_task(self, task):
         """Add the given task to our coroutine task list."""
