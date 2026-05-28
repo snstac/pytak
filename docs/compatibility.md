@@ -25,11 +25,16 @@ PyTAK has also been tested with:
 | URL scheme | Transport |
 |---|---|
 | `tcp://host:port` | TCP unicast (plain text) |
+| `tcp+wo://host:port` | TCP write-only (drain RX, do not enqueue) |
+| `tcp+ro://host:port` | TCP read-only |
 | `tls://host:port` | TLS unicast (encrypted, mTLS) |
+| `tls+wo://host:port` | TLS write-only (drain RX, do not enqueue) |
+| `tls+ro://host:port` | TLS read-only |
 | `udp://group:port` | UDP multicast (Mesh SA) |
 | `udp://host:port` | UDP unicast |
 | `udp+broadcast://network:port` | UDP broadcast |
 | `udp+wo://host:port` | UDP write-only (no port bind) |
+| `udp+ro://host:port` | UDP read-only (no send socket) |
 | `log://stdout` / `log://stderr` | Console output (debug) |
 | `marti://host:port` | TAK Server Marti REST API (TLS) |
 | `marti+http://host:port` | TAK Server Marti REST API (HTTP) |

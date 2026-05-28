@@ -579,9 +579,14 @@ def main() -> None:
 URL schemes
 -----------
   tcp://host:port           Plain TCP (CoT XML)
+  tcp+wo://host:port        TCP write-only (drain RX, do not enqueue)
+  tcp+ro://host:port        TCP read-only
   tls://host:port           TLS mutual auth (CoT XML, requires --tls-cert)
+  tls+wo://host:port        TLS write-only (drain RX, do not enqueue)
+  tls+ro://host:port        TLS read-only
   udp://group:port          UDP multicast — Mesh SA
   udp+wo://host:port        UDP write-only
+  udp+ro://host:port        UDP read-only
   ws://host/path            WebSocket plain (TAK Protocol v1 Protobuf)
     wss://host:8446/path       WebSocket TLS   (default for tak://)
     wss://host:8443/path       WebSocket TLS   (explicit tak://...:8443)

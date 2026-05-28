@@ -37,11 +37,16 @@ The destination for CoT events. Supported URL schemes:
 | Scheme | Description |
 |---|---|
 | `tcp://host:port` | TCP unicast (plain text) |
+| `tcp+wo://host:port` | TCP write-only (send; drain inbound, do not enqueue) |
+| `tcp+ro://host:port` | TCP read-only (receive only) |
 | `tls://host:port` | TLS unicast (encrypted) |
+| `tls+wo://host:port` | TLS write-only (send; drain inbound, do not enqueue) |
+| `tls+ro://host:port` | TLS read-only (receive only) |
 | `udp://group:port` | UDP multicast (Mesh SA) |
 | `udp://host:port` | UDP unicast |
 | `udp+broadcast://network:port` | UDP broadcast |
 | `udp+wo://host:port` | UDP write-only (no port binding) |
+| `udp+ro://host:port` | UDP read-only (bind to receive; no send socket) |
 | `log://stdout` | Print to stdout (debug) |
 | `log://stderr` | Print to stderr (debug) |
 | `marti://host:port` | TAK Server Marti REST API (TLS) |
@@ -50,6 +55,24 @@ The destination for CoT events. Supported URL schemes:
 
 !!! tip "Port already in use?"
     Add the `+wo` modifier (`udp+wo://`) to run write-only without binding the port. This lets multiple PyTAK applications share a network interface.
+
+#### Direction modifiers (`+wo` / `+ro`)
+
+Append `+wo` (write-only) or `+ro` (read-only) to `tcp`, `tls`, `ssl`, or `udp` schemes. They cannot be combined on the same URL.
+
+| Modifier | Behavior |
+|---|---|
+| `+wo` | Transmit CoT only. For **UDP**, no receive socket is opened. For **TCP/TLS**, inbound data is read and discarded so the connection stays healthy, but nothing is placed on `rx_queue`. |
+| `+ro` | Receive CoT only. No `TXWorker` is started. For **UDP**, no send socket is opened. |
+
+!!! note "Send-only gateways (e.g. AISCOT)"
+    Use `tls+wo://` when your tool publishes CoT to a TAK Server but does not process inbound events:
+
+    ```ini
+    COT_URL = tls+wo://takserver.example.com:8089
+    ```
+
+    `+wo` / `+ro` apply to `tcp`, `tls`, `ssl`, and `udp` only. `marti://`, `wss://`, and other schemes are unaffected.
 
 ---
 

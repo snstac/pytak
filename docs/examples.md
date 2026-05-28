@@ -171,6 +171,16 @@ if __name__ == "__main__":
 
 ---
 
+## Send-only to a TAK Server
+
+If your tool only publishes CoT and does not process inbound events (for example, a sensor gateway), use the `+wo` modifier so PyTAK does not enqueue received data:
+
+```ini
+COT_URL = tls+wo://takserver.example.com:8089
+```
+
+---
+
 ## Debug: Print CoT to Console
 
 Use `log://stdout` as the `COT_URL` to print CoT XML to your console without a network connection. Useful for verifying your CoT format before connecting to a real server.

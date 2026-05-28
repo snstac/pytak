@@ -383,19 +383,19 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     writer: Any = None
 
     cot_url: ParseResult = get_cot_url(config)
-    scheme: str = cot_url.scheme.lower()
+    base_scheme, _, _ = pytak.parse_cot_scheme(cot_url.scheme.lower())
 
     # TCP
-    if scheme in ["tcp"]:
+    if base_scheme == "tcp":
         host, port = pytak.parse_url(cot_url)
         reader, writer = await asyncio.open_connection(host, port)
 
     # TLS
-    elif scheme in ["tls", "ssl"]:
+    elif base_scheme in ("tls", "ssl"):
         reader, writer = await create_tls_client(config, cot_url)
 
     # UDP
-    elif "udp" in scheme:
+    elif "udp" in base_scheme:
         # Support Linux hosts with no default gateway defined with local addr:
         local_addr = (
             config.get(
@@ -409,7 +409,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
         )
 
     # LOG
-    elif "log" in scheme:
+    elif "log" in base_scheme:
         if cot_url.hostname:
             dest: str = cot_url.hostname.lower()
             if "stderr" in dest:
@@ -417,14 +417,14 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
             else:
                 writer = sys.stdout.buffer
     # File output
-    elif "file" in scheme:
+    elif "file" in base_scheme:
         path = cot_url.netloc + cot_url.path
         file_path = Path(path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         writer = open(file_path, 'wb+')
 
     # TAK onboarding URL — enroll, cache cert, then connect as TLS
-    elif scheme == "tak":
+    elif base_scheme == "tak":
         tak_config = await resolve_tak_url(config.get("COT_URL", ""))
         config.update(tak_config)
         reader, writer = await create_tls_client(config, urlparse(tak_config["COT_URL"]))
@@ -441,7 +441,7 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
 
 async def create_udp_client(
     url: ParseResult, local_addr=None, multicast_ttl=1
-) -> Tuple[Union[DatagramClient, None], DatagramClient]:
+) -> Tuple[Union[DatagramClient, None], Union[DatagramClient, None]]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
     Parameters
@@ -462,7 +462,7 @@ async def create_udp_client(
 
     local_addr = local_addr or "0.0.0.0"
 
-    is_write_only: bool = "+wo" in url.scheme
+    _, is_write_only, is_read_only = pytak.parse_cot_scheme(url.scheme)
     is_broadcast: bool = "broadcast" in url.scheme
     is_multicast: bool = "multicast" in url.scheme
 
@@ -474,18 +474,21 @@ async def create_udp_client(
             # It's probably not an ip address...
             pass
 
-    # Create the Writer
-    writer: DatagramClient = await dgconnect(
-        (host, port), local_addr=local_addr, allow_broadcast=is_broadcast
-    )
+    writer: Union[DatagramClient, None] = None
 
-    if is_broadcast:
-        writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-    if is_multicast:
-        writer.socket.setsockopt(
-            socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack("b", multicast_ttl)
+    if not is_read_only:
+        # Create the Writer
+        writer = await dgconnect(
+            (host, port), local_addr=local_addr, allow_broadcast=is_broadcast
         )
+
+        if is_broadcast:
+            writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        if is_multicast:
+            writer.socket.setsockopt(
+                socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack("b", multicast_ttl)
+            )
 
     if is_write_only:
         return reader, writer
@@ -744,13 +747,17 @@ async def txworker_factory(
 async def rxworker_factory(
     queue: asyncio.Queue, config: SectionProxy
 ) -> pytak.RXWorker:
-    """Create a PyTAK TXWorker based on URL parameters.
+    """Create a PyTAK RXWorker based on URL parameters.
 
     :param cot_url: URL to COT Destination.
     :param event_queue: asyncio.Queue worker to get events from.
     :return: EventWorker or asyncio Protocol
     """
+    cot_url = get_cot_url(config)
+    _, write_only, _ = pytak.parse_cot_scheme(cot_url.scheme.lower())
     reader, _ = await protocol_factory(config)
+    if write_only and reader is not None:
+        return pytak.DiscardRXWorker(queue, config, reader)
     return pytak.RXWorker(queue, config, reader)
 
 

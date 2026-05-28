@@ -81,6 +81,33 @@ def parse_url(url: Union[str, ParseResult]) -> Tuple[str, int]:
     return host, int(port)
 
 
+def parse_cot_scheme(scheme: str) -> Tuple[str, bool, bool]:
+    """Parse a COT_URL scheme into base scheme and direction modifiers.
+
+    Modifiers ``+wo`` (write-only) and ``+ro`` (read-only) may be appended to
+    transport schemes (e.g. ``tls+wo``, ``udp+ro``). They are mutually exclusive.
+
+    Parameters
+    ----------
+    scheme : `str`
+        URL scheme from ``urlparse().scheme`` (e.g. ``tls+wo``, ``marti+http``).
+
+    Returns
+    -------
+    `tuple`
+        ``(base_scheme, write_only, read_only)``
+    """
+    scheme = scheme.lower()
+    write_only = "+wo" in scheme
+    read_only = "+ro" in scheme
+    if write_only and read_only:
+        raise SyntaxError("COT_URL cannot specify both +wo and +ro modifiers")
+    base_scheme = scheme
+    for modifier in ("+wo", "+ro"):
+        base_scheme = base_scheme.replace(modifier, "")
+    return base_scheme, write_only, read_only
+
+
 def cot_time(cot_stale: Union[int, None] = None) -> str:
     """Get the current UTC datetime as a W3C XML Schema dateTime primitive.
 

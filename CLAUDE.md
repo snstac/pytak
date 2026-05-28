@@ -55,9 +55,9 @@ QueueWorker.run()  →  tx_queue  →  TXWorker.run()  →  network writer
 
 | Scheme | Transport |
 |---|---|
-| `tcp://` | `asyncio.open_connection` |
-| `tls://`, `ssl://` | `create_tls_client()` → `get_ssl_ctx()` |
-| `udp://`, `udp+wo://`, `udp+broadcast://`, `udp+multicast://` | bundled `asyncio_dgram` |
+| `tcp://`, `tcp+wo://`, `tcp+ro://` | `asyncio.open_connection` |
+| `tls://`, `ssl://`, `tls+wo://`, `tls+ro://`, … | `create_tls_client()` → `get_ssl_ctx()` |
+| `udp://`, `udp+wo://`, `udp+ro://`, `udp+broadcast://`, `udp+multicast://` | bundled `asyncio_dgram` |
 | `log://` | stdout/stderr buffer |
 | `file://` | binary file |
 
@@ -67,7 +67,7 @@ TLS supports PKCS#12 (`.p12`) certs: `convert_cert()` in `crypto_functions.py` e
 
 All configuration flows through `configparser.SectionProxy`. The `cli()` function in `client_functions.py` is the standard entry point: it merges environment variables, `config.ini`, and optional ATAK pref packages (`.zip`) into a single config, then calls `asyncio.run(main(...))`. Key env vars:
 
-- `COT_URL` — destination URL (default: `udp+wo://239.2.3.1:6969` ATAK multicast)
+- `COT_URL` — destination URL (default: `udp+wo://239.2.3.1:6969` ATAK multicast). Append `+wo` or `+ro` to `tcp`/`tls`/`udp` for write-only or read-only (`tls+wo://` drains inbound without enqueueing; useful for send-only gateways)
 - `TAK_PROTO` — `0` for XML (default), `1` for Protobuf (requires `takproto`)
 - `PYTAK_TLS_CLIENT_CERT` / `PYTAK_TLS_CLIENT_KEY` / `PYTAK_TLS_CLIENT_CAFILE` — TLS identity
 - `PYTAK_TLS_DONT_VERIFY` / `PYTAK_TLS_DONT_CHECK_HOSTNAME` — TLS verification bypass

@@ -62,6 +62,7 @@ from .classes import (  # NOQA
     Worker,
     TXWorker,
     RXWorker,
+    DiscardRXWorker,
     QueueWorker,
     CLITool,
     SimpleCOTEvent,
@@ -81,6 +82,7 @@ from .cli_main import (  # NOQA
 from .functions import (  # NOQA
     split_host,
     parse_url,
+    parse_cot_scheme,
     hello_event,
     cot_time,
     gen_cot,

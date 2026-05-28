@@ -377,6 +377,41 @@ class RXWorker(Worker):
             await asyncio.sleep(0)  # make sure other tasks have a chance to run
 
 
+class DiscardRXWorker(RXWorker):
+    """Receive CoT from the wire and discard it (do not enqueue).
+
+    Used for ``+wo`` stream transports (TCP/TLS) where the server may send
+    data that must be drained to keep the connection healthy.
+    """
+
+    async def run_once(self) -> None:
+        """Read and discard one CoT event."""
+        if self.reader:
+            await self.readcot()
+
+
+def _socket_workers(tx_queue, rx_queue, config, reader, writer, write_only, read_only):
+    """Build TX/RX workers for socket transports with optional +wo / +ro."""
+    write_worker = None
+    read_worker = None
+
+    if write_only:
+        if writer is not None:
+            write_worker = TXWorker(tx_queue, config, writer)
+        if reader is not None:
+            read_worker = DiscardRXWorker(rx_queue, config, reader)
+    elif read_only:
+        if reader is not None:
+            read_worker = RXWorker(rx_queue, config, reader)
+    else:
+        if writer is not None:
+            write_worker = TXWorker(tx_queue, config, writer)
+        if reader is not None:
+            read_worker = RXWorker(rx_queue, config, reader)
+
+    return write_worker, read_worker
+
+
 def _extract_cot_events(text: str) -> list:
     """Extract <event>...</event> blocks from a text blob (Marti API response)."""
     return re.findall(r"<event\b[^>]*>.*?</event>", text, re.DOTALL)
@@ -642,19 +677,24 @@ async def _make_workers(tx_queue, rx_queue, config):
     - ``marti://`` / ``marti+http://`` → Marti REST API workers
     - ``ws://`` / ``wss://`` → WebSocket workers
     - everything else → standard socket TXWorker / RXWorker
+
+    ``+wo`` and ``+ro`` modifiers select write-only or read-only mode for
+    ``tcp``/``tls``/``ssl``/``udp`` URLs (see ``pytak.parse_cot_scheme()``).
     """
     cot_url_str = config.get("COT_URL", "")
     scheme = cot_url_str.split("://")[0].lower() if "://" in cot_url_str else ""
+    base_scheme, write_only, read_only = pytak.parse_cot_scheme(scheme)
 
-    if scheme in ("marti", "marti+http"):
+    if base_scheme in ("marti", "marti+http"):
         write_worker = await pytak.marti_txworker_factory(tx_queue, config)
         read_worker = await pytak.marti_rxworker_factory(rx_queue, config)
-    elif scheme in ("ws", "wss"):
+    elif base_scheme in ("ws", "wss"):
         write_worker, read_worker = await pytak.ws_factory(tx_queue, rx_queue, config)
     else:
         reader, writer = await pytak.protocol_factory(config)
-        write_worker = pytak.TXWorker(tx_queue, config, writer)
-        read_worker = pytak.RXWorker(rx_queue, config, reader)
+        write_worker, read_worker = _socket_workers(
+            tx_queue, rx_queue, config, reader, writer, write_only, read_only
+        )
 
     return write_worker, read_worker
 
@@ -722,8 +762,10 @@ class CLITool:
         self.queues[i_config.name] = {"tx_queue": tx_queue, "rx_queue": rx_queue}
 
         write_worker, read_worker = await _make_workers(tx_queue, rx_queue, i_config)
-        self.add_task(write_worker)
-        self.add_task(read_worker)
+        if write_worker:
+            self.add_task(write_worker)
+        if read_worker:
+            self.add_task(read_worker)
 
     async def setup(self) -> None:
         """Set up CLITool.
@@ -733,8 +775,10 @@ class CLITool:
         write_worker, read_worker = await _make_workers(
             self.tx_queue, self.rx_queue, self.config
         )
-        self.add_task(write_worker)
-        self.add_task(read_worker)
+        if write_worker:
+            self.add_task(write_worker)
+        if read_worker:
+            self.add_task(read_worker)
 
     async def hello_event(self):
         """Send a 'hello world' style event to the Queue."""

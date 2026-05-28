@@ -151,6 +151,135 @@ async def test_protocol_factory_udp_multicast_wo():
 
 
 @pytest.mark.asyncio
+async def test_protocol_factory_udp_multicast_ro():
+    """Test creating a multicast UDP reader only with `pytak.protocol_factory()`."""
+    test_url1: str = "udp+ro://239.2.3.1"
+    config: dict = {"COT_URL": test_url1}
+    reader, writer = await pytak.protocol_factory(config)
+    assert isinstance(reader, pytak.asyncio_dgram.DatagramServer)
+    assert writer is None
+
+
+def test_parse_cot_scheme_tls_wo():
+    """parse_cot_scheme strips +wo and sets write_only."""
+    assert pytak.parse_cot_scheme("tls+wo") == ("tls", True, False)
+
+
+def test_parse_cot_scheme_marti_http():
+    """parse_cot_scheme preserves marti+http base scheme."""
+    assert pytak.parse_cot_scheme("marti+http") == ("marti+http", False, False)
+
+
+def test_parse_cot_scheme_wo_and_ro_raises():
+    """parse_cot_scheme rejects +wo and +ro together."""
+    with pytest.raises(SyntaxError, match="both \\+wo and \\+ro"):
+        pytak.parse_cot_scheme("tcp+wo+ro")
+
+
+@pytest.mark.asyncio
+async def test_protocol_factory_tcp_wo():
+    """tcp+wo still opens a full-duplex stream (discard is at worker layer)."""
+    test_url1: str = "tcp+wo://localhost:8087"
+    config: dict = {"COT_URL": test_url1}
+    with mock.patch("asyncio.open_connection", new_callable=AsyncMock) as mock_conn:
+        mock_conn.return_value = (mock.MagicMock(), mock.MagicMock())
+        reader, writer = await pytak.protocol_factory(config)
+        assert reader is not None
+        assert writer is not None
+        mock_conn.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_make_workers_tls_wo():
+    """_make_workers uses DiscardRXWorker for tls+wo."""
+    from pytak.classes import DiscardRXWorker, TXWorker, _make_workers
+
+    config_p = ConfigParser()
+    config_p.add_section("test")
+    config_p.set("test", "COT_URL", "tls+wo://localhost:8089")
+    config = config_p["test"]
+    tx_q = asyncio.Queue()
+    rx_q = asyncio.Queue()
+    mock_reader = mock.MagicMock()
+    mock_writer = mock.MagicMock()
+
+    with mock.patch(
+        "pytak.protocol_factory",
+        AsyncMock(return_value=(mock_reader, mock_writer)),
+    ):
+        write_worker, read_worker = await _make_workers(tx_q, rx_q, config)
+
+    assert isinstance(write_worker, TXWorker)
+    assert isinstance(read_worker, DiscardRXWorker)
+
+
+@pytest.mark.asyncio
+async def test_make_workers_tls_ro():
+    """_make_workers skips TXWorker for tls+ro."""
+    from pytak.classes import RXWorker, _make_workers
+
+    config_p = ConfigParser()
+    config_p.add_section("test")
+    config_p.set("test", "COT_URL", "tls+ro://localhost:8089")
+    config = config_p["test"]
+    tx_q = asyncio.Queue()
+    rx_q = asyncio.Queue()
+    mock_reader = mock.MagicMock()
+    mock_writer = mock.MagicMock()
+
+    with mock.patch(
+        "pytak.protocol_factory",
+        AsyncMock(return_value=(mock_reader, mock_writer)),
+    ):
+        write_worker, read_worker = await _make_workers(tx_q, rx_q, config)
+
+    assert write_worker is None
+    assert isinstance(read_worker, RXWorker)
+
+
+@pytest.mark.asyncio
+async def test_make_workers_udp_wo():
+    """_make_workers skips read worker for udp+wo (no reader socket)."""
+    from pytak.classes import TXWorker, _make_workers
+
+    config_p = ConfigParser()
+    config_p.add_section("test")
+    config_p.set("test", "COT_URL", "udp+wo://239.2.3.1:6969")
+    config = config_p["test"]
+    tx_q = asyncio.Queue()
+    rx_q = asyncio.Queue()
+    mock_writer = mock.MagicMock()
+
+    with mock.patch(
+        "pytak.protocol_factory",
+        AsyncMock(return_value=(None, mock_writer)),
+    ):
+        write_worker, read_worker = await _make_workers(tx_q, rx_q, config)
+
+    assert isinstance(write_worker, TXWorker)
+    assert read_worker is None
+
+
+@pytest.mark.asyncio
+async def test_discard_rx_worker_does_not_enqueue():
+    """DiscardRXWorker drains the reader without putting on rx_queue."""
+    from pytak.classes import DiscardRXWorker
+
+    config_p = ConfigParser()
+    config_p.add_section("test")
+    config_p.set("test", "COT_URL", "tls+wo://localhost:8089")
+    config = config_p["test"]
+    rx_q = asyncio.Queue()
+    mock_reader = mock.MagicMock()
+    mock_reader.readuntil = AsyncMock(
+        return_value=b'<event version="2.0"></event>'
+    )
+    worker = DiscardRXWorker(rx_q, config, mock_reader)
+    await worker.run_once()
+    assert rx_q.empty()
+
+
+@pytest.mark.asyncio
 async def test_protocol_factory_bad_url():
     """Test calling `pytak.protocol_factory()` with a bad URL."""
     test_url1: str = "udp:localhost"
