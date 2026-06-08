@@ -592,6 +592,10 @@ URL schemes
     wss://host:8443/path       WebSocket TLS   (explicit tak://...:8443)
   marti://host:port         TAK Server Marti REST API (TLS)
   marti+http://host:port    TAK Server Marti REST API (plain HTTP)
+  mqtt://host:port/topic    MQTT broker (topic in path; requires pytak[with-mqtt])
+  mqtt+wo://host:port/topic MQTT write-only (publish only)
+  mqtt+ro://host:port/topic MQTT read-only (subscribe only)
+  mqtts://host:port/topic   MQTT broker over TLS
   tak://...                 TAK enrollment deep-link — auto-enrolls, connects via wss://
   log://stdout              Print CoT to stdout (debug / dry-run)
 

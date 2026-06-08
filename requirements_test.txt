@@ -6,3 +6,4 @@ black
 cryptography
 aiohttp
 takproto
+aiomqtt >= 2.0.0, < 3

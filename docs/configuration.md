@@ -51,6 +51,10 @@ The destination for CoT events. Supported URL schemes:
 | `log://stderr` | Print to stderr (debug) |
 | `marti://host:port` | TAK Server Marti REST API (TLS) |
 | `marti+http://host:port` | TAK Server Marti REST API (plain HTTP) |
+| `mqtt://host:port/topic` | MQTT broker (plain text; topic in URL path) |
+| `mqtt+wo://host:port/topic` | MQTT write-only (publish; no subscribe) |
+| `mqtt+ro://host:port/topic` | MQTT read-only (subscribe; no publish) |
+| `mqtts://host:port/topic` | MQTT broker over TLS |
 | `tak://...` | TAK enrollment deep-link (see below) |
 
 !!! tip "Port already in use?"
@@ -58,7 +62,7 @@ The destination for CoT events. Supported URL schemes:
 
 #### Direction modifiers (`+wo` / `+ro`)
 
-Append `+wo` (write-only) or `+ro` (read-only) to `tcp`, `tls`, `ssl`, or `udp` schemes. They cannot be combined on the same URL.
+Append `+wo` (write-only) or `+ro` (read-only) to `tcp`, `tls`, `ssl`, `udp`, `mqtt`, or `mqtts` schemes. They cannot be combined on the same URL.
 
 | Modifier | Behavior |
 |---|---|
@@ -72,7 +76,27 @@ Append `+wo` (write-only) or `+ro` (read-only) to `tcp`, `tls`, `ssl`, or `udp` 
     COT_URL = tls+wo://takserver.example.com:8089
     ```
 
-    `+wo` / `+ro` apply to `tcp`, `tls`, `ssl`, and `udp` only. `marti://`, `wss://`, and other schemes are unaffected.
+    `+wo` / `+ro` apply to `tcp`, `tls`, `ssl`, `udp`, `mqtt`, and `mqtts`. `marti://`, `wss://`, and other schemes are unaffected.
+
+#### MQTT URLs
+
+MQTT transport requires `pytak[with-mqtt]` (`aiomqtt`). The MQTT **topic** is the URL path after the host (for example, `mqtt://broker.example.com:1883/cot` publishes and subscribes on topic `cot`).
+
+```ini
+COT_URL = mqtt://broker.example.com:1883/cot
+```
+
+Default ports: `1883` for `mqtt://`, `8883` for `mqtts://`. Username and password may appear in the URL (`mqtt://user:pass@broker:1883/cot`) or via the config keys below.
+
+| Key | Default | Description |
+|---|---|---|
+| `MQTT_QOS` | `0` | MQTT publish/subscribe QoS level |
+| `MQTT_KEEPALIVE` | `60` | MQTT keepalive interval (seconds) |
+| `MQTT_CLIENT_ID` | `pytak@<hostname>` | MQTT client identifier |
+| `MQTT_USERNAME` | (from URL) | Broker username if not in URL |
+| `MQTT_PASSWORD` | (from URL) | Broker password if not in URL |
+
+For `mqtts://`, TLS uses the same `PYTAK_TLS_*` parameters as `tls://` and `wss://`.
 
 ---
 

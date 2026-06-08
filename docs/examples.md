@@ -171,6 +171,52 @@ if __name__ == "__main__":
 
 ---
 
+## MQTT broker
+
+Publish and receive CoT on the same MQTT topic. Requires `pytak[with-mqtt]`:
+
+```sh
+pip install pytak[with-mqtt]
+```
+
+```python
+#!/usr/bin/env python3
+import asyncio
+from configparser import ConfigParser
+
+import pytak
+
+
+class MySender(pytak.QueueWorker):
+    async def handle_data(self, data):
+        event = pytak.SimpleCOTEvent(
+            lat=37.7749, lon=-122.4194, uid="MQTT-TEST", stale=60
+        )
+        await self.put_queue(event.cot2xml())
+
+
+async def main():
+    config = ConfigParser()
+    config["mytool"] = {
+        "COT_URL": "mqtt://broker.example.com:1883/cot",
+        "TAK_PROTO": "0",
+    }
+    config = config["mytool"]
+
+    clitool = pytak.CLITool(config)
+    await clitool.setup()
+    clitool.add_tasks(set([MySender(clitool.tx_queue, config)]))
+    await clitool.run()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+For publish-only gateways, use `mqtt+wo://broker.example.com:1883/cot`.
+
+---
+
 ## Send-only to a TAK Server
 
 If your tool only publishes CoT and does not process inbound events (for example, a sensor gateway), use the `+wo` modifier so PyTAK does not enqueue received data:

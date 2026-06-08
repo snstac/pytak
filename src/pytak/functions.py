@@ -28,8 +28,8 @@ import os
 import json
 
 from pathlib import Path
-from typing import Optional, Tuple, Union
-from urllib.parse import ParseResult, urlparse
+from typing import NamedTuple, Optional, Tuple, Union
+from urllib.parse import ParseResult, urlparse, unquote
 
 import pytak
 import pytak.crypto_classes  # pylint: disable=cyclic-import
@@ -106,6 +106,82 @@ def parse_cot_scheme(scheme: str) -> Tuple[str, bool, bool]:
     for modifier in ("+wo", "+ro"):
         base_scheme = base_scheme.replace(modifier, "")
     return base_scheme, write_only, read_only
+
+
+class MqttUrlParts(NamedTuple):
+    """Parsed components of an mqtt:// or mqtts:// COT_URL."""
+
+    host: str
+    port: int
+    topic: str
+    username: Optional[str]
+    password: Optional[str]
+    use_tls: bool
+
+
+def parse_mqtt_url(url: Union[str, ParseResult]) -> MqttUrlParts:
+    """Parse an mqtt:// or mqtts:// COT_URL into connection components.
+
+    The MQTT topic is taken from the URL path (leading ``/`` stripped).
+    Username and password may appear in the URL netloc or via config keys.
+
+    Parameters
+    ----------
+    url : `Union[str, ParseResult]`
+        Full MQTT COT_URL.
+
+    Returns
+    -------
+    `MqttUrlParts`
+        Host, port, topic, credentials, and TLS flag.
+
+    Raises
+    ------
+    SyntaxError
+        If the URL scheme is not mqtt/mqtts or the topic path is empty.
+    """
+    if isinstance(url, str):
+        _url: ParseResult = urlparse(url)
+    else:
+        _url = url
+
+    assert isinstance(_url, ParseResult)
+
+    base_scheme, _, _ = parse_cot_scheme(_url.scheme.lower())
+    if base_scheme not in ("mqtt", "mqtts"):
+        raise SyntaxError(
+            f"parse_mqtt_url() requires mqtt:// or mqtts://, got scheme '{_url.scheme}'"
+        )
+
+    use_tls = base_scheme == "mqtts"
+    default_port = (
+        pytak.DEFAULT_MQTTS_PORT if use_tls else pytak.DEFAULT_MQTT_PORT
+    )
+
+    host = _url.hostname or ""
+    if not host:
+        raise SyntaxError("MQTT COT_URL must include a broker hostname")
+
+    port = _url.port if _url.port is not None else default_port
+
+    topic = _url.path.lstrip("/")
+    if not topic:
+        raise SyntaxError(
+            "MQTT COT_URL must include a topic in the URL path, "
+            "e.g. mqtt://broker.example.com:1883/cot"
+        )
+
+    username = unquote(_url.username) if _url.username else None
+    password = unquote(_url.password) if _url.password else None
+
+    return MqttUrlParts(
+        host=host,
+        port=port,
+        topic=topic,
+        username=username,
+        password=password,
+        use_tls=use_tls,
+    )
 
 
 def cot_time(cot_stale: Union[int, None] = None) -> str:

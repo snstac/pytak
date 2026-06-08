@@ -39,7 +39,7 @@ from configparser import ConfigParser, SectionProxy
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse, parse_qs, unquote
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import pytak
 
@@ -347,6 +347,91 @@ async def ws_factory(
 
     tx_worker = pytak.WSTXWorker(tx_queue, config, ws, session)
     rx_worker = pytak.WSRXWorker(rx_queue, config, ws, session)
+    return tx_worker, rx_worker
+
+
+async def mqtt_factory(
+    tx_queue: asyncio.Queue,
+    rx_queue: asyncio.Queue,
+    config: SectionProxy,
+) -> Tuple[Optional[Any], Optional[Any]]:
+    """Create MQTTTXWorker and/or MQTTRXWorker for mqtt:// or mqtts:// URLs.
+
+    The MQTT topic is taken from the URL path.  Both workers share a single
+    persistent MQTT connection.  ``+wo`` and ``+ro`` modifiers select
+    write-only or read-only mode.
+
+    Requires ``pytak[with-mqtt]``.  TAK Protocol v1 encoding/decoding also
+    requires ``pytak[with-takproto]`` when ``TAK_PROTO`` is set.
+    """
+    try:
+        import aiomqtt  # noqa: F401 pylint: disable=unused-import
+    except ImportError as exc:
+        raise ImportError(
+            "MQTT transport requires aiomqtt. "
+            "Install with: python3 -m pip install pytak[with-mqtt]"
+        ) from exc
+
+    from pytak.functions import parse_mqtt_url
+
+    raw_url = config.get("COT_URL", "")
+    scheme = raw_url.split("://")[0].lower() if "://" in raw_url else ""
+    _, write_only, read_only = pytak.parse_cot_scheme(scheme)
+
+    cot_url = get_cot_url(config)
+    parts = parse_mqtt_url(cot_url)
+
+    username = parts.username or config.get("MQTT_USERNAME")
+    password = parts.password or config.get("MQTT_PASSWORD")
+    qos = int(config.get("MQTT_QOS", pytak.DEFAULT_MQTT_QOS))
+    keepalive = int(config.get("MQTT_KEEPALIVE", pytak.DEFAULT_MQTT_KEEPALIVE))
+    client_id = config.get("MQTT_CLIENT_ID", pytak.DEFAULT_HOST_ID)
+
+    tls_context: Any = None
+    if parts.use_tls:
+        tls_config = get_tls_config(config)
+        has_cert = bool(tls_config.get("PYTAK_TLS_CLIENT_CERT"))
+        if has_cert:
+            tls_context = get_ssl_ctx(tls_config)
+        else:
+            import ssl as _ssl
+
+            tls_context = _ssl.create_default_context()
+            tls_context.check_hostname = False
+            tls_context.verify_mode = _ssl.CERT_NONE
+
+    import aiomqtt
+
+    client = aiomqtt.Client(
+        hostname=parts.host,
+        port=parts.port,
+        username=username,
+        password=password,
+        identifier=client_id,
+        keepalive=keepalive,
+        tls_context=tls_context,
+    )
+
+    from pytak.classes import MQTTTXWorker, MQTTRXWorker, _MQTTSession
+
+    await client.__aenter__()
+    session = _MQTTSession(client)
+
+    try:
+        if not write_only:
+            await client.subscribe(parts.topic, qos=qos)
+    except Exception:
+        await session.close()
+        raise
+
+    tx_worker: Optional[MQTTTXWorker] = None
+    rx_worker: Optional[MQTTRXWorker] = None
+
+    if not read_only:
+        tx_worker = MQTTTXWorker(tx_queue, config, client, parts.topic, qos, session)
+    if not write_only:
+        rx_worker = MQTTRXWorker(rx_queue, config, client, session)
+
     return tx_worker, rx_worker
 
 

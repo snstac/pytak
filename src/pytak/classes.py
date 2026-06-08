@@ -642,6 +642,113 @@ class WSRXWorker(Worker):
             await self.run_once()
 
 
+class _MQTTSession:
+    """Shared MQTT client connection with idempotent close."""
+
+    def __init__(self, client) -> None:
+        self._client = client
+        self._closed = False
+        self._lock = asyncio.Lock()
+
+    async def close(self) -> None:
+        async with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            await self._client.__aexit__(None, None, None)
+
+
+class MQTTTXWorker(Worker):
+    """Transmit CoT events to an MQTT broker (mqtt:// or mqtts://).
+
+    Encodes CoT XML as TAK Protocol v1 Protobuf (STREAM variant) when
+    ``TAK_PROTO`` is set and ``takproto`` is installed; otherwise sends raw bytes.
+
+    Create via ``pytak.mqtt_factory()``.
+    """
+
+    def __init__(
+        self,
+        queue: asyncio.Queue,
+        config,
+        client,
+        topic: str,
+        qos: int,
+        session: _MQTTSession,
+    ) -> None:
+        super().__init__(queue, config)
+        self._client = client
+        self._topic = topic
+        self._qos = qos
+        self._session = session
+
+    async def handle_data(self, data: bytes) -> None:
+        if not data:
+            return
+        if self.use_protobuf:
+            try:
+                data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
+            except Exception as exc:
+                self._logger.warning(
+                    "MQTT TX: Protobuf encode failed, sending raw: %s", exc
+                )
+        try:
+            await self._client.publish(self._topic, data, qos=self._qos)
+        except Exception as exc:
+            raise ConnectionError(f"MQTT TX publish failed: {exc}") from exc
+
+    async def close(self) -> None:
+        await self._session.close()
+
+
+class MQTTRXWorker(Worker):
+    """Receive CoT events from an MQTT broker (mqtt:// or mqtts://).
+
+    Reads messages from the subscribed topic, decodes TAK Protocol v1 Protobuf
+    to CoT XML bytes when applicable, and puts each event onto the rx queue.
+
+    Create via ``pytak.mqtt_factory()``.
+    """
+
+    def __init__(
+        self,
+        queue: asyncio.Queue,
+        config,
+        client,
+        session: _MQTTSession,
+    ) -> None:
+        super().__init__(queue, config)
+        self._client = client
+        self._session = session
+        self._message_iter = client.messages.__aiter__()
+
+    async def handle_data(self, data: bytes) -> None:
+        pass  # data flows directly to queue in run_once
+
+    async def run_once(self) -> None:
+        message = await self._message_iter.__anext__()
+        payload: Optional[bytes] = message.payload
+        if self.use_protobuf and takproto is not None:
+            tak_msg = takproto.parse_proto(payload)
+            if tak_msg and tak_msg != -1:
+                if isinstance(tak_msg, bytes):
+                    payload = tak_msg
+                else:
+                    payload = _takmsg2xml(tak_msg)
+            else:
+                payload = None
+        if payload:
+            await self.put_queue(payload)
+
+    async def run(self, _=-1) -> None:
+        self._logger.info("Running: %s", self.__class__.__name__)
+        while True:
+            await self.run_once()
+
+    async def close(self) -> None:
+        await self._session.close()
+
+
 class QueueWorker(Worker):
     """Read non-CoT Messages from an async network client.
 
@@ -676,10 +783,12 @@ async def _make_workers(tx_queue, rx_queue, config):
     Dispatches to the appropriate worker pair based on the ``COT_URL`` scheme:
     - ``marti://`` / ``marti+http://`` → Marti REST API workers
     - ``ws://`` / ``wss://`` → WebSocket workers
+    - ``mqtt://`` / ``mqtts://`` → MQTT workers
     - everything else → standard socket TXWorker / RXWorker
 
     ``+wo`` and ``+ro`` modifiers select write-only or read-only mode for
-    ``tcp``/``tls``/``ssl``/``udp`` URLs (see ``pytak.parse_cot_scheme()``).
+    ``tcp``/``tls``/``ssl``/``udp``/``mqtt``/``mqtts`` URLs
+    (see ``pytak.parse_cot_scheme()``).
     """
     cot_url_str = config.get("COT_URL", "")
     scheme = cot_url_str.split("://")[0].lower() if "://" in cot_url_str else ""
@@ -690,6 +799,10 @@ async def _make_workers(tx_queue, rx_queue, config):
         read_worker = await pytak.marti_rxworker_factory(rx_queue, config)
     elif base_scheme in ("ws", "wss"):
         write_worker, read_worker = await pytak.ws_factory(tx_queue, rx_queue, config)
+    elif base_scheme in ("mqtt", "mqtts"):
+        write_worker, read_worker = await pytak.mqtt_factory(
+            tx_queue, rx_queue, config
+        )
     else:
         reader, writer = await pytak.protocol_factory(config)
         write_worker, read_worker = _socket_workers(

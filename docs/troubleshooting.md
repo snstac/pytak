@@ -110,6 +110,26 @@ PYTAK_TLS_DONT_CHECK_HOSTNAME = 1
 
 ---
 
+## `aiomqtt` not installed
+
+```
+ImportError: MQTT transport requires aiomqtt. Install with: python3 -m pip install pytak[with-mqtt]
+```
+
+The `mqtt://` and `mqtts://` URL schemes require the `aiomqtt` extra:
+
+```sh
+pip install pytak[with-mqtt]
+```
+
+If you also use Protobuf CoT (`TAK_PROTO=1`), install both extras:
+
+```sh
+pip install pytak[with-mqtt,with-takproto]
+```
+
+---
+
 ## `aiohttp` not installed
 
 ```

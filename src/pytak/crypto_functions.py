@@ -17,6 +17,8 @@
 
 """PyTAK Crypto (as in cryptography) Functions."""
 
+from __future__ import annotations
+
 import os
 import tempfile
 import warnings

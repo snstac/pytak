@@ -38,6 +38,8 @@ PyTAK has also been tested with:
 | `log://stdout` / `log://stderr` | Console output (debug) |
 | `marti://host:port` | TAK Server Marti REST API (TLS) |
 | `marti+http://host:port` | TAK Server Marti REST API (HTTP) |
+| `mqtt://host:port/topic` | MQTT broker (requires `pytak[with-mqtt]`) |
+| `mqtts://host:port/topic` | MQTT broker over TLS |
 | `tak://...` | TAK enrollment deep-link |
 
 ---

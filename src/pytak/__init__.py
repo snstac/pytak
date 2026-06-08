@@ -56,6 +56,10 @@ from .constants import (  # NOQA
     DEFAULT_MARTI_POLL_SECONDS_AGO,
     DEFAULT_WS_PATH,
     DEFAULT_WS_PORT,
+    DEFAULT_MQTT_PORT,
+    DEFAULT_MQTTS_PORT,
+    DEFAULT_MQTT_QOS,
+    DEFAULT_MQTT_KEEPALIVE,
 )
 
 from .classes import (  # NOQA
@@ -72,6 +76,8 @@ from .classes import (  # NOQA
     MartiRXWorker,
     WSTXWorker,
     WSRXWorker,
+    MQTTTXWorker,
+    MQTTRXWorker,
 )
 
 from .cli_main import (  # NOQA
@@ -83,6 +89,7 @@ from .functions import (  # NOQA
     split_host,
     parse_url,
     parse_cot_scheme,
+    parse_mqtt_url,
     hello_event,
     cot_time,
     gen_cot,
@@ -107,6 +114,11 @@ from .client_functions import (  # NOQA
 
 try:
     from .client_functions import ws_factory  # NOQA
+except ImportError:
+    pass
+
+try:
+    from .client_functions import mqtt_factory  # NOQA
 except ImportError:
     pass
 
