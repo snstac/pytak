@@ -6,4 +6,4 @@ black
 cryptography
 aiohttp
 takproto
-aiomqtt >= 2.0.0, < 3
+aiomqtt >= 2.0.0, < 3; python_version >= "3.8"
