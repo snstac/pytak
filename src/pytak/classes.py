@@ -83,8 +83,8 @@ def _takmsg2xml(msg) -> Optional[bytes]:
 
         event = ET.Element("event", attrib)
         ET.SubElement(event, "point", {
-            "lat": str(cot.lat),
-            "lon": str(cot.lon),
+            "lat": pytak.truncate_float(cot.lat),
+            "lon": pytak.truncate_float(cot.lon),
             "hae": str(cot.hae),
             "ce": str(cot.ce),
             "le": str(cot.le),
@@ -1190,4 +1190,3 @@ class TAKDataPackage:
         print(f"\nTAK Data Package created: {output_path}")
         print(f"Package UID: {self.uid}")
         print(f"Files included: {len(self.files)}")
-

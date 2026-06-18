@@ -110,6 +110,14 @@ def test_cot_time():
     assert "Z" in cot_time[-1]
 
 
+def test_truncate_float():
+    """Test TAK coordinate-safe float truncation."""
+    assert pytak.truncate_float(37.760050100) == "37.76"
+    assert pytak.truncate_float(-122.497702900) == "-122.4977"
+    assert pytak.truncate_float("37.99999") == "37.9999"
+    assert pytak.truncate_float("-0.00009") == "0.0"
+
+
 def test_cot2xml():
     """Test gen_cot_xml2() function."""
     event = pytak.COTEvent(

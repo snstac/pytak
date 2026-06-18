@@ -18,6 +18,7 @@
 """PyTAK Functions."""
 
 import datetime
+from decimal import Decimal, ROUND_DOWN
 import warnings
 import xml.etree.ElementTree as ET
 import secrets
@@ -33,6 +34,27 @@ from urllib.parse import ParseResult, urlparse, unquote
 
 import pytak
 import pytak.crypto_classes  # pylint: disable=cyclic-import
+
+
+def truncate_float(value: Union[bytes, str, float, int], precision: int = 4) -> str:
+    """Return a numeric value truncated to no more than ``precision`` decimals."""
+    if precision < 0:
+        raise ValueError("precision must be greater than or equal to 0")
+
+    original = value.decode() if isinstance(value, bytes) else str(value)
+    decimal_value = Decimal(original)
+    quant = Decimal(1).scaleb(-precision)
+    truncated = decimal_value.quantize(quant, rounding=ROUND_DOWN)
+    text = format(truncated, f".{precision}f")
+
+    if precision:
+        text = text.rstrip("0").rstrip(".")
+        if "." not in text and any(marker in original.lower() for marker in (".", "e")):
+            text += ".0"
+
+    if text in ("-0", "-0.0"):
+        return "0.0" if "." in text else "0"
+    return text
 
 
 def split_host(host: str, port: Union[int, None] = None) -> Tuple[str, int]:
@@ -273,8 +295,8 @@ def connectString2url(conn_str: str) -> str:  # pylint: disable=invalid-name
 def cot2xml(event: pytak.COTEvent) -> ET.Element:
     """Generate a minimum COT Event as an XML object."""
     # Optimized: Reduce redundant str() calls and or operations
-    lat = str(event.lat) if event.lat is not None else "0.0"
-    lon = str(event.lon) if event.lon is not None else "0.0"
+    lat = truncate_float(event.lat) if event.lat is not None else "0.0"
+    lon = truncate_float(event.lon) if event.lon is not None else "0.0"
     uid = event.uid or pytak.DEFAULT_HOST_ID
     stale = int(event.stale or pytak.DEFAULT_COT_STALE)
     cot_type = event.cot_type or "a-u-G"
@@ -325,8 +347,8 @@ def gen_cot_xml(
 ) -> Optional[ET.Element]:
     """Generate a minimum CoT Event as an XML object."""
     # Optimized: Use default values directly instead of redundant or operators
-    lat = str(lat) if lat is not None else "0.0"
-    lon = str(lon) if lon is not None else "0.0"
+    lat = truncate_float(lat) if lat is not None else "0.0"
+    lon = truncate_float(lon) if lon is not None else "0.0"
     ce = str(ce) if ce is not None else pytak.DEFAULT_COT_VAL
     hae = str(hae) if hae is not None else pytak.DEFAULT_COT_VAL
     le = str(le) if le is not None else pytak.DEFAULT_COT_VAL

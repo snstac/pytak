@@ -92,6 +92,7 @@ from .functions import (  # NOQA
     parse_mqtt_url,
     hello_event,
     cot_time,
+    truncate_float,
     gen_cot,
     gen_cot_xml,
     cot2xml,
