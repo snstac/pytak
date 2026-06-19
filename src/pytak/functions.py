@@ -29,8 +29,8 @@ import os
 import json
 
 from pathlib import Path
-from typing import NamedTuple, Optional, Tuple, Union
-from urllib.parse import ParseResult, urlparse, unquote
+from typing import Iterable, Mapping, NamedTuple, Optional, Tuple, Union
+from urllib.parse import ParseResult, urlparse, unquote, urlunparse
 
 import pytak
 import pytak.crypto_classes  # pylint: disable=cyclic-import
@@ -228,6 +228,160 @@ def cot_time(cot_stale: Union[int, None] = None) -> str:
     return time.strftime(pytak.W3C_XML_DATETIME)
 
 
+def cot_flow_tags(host_id: Optional[str] = None) -> ET.Element:
+    """Return a standard CoT ``_flow-tags_`` detail element."""
+    flow_tags = ET.Element("_flow-tags_")
+    tag_host_id = (host_id or pytak.DEFAULT_HOST_ID).replace("@", "-")
+    flow_tags.set(f"{tag_host_id}-pytak", pytak.cot_time())
+    return flow_tags
+
+
+def cot_point(
+    lat: Union[bytes, str, float, int, None] = None,
+    lon: Union[bytes, str, float, int, None] = None,
+    ce: Union[bytes, str, float, int, None] = None,
+    hae: Union[bytes, str, float, int, None] = None,
+    le: Union[bytes, str, float, int, None] = None,
+    precision: int = 4,
+) -> ET.Element:
+    """Return a CoT ``point`` element with TAK-safe latitude and longitude."""
+    point = ET.Element("point")
+    point.set("lat", truncate_float(lat, precision) if lat is not None else "0.0")
+    point.set("lon", truncate_float(lon, precision) if lon is not None else "0.0")
+    point.set("hae", str(hae) if hae is not None else pytak.DEFAULT_COT_VAL)
+    point.set("ce", str(ce) if ce is not None else pytak.DEFAULT_COT_VAL)
+    point.set("le", str(le) if le is not None else pytak.DEFAULT_COT_VAL)
+    return point
+
+
+def cot_detail(
+    *children: ET.Element,
+    flow_tag: bool = True,
+    flow_tag_host_id: Optional[str] = None,
+) -> ET.Element:
+    """Return a CoT ``detail`` element with optional flow tags and children."""
+    detail = ET.Element("detail")
+    if flow_tag:
+        detail.append(cot_flow_tags(flow_tag_host_id))
+    for child in children:
+        detail.append(child)
+    return detail
+
+
+def remarks_text(
+    fields: Iterable[object],
+    separator: str = " ",
+    include_empty: bool = False,
+) -> str:
+    """Join remark fields after dropping ``None`` and, by default, empty values."""
+    values = []
+    for field in fields:
+        if field is None:
+            continue
+        value = str(field)
+        if not include_empty and not value.strip():
+            continue
+        values.append(value)
+    return separator.join(values)
+
+
+def add_remarks(
+    detail: ET.Element,
+    fields: Iterable[object],
+    separator: str = " ",
+    include_empty: bool = False,
+) -> ET.Element:
+    """Append a CoT ``remarks`` child to ``detail`` and return it."""
+    remarks = ET.Element("remarks")
+    remarks.text = remarks_text(fields, separator, include_empty)
+    detail.append(remarks)
+    return remarks
+
+
+def cot_event(
+    lat: Union[bytes, str, float, int, None] = None,
+    lon: Union[bytes, str, float, int, None] = None,
+    ce: Union[bytes, str, float, int, None] = None,
+    hae: Union[bytes, str, float, int, None] = None,
+    le: Union[bytes, str, float, int, None] = None,
+    uid: Optional[str] = None,
+    stale: Union[float, int, None] = None,
+    cot_type: Optional[str] = None,
+    how: str = "m-g",
+    point: Optional[ET.Element] = None,
+    detail: Optional[ET.Element] = None,
+    callsign: Optional[str] = None,
+    flow_tag: bool = True,
+    access: Optional[str] = None,
+    qos: Optional[str] = None,
+    opex: Optional[str] = None,
+    caveat: Optional[str] = None,
+    relto: Optional[str] = None,
+    extra_attrs: Optional[Mapping[str, object]] = None,
+) -> ET.Element:
+    """Return a standard CoT ``event`` element for PyTAK-based clients."""
+    stale_seconds = int(stale or pytak.DEFAULT_COT_STALE)
+    event = ET.Element("event")
+    event.set("version", "2.0")
+    event.set("type", cot_type or "a-u-G")
+    event.set("uid", uid or pytak.DEFAULT_HOST_ID)
+    event.set("how", how)
+    event.set("time", pytak.cot_time())
+    event.set("start", pytak.cot_time())
+    event.set("stale", pytak.cot_time(stale_seconds))
+
+    optional_attrs = {
+        "access": access,
+        "qos": qos,
+        "opex": opex,
+        "caveat": caveat,
+        "rel_to": relto,
+    }
+    for key, value in optional_attrs.items():
+        if value:
+            event.set(key, str(value))
+    for key, value in (extra_attrs or {}).items():
+        if value is not None:
+            event.set(str(key), str(value))
+
+    event.append(point if point is not None else cot_point(lat, lon, ce, hae, le))
+
+    event_detail = detail if detail is not None else cot_detail(flow_tag=flow_tag)
+    if callsign:
+        contact = ET.Element("contact")
+        contact.set("callsign", callsign)
+        event_detail.append(contact)
+    event.append(event_detail)
+    return event
+
+
+def serialize_cot(
+    event: ET.Element,
+    xml_declaration: bool = True,
+    trailing_newline: bool = False,
+) -> bytes:
+    """Serialize a CoT XML element to bytes."""
+    payload = ET.tostring(event)
+    if xml_declaration:
+        payload = pytak.DEFAULT_XML_DECLARATION + b"\n" + payload
+    if trailing_newline:
+        payload += b"\n"
+    return payload
+
+
+def sanitize_url_credentials(url: str) -> str:
+    """Return a URL with username/password removed from the netloc."""
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        netloc = parsed.hostname or ""
+        if parsed.port:
+            netloc = f"{netloc}:{parsed.port}"
+        parsed = parsed._replace(netloc=netloc)
+    return urlunparse(parsed)
+
+
 def hello_event(uid: Optional[bytes] = None) -> bytes:
     """Generate a Hello CoT Event."""
     uid = uid or "takPing"
@@ -346,49 +500,17 @@ def gen_cot_xml(
     callsign: Optional[str] = None,
 ) -> Optional[ET.Element]:
     """Generate a minimum CoT Event as an XML object."""
-    # Optimized: Use default values directly instead of redundant or operators
-    lat = truncate_float(lat) if lat is not None else "0.0"
-    lon = truncate_float(lon) if lon is not None else "0.0"
-    ce = str(ce) if ce is not None else pytak.DEFAULT_COT_VAL
-    hae = str(hae) if hae is not None else pytak.DEFAULT_COT_VAL
-    le = str(le) if le is not None else pytak.DEFAULT_COT_VAL
-    uid = uid or pytak.DEFAULT_HOST_ID
-    stale = int(stale or pytak.DEFAULT_COT_STALE)
-    cot_type = cot_type or "a-u-G"
-
-    event = ET.Element("event")
-    event.set("version", "2.0")
-    event.set("type", cot_type)
-    event.set("uid", uid)
-    event.set("how", "m-g")
-    event.set("time", pytak.cot_time())
-    event.set("start", pytak.cot_time())
-    event.set("stale", pytak.cot_time(stale))
-
-    point = ET.Element("point")
-    point.set("lat", lat)
-    point.set("lon", lon)
-    point.set("le", le)
-    point.set("hae", hae)
-    point.set("ce", ce)
-
-    # Optimized: Pre-compute flow tag name once
-    flow_tags = ET.Element("_flow-tags_")
-    _ft_tag: str = f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-")
-    flow_tags.set(_ft_tag, pytak.cot_time())
-
-    detail = ET.Element("detail")
-    detail.append(flow_tags)
-
-    if callsign:
-        contact = ET.Element("contact")
-        contact.set("callsign", callsign)
-        detail.append(contact)
-
-    event.append(point)
-    event.append(detail)
-
-    return event
+    return cot_event(
+        lat=lat,
+        lon=lon,
+        ce=ce,
+        hae=hae,
+        le=le,
+        uid=uid,
+        stale=stale,
+        cot_type=cot_type,
+        callsign=callsign,
+    )
 
 
 def gen_cot(
@@ -407,8 +529,7 @@ def gen_cot(
         lat, lon, ce, hae, le, uid, stale, cot_type, callsign
     )
     if isinstance(cot, ET.Element):
-        # Optimized: Pre-allocate bytearray for better performance
-        return pytak.DEFAULT_XML_DECLARATION + b"\n" + ET.tostring(cot)
+        return serialize_cot(cot)
     return cot
 
 

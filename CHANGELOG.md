@@ -1,3 +1,13 @@
+## PyTAK 7.3.12
+
+- Added reusable CoT construction helpers for PyTAK child clients:
+  `cot_point()`, `cot_detail()`, `cot_event()`, `add_remarks()`,
+  `remarks_text()`, `serialize_cot()`, and `sanitize_url_credentials()`.
+- Kept `gen_cot_xml()` and `gen_cot()` backward-compatible while routing them
+  through the shared CoT event builder.
+- Standardized TAK-safe latitude/longitude truncation in the shared point helper
+  for AryaOS-driven client compatibility.
+
 ## PyTAK 7.3.0 (Draft)
 
 Release draft for the next PyTAK version after `7.2.1`.

@@ -10,6 +10,54 @@ Send a `takPong` CoT marker every 20 seconds over plain TCP. Save as `send.py` a
 
 ---
 
+## Build CoT For Child Clients
+
+PyTAK-based gateways such as ADSBCOT, AISCOT, DRONECOT, LINCOT, and DHBridge
+should use the shared CoT helpers for standard event metadata, point formatting,
+flow tags, remarks, and serialization. Keep sensor-specific detail elements in
+the child client, but let PyTAK own the common CoT skeleton.
+
+```python
+import xml.etree.ElementTree as ET
+
+import pytak
+
+
+track = ET.Element("track")
+track.set("course", "90")
+track.set("speed", "12.3")
+
+detail = pytak.cot_detail(track)
+pytak.add_remarks(
+    detail,
+    [
+        "Remote ID: uas-123",
+        "Sensor: aryaos-39e7",
+        f"TAK: {pytak.sanitize_url_credentials('tls://user:pass@tak.example:8089')}",
+    ],
+)
+
+event = pytak.cot_event(
+    lat=37.760050100,
+    lon=-122.497702900,
+    hae=10,
+    ce=5,
+    le=8,
+    uid="UAS.uas-123",
+    cot_type="a-f-A-M-F-Q",
+    stale=60,
+    detail=detail,
+    callsign="uas-123",
+)
+
+payload = pytak.serialize_cot(event, trailing_newline=True)
+```
+
+`cot_point()` and `cot_event()` truncate latitude and longitude to at most four
+decimal places by default. This is intentional for TAK client compatibility.
+
+---
+
 ## Send & Receive TAK Data {#send-receive-tak-data}
 
 Send a position marker every 5 seconds **and** receive all incoming CoT from the same TCP connection. Received events are logged to console.

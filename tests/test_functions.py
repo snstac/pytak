@@ -20,6 +20,7 @@
 
 import asyncio
 import urllib
+import xml.etree.ElementTree as ET
 
 import pytest
 import pytak
@@ -156,4 +157,78 @@ def test_cot2xml():
     assert (
         flow_tags_element.get(f"{pytak.DEFAULT_HOST_ID}-pytak".replace("@", "-"))
         is not None
+    )
+
+
+def test_cot_point_truncates_coordinates():
+    """cot_point() should enforce TAK-safe lat/lon formatting."""
+    point = pytak.cot_point(
+        lat="37.760050100",
+        lon="-122.497702900",
+        hae=12.5,
+        ce=3,
+        le=4,
+    )
+    assert point.get("lat") == "37.76"
+    assert point.get("lon") == "-122.4977"
+    assert point.get("hae") == "12.5"
+    assert point.get("ce") == "3"
+    assert point.get("le") == "4"
+
+
+def test_cot_event_builds_standard_event():
+    """cot_event() should build a reusable event skeleton for child clients."""
+    track = ET.Element("track")
+    track.set("course", "90")
+    detail = pytak.cot_detail(track)
+
+    event = pytak.cot_event(
+        lat=37.7749295,
+        lon=-122.4194155,
+        uid="unit-1",
+        cot_type="a-f-G-U-C",
+        stale=60,
+        detail=detail,
+        callsign="UNIT 1",
+        access="UNCLASSIFIED",
+    )
+
+    assert event.get("version") == "2.0"
+    assert event.get("uid") == "unit-1"
+    assert event.get("type") == "a-f-G-U-C"
+    assert event.get("how") == "m-g"
+    assert event.get("access") == "UNCLASSIFIED"
+    assert event.find("point").get("lat") == "37.7749"
+    assert event.find("point").get("lon") == "-122.4194"
+    assert event.find("detail").find("_flow-tags_") is not None
+    assert event.find("detail").find("track").get("course") == "90"
+    assert event.find("detail").find("contact").get("callsign") == "UNIT 1"
+
+
+def test_remarks_helpers_filter_empty_values():
+    """remarks_text() and add_remarks() should share child-client behavior."""
+    detail = pytak.cot_detail(flow_tag=False)
+    remarks = pytak.add_remarks(detail, ["Alpha", "", None, "Bravo"])
+    assert remarks.text == "Alpha Bravo"
+    assert pytak.remarks_text(["A", None, "B"], separator="\n") == "A\nB"
+
+
+def test_serialize_cot_can_append_trailing_newline():
+    """serialize_cot() should preserve gen_cot-compatible defaults."""
+    event = pytak.cot_event(uid="serialize-test")
+    payload = pytak.serialize_cot(event, trailing_newline=True)
+    assert payload.startswith(pytak.DEFAULT_XML_DECLARATION + b"\n")
+    assert payload.endswith(b"\n")
+    assert b"serialize-test" in payload
+
+
+def test_sanitize_url_credentials():
+    """Credential-bearing TAK URLs should be safe for remarks and logs."""
+    assert (
+        pytak.sanitize_url_credentials("tls://user:pass@tak.example.com:8089")
+        == "tls://tak.example.com:8089"
+    )
+    assert (
+        pytak.sanitize_url_credentials("udp+wo://239.2.3.1:6969")
+        == "udp+wo://239.2.3.1:6969"
     )
