@@ -101,7 +101,7 @@ def test_parse_tak_url_url_encoded_values():
 # ---------------------------------------------------------------------------
 
 
-def test_cert_cache_paths_includes_port(tmp_path):
+def test_cert_cache_paths_includes_port():
     """New key format should differ when port differs (same host+user)."""
     p12_a, pass_a = _cert_cache_paths("tak.example.com", 8089, "alice")
     p12_b, pass_b = _cert_cache_paths("tak.example.com", 8443, "alice")
@@ -109,7 +109,7 @@ def test_cert_cache_paths_includes_port(tmp_path):
     assert pass_a != pass_b
 
 
-def test_cert_cache_paths_includes_username(tmp_path):
+def test_cert_cache_paths_includes_username():
     """New key format should differ when username differs."""
     p12_a, _ = _cert_cache_paths("tak.example.com", 8089, "alice")
     p12_b, _ = _cert_cache_paths("tak.example.com", 8089, "bob")
@@ -372,7 +372,7 @@ async def test_resolve_tak_url_legacy_fallback(tmp_path):
         "pytak.crypto_classes.CertificateEnrollment.begin_enrollment"
     ) as mock_enroll:
         result = await resolve_tak_url(url)
-        # enrollment should NOT be called – legacy cert is reused
+        # enrollment should NOT be called - legacy cert is reused
         mock_enroll.assert_not_called()
 
     # Should have used the legacy cert

@@ -200,7 +200,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
         legacy_p12, legacy_pass = _legacy_cert_cache_paths(hostname, username)
         if os.path.exists(legacy_p12):
             logging.info(
-                "TAK cert cache: new key miss – falling back to legacy cache "
+                "TAK cert cache: new key miss - falling back to legacy cache "
                 "path for %s@%s (legacy: %s)",
                 username, hostname, legacy_p12,
             )
