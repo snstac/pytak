@@ -383,18 +383,18 @@ async def test_resolve_tak_url_no_legacy_fallback_when_not_present(tmp_path):
     """resolve_tak_url enrolls fresh when neither new nor legacy cert exist."""
     url = "tak://com.atakmap.app/enroll?host=tak.example.com:8089&username=alice&token=tok"
 
-    new_p12 = tmp_path / "new.p12"
+    new_p12 = str(tmp_path / "new.p12")
     new_pass = str(tmp_path / "new.pass")
     legacy_p12 = str(tmp_path / "legacy.p12")  # does not exist
     legacy_pass = str(tmp_path / "legacy.pass")
 
     def fake_enroll(*a, **kw):
-        new_p12.write_bytes(b"freshcertdata")
+        Path(new_p12).write_bytes(b"freshcertdata")
         return None
 
     with mock.patch(
         "pytak.client_functions._cert_cache_paths",
-        return_value=(str(new_p12), new_pass),
+        return_value=(new_p12, new_pass),
     ), mock.patch(
         "pytak.client_functions._legacy_cert_cache_paths",
         return_value=(legacy_p12, legacy_pass),
@@ -407,4 +407,4 @@ async def test_resolve_tak_url_no_legacy_fallback_when_not_present(tmp_path):
         result = await resolve_tak_url(url)
 
     # Should enroll and return the new-key cert path
-    assert result["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)
+    assert result["PYTAK_TLS_CLIENT_CERT"] == new_p12

@@ -193,12 +193,9 @@ async def resolve_tak_url(tak_url: str) -> dict:
         new_p12_path, hostname, port, username,
     )
 
-    # Default to the new-format paths; migrate from legacy if needed.
+    # Resolve which cache entry to read: prefer new-format; fall back to legacy
+    # when upgrading from pre-7.3.13 so we do not force unnecessary re-enrollment.
     p12_path, pass_path = new_p12_path, new_pass_path
-
-    # Migration: fall back to the legacy (pre-7.3.13) cache entry if the new
-    # path has no cert yet.  This avoids forcing re-enrollment immediately after
-    # an upgrade when the server/CA has not actually changed.
     if not os.path.exists(new_p12_path):
         legacy_p12, legacy_pass = _legacy_cert_cache_paths(hostname, username)
         if os.path.exists(legacy_p12):
@@ -226,30 +223,30 @@ async def resolve_tak_url(tak_url: str) -> dict:
         )
         from pytak.crypto_classes import CertificateEnrollment
 
-        # Always store fresh certificates at the new-format path.
-        p12_path, pass_path = new_p12_path, new_pass_path
-
         passphrase = secrets.token_urlsafe(
             pytak.DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
         )
         enrollment = CertificateEnrollment()
+        # Enrollment always writes to the new-format path.
         await enrollment.begin_enrollment(
             domain=hostname,
             username=username,
             password=token,
-            output_path=p12_path,
+            output_path=new_p12_path,
             passphrase=passphrase,
             trust_all=True,
         )
-        if not os.path.exists(p12_path):
+        if not os.path.exists(new_p12_path):
             raise RuntimeError(
                 f"TAK certificate enrollment failed for {username}@{hostname}"
             )
-        with open(pass_path, "w") as f:
+        with open(new_pass_path, "w") as f:
             f.write(passphrase)
-        os.chmod(pass_path, 0o600)
-        os.chmod(p12_path, 0o600)
-        logging.info("TAK client certificate cached at %s", p12_path)
+        os.chmod(new_pass_path, 0o600)
+        os.chmod(new_p12_path, 0o600)
+        logging.info("TAK client certificate cached at %s", new_p12_path)
+        # Return dict will use new-format paths.
+        p12_path = new_p12_path
 
     if explicit_port and port == pytak.DEFAULT_TAK_STREAMING_PORT:
         cot_url = f"tls://{hostname}:{port}"
