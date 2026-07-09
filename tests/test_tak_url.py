@@ -33,6 +33,7 @@ import pytak
 from pytak.client_functions import (
     parse_tak_url,
     _cert_cache_paths,
+    _legacy_cert_cache_paths,
     _cached_cert_valid,
     resolve_tak_url,
 )
@@ -93,6 +94,53 @@ def test_parse_tak_url_url_encoded_values():
     assert result["port"] == 8089
     assert result["username"] == "alice@org"
     assert result["explicit_port"] is True
+
+
+# ---------------------------------------------------------------------------
+# _cert_cache_paths / _legacy_cert_cache_paths
+# ---------------------------------------------------------------------------
+
+
+def test_cert_cache_paths_includes_port(tmp_path):
+    """New key format should differ when port differs (same host+user)."""
+    p12_a, pass_a = _cert_cache_paths("tak.example.com", 8089, "alice")
+    p12_b, pass_b = _cert_cache_paths("tak.example.com", 8443, "alice")
+    assert p12_a != p12_b
+    assert pass_a != pass_b
+
+
+def test_cert_cache_paths_includes_username(tmp_path):
+    """New key format should differ when username differs."""
+    p12_a, _ = _cert_cache_paths("tak.example.com", 8089, "alice")
+    p12_b, _ = _cert_cache_paths("tak.example.com", 8089, "bob")
+    assert p12_a != p12_b
+
+
+def test_cert_cache_paths_hash_length():
+    """New key should have a 32-char hex prefix."""
+    import os
+    p12, _ = _cert_cache_paths("tak.example.com", 8089, "alice")
+    basename = os.path.basename(p12)
+    key_part = basename.replace(".p12", "")
+    assert len(key_part) == 32
+    assert all(c in "0123456789abcdef" for c in key_part)
+
+
+def test_legacy_cert_cache_paths_hash_length():
+    """Legacy key should have a 16-char hex prefix."""
+    import os
+    p12, _ = _legacy_cert_cache_paths("tak.example.com", "alice")
+    basename = os.path.basename(p12)
+    key_part = basename.replace(".p12", "")
+    assert len(key_part) == 16
+    assert all(c in "0123456789abcdef" for c in key_part)
+
+
+def test_cert_cache_paths_new_vs_legacy_differ():
+    """New and legacy keys for the same host+user should differ (more entropy)."""
+    p12_new, _ = _cert_cache_paths("tak.example.com", 8089, "alice")
+    p12_leg, _ = _legacy_cert_cache_paths("tak.example.com", "alice")
+    assert p12_new != p12_leg
 
 
 # ---------------------------------------------------------------------------
@@ -295,3 +343,70 @@ async def test_resolve_tak_url_raises_when_enrollment_fails(tmp_path):
     ):
         with pytest.raises(RuntimeError, match="enrollment failed"):
             await resolve_tak_url(url)
+
+
+@pytest.mark.asyncio
+async def test_resolve_tak_url_legacy_fallback(tmp_path):
+    """resolve_tak_url falls back to a legacy-keyed cert when the new key is absent."""
+    url = "tak://com.atakmap.app/enroll?host=tak.example.com:8089&username=alice&token=secret"
+
+    # New-key paths point to files that don't exist
+    new_p12 = str(tmp_path / "new.p12")
+    new_pass = str(tmp_path / "new.pass")
+
+    # Legacy-key paths point to existing files
+    legacy_p12 = tmp_path / "legacy.p12"
+    legacy_pass = tmp_path / "legacy.pass"
+    legacy_p12.write_bytes(b"fakep12data")
+    legacy_pass.write_text("stored_passphrase")
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(new_p12, new_pass),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(str(legacy_p12), str(legacy_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=True
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment"
+    ) as mock_enroll:
+        result = await resolve_tak_url(url)
+        # enrollment should NOT be called – legacy cert is reused
+        mock_enroll.assert_not_called()
+
+    # Should have used the legacy cert
+    assert result["PYTAK_TLS_CLIENT_CERT"] == str(legacy_p12)
+    assert result["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == "stored_passphrase"
+
+
+@pytest.mark.asyncio
+async def test_resolve_tak_url_no_legacy_fallback_when_not_present(tmp_path):
+    """resolve_tak_url enrolls fresh when neither new nor legacy cert exist."""
+    url = "tak://com.atakmap.app/enroll?host=tak.example.com:8089&username=alice&token=tok"
+
+    new_p12 = tmp_path / "new.p12"
+    new_pass = str(tmp_path / "new.pass")
+    legacy_p12 = str(tmp_path / "legacy.p12")  # does not exist
+    legacy_pass = str(tmp_path / "legacy.pass")
+
+    def fake_enroll(*a, **kw):
+        new_p12.write_bytes(b"freshcertdata")
+        return None
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), new_pass),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(legacy_p12, legacy_pass),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=False
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ):
+        result = await resolve_tak_url(url)
+
+    # Should enroll and return the new-key cert path
+    assert result["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)

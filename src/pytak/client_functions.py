@@ -104,10 +104,31 @@ def parse_tak_url(tak_url: str) -> dict:
     }
 
 
-def _cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
-    """Return (p12_path, pass_path) for the on-disk cert cache."""
+def _cert_cache_paths(hostname: str, port: int, username: str) -> Tuple[str, str]:
+    """Return (p12_path, pass_path) for the on-disk cert cache.
+
+    The cache key incorporates *hostname*, *port*, and *username* so that
+    connections to the same host on different ports, or to a rebuilt server
+    instance where the CA may have changed, are not confused with one another.
+    The SHA-256 prefix is 32 hex characters (128 bits) to reduce accidental
+    collision probability.
+    """
     cache_dir = Path.home() / ".pytak" / "certs"
     cache_dir.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha256(f"{hostname}:{port}:{username}".encode()).hexdigest()[:32]
+    return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
+
+
+def _legacy_cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
+    """Return (p12_path, pass_path) using the pre-7.3.13 cache key format.
+
+    The old key included only *hostname* and *username* with a 16-character
+    SHA-256 prefix.  This helper is used as a migration fallback: if the new
+    cache path has no cert but the legacy path does, the legacy cert is reused
+    for one more connection rather than forcing unnecessary re-enrollment on
+    upgrade.  The legacy files are **not** renamed or deleted automatically.
+    """
+    cache_dir = Path.home() / ".pytak" / "certs"
     key = hashlib.sha256(f"{hostname}:{username}".encode()).hexdigest()[:16]
     return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
 
@@ -166,7 +187,24 @@ async def resolve_tak_url(tak_url: str) -> dict:
     username = params["username"]
     token = params["token"]
 
-    p12_path, pass_path = _cert_cache_paths(hostname, username)
+    p12_path, pass_path = _cert_cache_paths(hostname, port, username)
+    logging.debug(
+        "TAK cert cache path (new key): %s (host=%s port=%s user=%s)",
+        p12_path, hostname, port, username,
+    )
+
+    # Migration: fall back to the legacy (pre-7.3.13) cache entry if the new
+    # path has no cert yet.  This avoids forcing re-enrollment immediately after
+    # an upgrade when the server/CA has not actually changed.
+    if not os.path.exists(p12_path):
+        legacy_p12, legacy_pass = _legacy_cert_cache_paths(hostname, username)
+        if os.path.exists(legacy_p12):
+            logging.info(
+                "TAK cert cache: new key miss – falling back to legacy cache "
+                "path for %s@%s (legacy: %s)",
+                username, hostname, legacy_p12,
+            )
+            p12_path, pass_path = legacy_p12, legacy_pass
 
     passphrase: str = ""
     if os.path.exists(pass_path):
@@ -174,10 +212,19 @@ async def resolve_tak_url(tak_url: str) -> dict:
             passphrase = f.read().strip()
 
     if passphrase and _cached_cert_valid(p12_path, passphrase):
-        logging.info("Using cached TAK client certificate for %s@%s", username, hostname)
+        logging.info(
+            "TAK cert cache hit: using cached certificate for %s@%s:%s",
+            username, hostname, port,
+        )
     else:
-        logging.info("Enrolling TAK client certificate for %s@%s", username, hostname)
+        logging.info(
+            "TAK cert cache miss: enrolling new certificate for %s@%s:%s",
+            username, hostname, port,
+        )
         from pytak.crypto_classes import CertificateEnrollment
+
+        # Reset to new-style cache path so fresh cert is stored there.
+        p12_path, pass_path = _cert_cache_paths(hostname, port, username)
 
         passphrase = secrets.token_urlsafe(
             pytak.DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
