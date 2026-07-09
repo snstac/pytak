@@ -187,16 +187,19 @@ async def resolve_tak_url(tak_url: str) -> dict:
     username = params["username"]
     token = params["token"]
 
-    p12_path, pass_path = _cert_cache_paths(hostname, port, username)
+    new_p12_path, new_pass_path = _cert_cache_paths(hostname, port, username)
     logging.debug(
         "TAK cert cache path (new key): %s (host=%s port=%s user=%s)",
-        p12_path, hostname, port, username,
+        new_p12_path, hostname, port, username,
     )
+
+    # Default to the new-format paths; migrate from legacy if needed.
+    p12_path, pass_path = new_p12_path, new_pass_path
 
     # Migration: fall back to the legacy (pre-7.3.13) cache entry if the new
     # path has no cert yet.  This avoids forcing re-enrollment immediately after
     # an upgrade when the server/CA has not actually changed.
-    if not os.path.exists(p12_path):
+    if not os.path.exists(new_p12_path):
         legacy_p12, legacy_pass = _legacy_cert_cache_paths(hostname, username)
         if os.path.exists(legacy_p12):
             logging.info(
@@ -223,8 +226,8 @@ async def resolve_tak_url(tak_url: str) -> dict:
         )
         from pytak.crypto_classes import CertificateEnrollment
 
-        # Reset to new-style cache path so fresh cert is stored there.
-        p12_path, pass_path = _cert_cache_paths(hostname, port, username)
+        # Always store fresh certificates at the new-format path.
+        p12_path, pass_path = new_p12_path, new_pass_path
 
         passphrase = secrets.token_urlsafe(
             pytak.DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH

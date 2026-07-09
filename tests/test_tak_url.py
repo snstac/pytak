@@ -118,7 +118,6 @@ def test_cert_cache_paths_includes_username():
 
 def test_cert_cache_paths_hash_length():
     """New key should have a 32-char hex prefix."""
-    import os
     p12, _ = _cert_cache_paths("tak.example.com", 8089, "alice")
     basename = os.path.basename(p12)
     key_part = basename.replace(".p12", "")
@@ -128,7 +127,6 @@ def test_cert_cache_paths_hash_length():
 
 def test_legacy_cert_cache_paths_hash_length():
     """Legacy key should have a 16-char hex prefix."""
-    import os
     p12, _ = _legacy_cert_cache_paths("tak.example.com", "alice")
     basename = os.path.basename(p12)
     key_part = basename.replace(".p12", "")
