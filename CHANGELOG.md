@@ -13,6 +13,10 @@
   current connection without forcing unnecessary re-enrollment.
 - Fresh certificates obtained via enrollment are always stored under the new
   32-char key so the legacy path is naturally superseded over time.
+- Added a server TLS certificate fingerprint sidecar for cached enrollment
+  certs; if a TAK server is rebuilt at the same host/port and presents a new
+  server certificate, PyTAK now treats the cached client cert as stale and
+  re-enrolls automatically.
 - Improved decision-point logging in `resolve_tak_url`: cache path chosen,
   cache hit/miss, and legacy fallback are all now logged at INFO/DEBUG level.
 
