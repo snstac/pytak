@@ -119,6 +119,11 @@ def _cert_cache_paths(hostname: str, port: int, username: str) -> Tuple[str, str
     return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
 
 
+def _cert_cache_server_fingerprint_path(p12_path: str) -> str:
+    """Return the sidecar path storing the server certificate fingerprint."""
+    return str(Path(p12_path).with_suffix(".server"))
+
+
 def _legacy_cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
     """Return (p12_path, pass_path) using the pre-7.3.13 cache key format.
 
@@ -161,6 +166,36 @@ def _cached_cert_valid(
         return False
 
 
+def _server_cert_fingerprint(hostname: str, port: int, timeout: float = 5.0) -> str:
+    """Return the SHA-256 fingerprint for a server TLS certificate."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    with socket.create_connection((hostname, port), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
+            der_cert = tls_sock.getpeercert(binary_form=True)
+
+    if not der_cert:
+        raise RuntimeError(f"No TLS peer certificate from {hostname}:{port}")
+    return hashlib.sha256(der_cert).hexdigest()
+
+
+async def _server_cert_fingerprint_async(hostname: str, port: int) -> Optional[str]:
+    """Best-effort async wrapper for reading a server TLS cert fingerprint."""
+    loop = get_running_loop()
+    try:
+        return await loop.run_in_executor(
+            None, _server_cert_fingerprint, hostname, port
+        )
+    except Exception as exc:
+        logging.debug(
+            "Could not read TAK server certificate fingerprint for %s:%s: %s",
+            hostname, port, exc,
+        )
+        return None
+
+
 async def resolve_tak_url(tak_url: str) -> dict:
     """Resolve a tak:// onboarding URL to PyTAK TLS config parameters.
 
@@ -188,6 +223,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
     token = params["token"]
 
     new_p12_path, new_pass_path = _cert_cache_paths(hostname, port, username)
+    new_server_fp_path = _cert_cache_server_fingerprint_path(new_p12_path)
     logging.debug(
         "TAK cert cache path (new key): %s (host=%s port=%s user=%s)",
         new_p12_path, hostname, port, username,
@@ -196,6 +232,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
     # Resolve which cache entry to read: prefer new-format; fall back to legacy
     # when upgrading from pre-7.3.13 so we do not force unnecessary re-enrollment.
     p12_path, pass_path = new_p12_path, new_pass_path
+    server_fp_path = new_server_fp_path
     if not os.path.exists(new_p12_path):
         legacy_p12, legacy_pass = _legacy_cert_cache_paths(hostname, username)
         if os.path.exists(legacy_p12):
@@ -205,13 +242,42 @@ async def resolve_tak_url(tak_url: str) -> dict:
                 username, hostname, legacy_p12,
             )
             p12_path, pass_path = legacy_p12, legacy_pass
+            server_fp_path = _cert_cache_server_fingerprint_path(legacy_p12)
 
     passphrase: str = ""
     if os.path.exists(pass_path):
         with open(pass_path) as f:
             passphrase = f.read().strip()
 
-    if passphrase and _cached_cert_valid(p12_path, passphrase):
+    fingerprint_port = (
+        port
+        if explicit_port
+        else pytak.DEFAULT_MARTI_PORT
+    )
+    current_server_fp = await _server_cert_fingerprint_async(hostname, fingerprint_port)
+
+    cached_server_fp = ""
+    if os.path.exists(server_fp_path):
+        with open(server_fp_path) as f:
+            cached_server_fp = f.read().strip()
+
+    server_cert_changed = (
+        bool(current_server_fp)
+        and bool(cached_server_fp)
+        and current_server_fp != cached_server_fp
+    )
+
+    if server_cert_changed:
+        logging.info(
+            "TAK cert cache stale: server certificate changed for %s:%s",
+            hostname, fingerprint_port,
+        )
+
+    if (
+        passphrase
+        and _cached_cert_valid(p12_path, passphrase)
+        and not server_cert_changed
+    ):
         logging.info(
             "TAK cert cache hit: using cached certificate for %s@%s:%s",
             username, hostname, port,
@@ -244,9 +310,19 @@ async def resolve_tak_url(tak_url: str) -> dict:
             f.write(passphrase)
         os.chmod(new_pass_path, 0o600)
         os.chmod(new_p12_path, 0o600)
+        if current_server_fp:
+            with open(new_server_fp_path, "w") as f:
+                f.write(current_server_fp)
+            os.chmod(new_server_fp_path, 0o600)
         logging.info("TAK client certificate cached at %s", new_p12_path)
         # Return dict will use new-format paths.
         p12_path = new_p12_path
+        server_fp_path = new_server_fp_path
+
+    if current_server_fp and not cached_server_fp and os.path.exists(p12_path):
+        with open(server_fp_path, "w") as f:
+            f.write(current_server_fp)
+        os.chmod(server_fp_path, 0o600)
 
     if explicit_port and port == pytak.DEFAULT_TAK_STREAMING_PORT:
         cot_url = f"tls://{hostname}:{port}"

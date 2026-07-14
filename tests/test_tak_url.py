@@ -33,10 +33,21 @@ import pytak
 from pytak.client_functions import (
     parse_tak_url,
     _cert_cache_paths,
+    _cert_cache_server_fingerprint_path,
     _legacy_cert_cache_paths,
     _cached_cert_valid,
     resolve_tak_url,
 )
+
+
+@pytest.fixture(autouse=True)
+def _disable_live_server_fingerprint():
+    """Keep unit tests from opening network sockets unless a test opts in."""
+    with mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value=None),
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +150,11 @@ def test_cert_cache_paths_new_vs_legacy_differ():
     p12_new, _ = _cert_cache_paths("tak.example.com", 8089, "alice")
     p12_leg, _ = _legacy_cert_cache_paths("tak.example.com", "alice")
     assert p12_new != p12_leg
+
+
+def test_cert_cache_server_fingerprint_path():
+    p12 = "/tmp/pytak-cache/example.p12"
+    assert _cert_cache_server_fingerprint_path(p12) == "/tmp/pytak-cache/example.server"
 
 
 # ---------------------------------------------------------------------------
@@ -408,3 +424,69 @@ async def test_resolve_tak_url_no_legacy_fallback_when_not_present(tmp_path):
 
     # Should enroll and return the new-key cert path
     assert result["PYTAK_TLS_CLIENT_CERT"] == new_p12
+
+
+@pytest.mark.asyncio
+async def test_resolve_tak_url_reenrolls_when_server_fingerprint_changes(tmp_path):
+    """A valid cached p12 is stale if the TAK server cert changed."""
+    url = "tak://com.atakmap.app/enroll?host=tak.example.com:8089&username=alice&token=tok"
+
+    new_p12 = tmp_path / "new.p12"
+    new_pass = tmp_path / "new.pass"
+    server_fp = tmp_path / "new.server"
+    new_p12.write_bytes(b"oldcertdata")
+    new_pass.write_text("stored_passphrase")
+    server_fp.write_text("old-server-fingerprint")
+
+    def fake_enroll(*a, **kw):
+        new_p12.write_bytes(b"freshcertdata")
+        return None
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=True
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="new-server-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ) as mock_enroll:
+        result = await resolve_tak_url(url)
+        mock_enroll.assert_called_once()
+
+    assert result["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)
+    assert new_p12.read_bytes() == b"freshcertdata"
+    assert server_fp.read_text() == "new-server-fingerprint"
+
+
+@pytest.mark.asyncio
+async def test_resolve_tak_url_uses_cached_cert_when_server_fingerprint_same(tmp_path):
+    """A matching server fingerprint keeps the valid cached p12."""
+    url = "tak://com.atakmap.app/enroll?host=tak.example.com:8089&username=alice&token=tok"
+
+    new_p12 = tmp_path / "new.p12"
+    new_pass = tmp_path / "new.pass"
+    server_fp = tmp_path / "new.server"
+    new_p12.write_bytes(b"oldcertdata")
+    new_pass.write_text("stored_passphrase")
+    server_fp.write_text("same-server-fingerprint")
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=True
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="same-server-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment"
+    ) as mock_enroll:
+        result = await resolve_tak_url(url)
+        mock_enroll.assert_not_called()
+
+    assert result["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)
+    assert server_fp.read_text() == "same-server-fingerprint"
