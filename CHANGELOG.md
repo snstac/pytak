@@ -1,3 +1,21 @@
+## PyTAK 7.3.13
+
+- Fixed a stale-certificate reuse bug in the `tak://` onboarding flow that
+  could cause SSL handshake failures (`TLSV1_ALERT_INTERNAL_ERROR`) when
+  connecting to a rebuilt TAK server whose CA had changed.
+- Strengthened cert cache keying in `_cert_cache_paths`: the cache key now
+  incorporates `hostname`, `port`, **and** `username` (previously only
+  `hostname:username`), and the SHA-256 hash prefix is extended from 16 to 32
+  hex characters to reduce accidental collisions.
+- Added `_legacy_cert_cache_paths` helper that computes the old (pre-7.3.13)
+  key for backward-compatible migration: on upgrade, if the new-format cache
+  entry is absent but a legacy entry exists, the legacy cert is reused for the
+  current connection without forcing unnecessary re-enrollment.
+- Fresh certificates obtained via enrollment are always stored under the new
+  32-char key so the legacy path is naturally superseded over time.
+- Improved decision-point logging in `resolve_tak_url`: cache path chosen,
+  cache hit/miss, and legacy fallback are all now logged at INFO/DEBUG level.
+
 ## PyTAK 7.3.12
 
 - Added reusable CoT construction helpers for PyTAK child clients:
