@@ -118,6 +118,23 @@ def _takmsg2xml(msg) -> Optional[bytes]:
                     ("os", d.takv.os), ("version", d.takv.version),
                 ] if v
             })
+        # <status battery> is strongly typed in the protobuf, so it is dropped
+        # entirely unless reconstructed here — and it is the only device-health
+        # field an EUD reports. Anything consuming a protobuf stream (ws://,
+        # wss://, and therefore tak:// enrollment) otherwise silently loses it.
+        # battery=0 is protobuf's default for "unset", so it means not-reported
+        # rather than a genuinely flat battery.
+        if d.HasField("status") and d.status.battery:
+            ET.SubElement(detail, "status", {"battery": str(d.status.battery)})
+        if d.HasField("precisionLocation") and (
+            d.precisionLocation.geopointsrc or d.precisionLocation.altsrc
+        ):
+            ET.SubElement(detail, "precisionlocation", {
+                k: v for k, v in [
+                    ("geopointsrc", d.precisionLocation.geopointsrc),
+                    ("altsrc", d.precisionLocation.altsrc),
+                ] if v
+            })
 
         return ET.tostring(event, encoding="unicode").encode("utf-8")
     except Exception:  # pylint: disable=broad-except
