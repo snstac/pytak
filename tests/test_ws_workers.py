@@ -116,6 +116,43 @@ async def test_ws_tx_worker_falls_back_on_proto_error():
     mock_ws.send_bytes.assert_called_once_with(SAMPLE_COT)
 
 
+@pytest.mark.asyncio
+async def test_ws_tx_worker_warns_once_when_takproto_missing(caplog):
+    """WSTXWorker should warn that raw XML sent to a TAK Protocol endpoint is dropped."""
+    queue = asyncio.Queue()
+    mock_ws = mock.MagicMock()
+    mock_ws.send_bytes = AsyncMock()
+
+    cot_url = f"wss://takserver.example.com:8443{pytak.DEFAULT_WS_PATH}"
+    worker = WSTXWorker(queue, {"COT_URL": cot_url}, mock_ws)
+
+    with mock.patch("pytak.classes.takproto", None):
+        with caplog.at_level("WARNING", logger=worker._logger.name):
+            await worker.handle_data(SAMPLE_COT)
+            await worker.handle_data(SAMPLE_COT)
+
+    warnings = [r for r in caplog.records if "takproto" in r.getMessage()]
+    assert len(warnings) == 1
+    assert cot_url in warnings[0].getMessage()
+    assert mock_ws.send_bytes.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_ws_tx_worker_does_not_warn_for_non_takproto_endpoint(caplog):
+    """No warning for a plain WebSocket server that accepts raw CoT XML."""
+    queue = asyncio.Queue()
+    mock_ws = mock.MagicMock()
+    mock_ws.send_bytes = AsyncMock()
+
+    worker = WSTXWorker(queue, {"COT_URL": "ws://example.com/cot"}, mock_ws)
+
+    with mock.patch("pytak.classes.takproto", None):
+        with caplog.at_level("WARNING", logger=worker._logger.name):
+            await worker.handle_data(SAMPLE_COT)
+
+    assert not [r for r in caplog.records if "takproto" in r.getMessage()]
+
+
 # ---------------------------------------------------------------------------
 # WSRXWorker
 # ---------------------------------------------------------------------------

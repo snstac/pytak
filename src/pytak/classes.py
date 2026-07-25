@@ -585,6 +585,23 @@ class WSTXWorker(Worker):
         super().__init__(queue, config)
         self._ws = ws
         self._session = session
+        self._warned_no_takproto = False
+
+    def _warn_no_takproto(self) -> None:
+        """Warn once when raw XML is sent to a TAK Protocol endpoint."""
+        if self._warned_no_takproto:
+            return
+        cot_url = str(self.config.get("COT_URL") or "")
+        if pytak.DEFAULT_WS_PATH not in cot_url:
+            return
+        self._warned_no_takproto = True
+        self._logger.warning(
+            "WS TX: The 'takproto' Python module is not installed, so raw CoT XML "
+            "is being sent to the TAK Protocol endpoint '%s'. TAK Server will "
+            "silently discard these events.\n"
+            "Try: python -m pip install pytak[with_takproto]",
+            cot_url,
+        )
 
     async def handle_data(self, data: bytes) -> None:
         if not data:
@@ -594,6 +611,8 @@ class WSTXWorker(Worker):
                 data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
             except Exception as exc:
                 self._logger.warning("WS TX: Protobuf encode failed, sending raw: %s", exc)
+        else:
+            self._warn_no_takproto()
         try:
             await self._ws.send_bytes(data)
         except Exception as exc:
