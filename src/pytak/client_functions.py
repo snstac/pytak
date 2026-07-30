@@ -704,6 +704,30 @@ async def create_udp_client(
     # Create the Reader
     rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    # SO_REUSEADDR/SO_REUSEPORT MUST be set BEFORE bind() -- setting them
+    # afterwards has no effect on a bind that already happened.
+    #
+    # They used to be applied after, which meant only ONE process per host could
+    # subscribe to a given multicast group. Observed on an AryaOS box: the
+    # neighbour-discovery daemon holds 239.2.3.1:6969, so gdltak died with
+    #
+    #   OSError: [Errno 98] Address already in use
+    #
+    # restarted 10 times, hit the systemd start limit and left the machine
+    # `degraded`. Two subscribers to one CoT multicast group is a normal
+    # arrangement, not an error.
+    if is_broadcast:
+        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    if is_broadcast or is_multicast:
+        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except (AttributeError, OSError):
+            # Not every platform has SO_REUSEPORT; SO_REUSEADDR alone is enough
+            # for multiple multicast subscribers on Linux.
+            pass
+
     bindall = sys.platform == "win32"
     rsock.bind(("" if bindall else host, port))
 
@@ -712,26 +736,24 @@ async def create_udp_client(
     if not reader:
         return reader, writer
 
-    if is_broadcast:
-        # SO_BROADCAST
-        reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-    if is_broadcast or is_multicast:
-        # SO_REUSEADDR
-        reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            # SO_REUSEPORT
-            reader.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except AttributeError:
-            # Some systems don't support SO_REUSEPORT
-            pass
-
     # Create Multicast Reader
     if is_multicast:
+        # local_addr may be an (addr, port) TUPLE from a caller, or the bare host
+        # STRING this function defaults it to a few lines up ("0.0.0.0"). The old
+        # code indexed [0] unconditionally, so with the default it evaluated
+        # IPv4Address("0") -- the first CHARACTER of the string -- and raised
+        #     AddressValueError: Expected 4 octets in '0'
+        # for every multicast reader that did not pass an explicit tuple.
+        #
+        # That went unnoticed because the bind() above used to fail first with
+        # EADDRINUSE; fixing the socket-option ordering is what exposed it.
+        local_host = (
+            local_addr[0] if isinstance(local_addr, (tuple, list)) else local_addr
+        )
         ip = (
             socket.INADDR_ANY
-            if local_addr[0] is None
-            else int(ipaddress.IPv4Address(local_addr[0]))
+            if not local_host or local_host == "0.0.0.0"
+            else int(ipaddress.IPv4Address(local_host))
         )
         group = int(ipaddress.IPv4Address(host))
         mreq = struct.pack("!LL", group, ip)
