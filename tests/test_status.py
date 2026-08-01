@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Sensors & Signals LLC https://www.snstac.com/
+# Copyright Sensors & Signals LLC https://www.snstac.com/
 # SPDX-License-Identifier: Apache-2.0
 """Tests for pytak.status.
 
