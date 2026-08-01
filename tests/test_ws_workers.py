@@ -28,6 +28,8 @@ import pytest
 
 import pytak
 from pytak.classes import WSTXWorker, WSRXWorker, _make_workers
+import contextlib
+import logging
 
 
 SAMPLE_COT = (
@@ -45,6 +47,32 @@ SAMPLE_PROTO_BYTES = b"\xbf\x01\x00"  # minimal fake proto frame
 # ---------------------------------------------------------------------------
 # WSTXWorker
 # ---------------------------------------------------------------------------
+
+
+
+@contextlib.contextmanager
+def capture_from(logger, caplog, level=logging.WARNING):
+    """Capture records from a logger that does not propagate.
+
+    pytak's _setup_logger() sets `propagate = False` (classes.py), so records
+    never reach the root logger where pytest's caplog handler lives. Using
+    `caplog.at_level(..., logger=...)` only changes the LEVEL on that logger --
+    it does not attach the handler to it -- so nothing is captured and the
+    assertion sees zero records.
+
+    That this passed on Python 3.10+ and failed on 3.7-3.9 was pytest-version
+    luck, not a language difference. Attaching caplog's own handler directly to
+    the logger works the same way on every supported version.
+    """
+    handler = caplog.handler
+    previous = logger.level
+    logger.addHandler(handler)
+    logger.setLevel(level)
+    try:
+        yield
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous)
 
 
 @pytest.mark.asyncio
@@ -127,7 +155,7 @@ async def test_ws_tx_worker_warns_once_when_takproto_missing(caplog):
     worker = WSTXWorker(queue, {"COT_URL": cot_url}, mock_ws)
 
     with mock.patch("pytak.classes.takproto", None):
-        with caplog.at_level("WARNING", logger=worker._logger.name):
+        with capture_from(worker._logger, caplog):
             await worker.handle_data(SAMPLE_COT)
             await worker.handle_data(SAMPLE_COT)
 
@@ -147,7 +175,7 @@ async def test_ws_tx_worker_does_not_warn_for_non_takproto_endpoint(caplog):
     worker = WSTXWorker(queue, {"COT_URL": "ws://example.com/cot"}, mock_ws)
 
     with mock.patch("pytak.classes.takproto", None):
-        with caplog.at_level("WARNING", logger=worker._logger.name):
+        with capture_from(worker._logger, caplog):
             await worker.handle_data(SAMPLE_COT)
 
     assert not [r for r in caplog.records if "takproto" in r.getMessage()]
