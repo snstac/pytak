@@ -131,6 +131,8 @@ try:
 except ImportError:
     pass
 
+from .status import StatusWriter, status_path  # NOQA
+
 from . import asyncio_dgram  # NOQA
 
 try:
