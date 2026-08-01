@@ -31,6 +31,16 @@ logged once, and the file carries ``wall_t`` so a reader can tell "quiet" from
 **It must be bounded.** A gateway runs for months. ``recent`` is a ring buffer
 and the trend is a fixed number of buckets, so the file has a ceiling size no
 matter how much traffic passes through.
+
+**One writer per file.** Each write serialises a WHOLE document, so two
+processes sharing an ``app_name`` do not merge -- the file alternates between
+two disjoint sets of counters, once a second, and every reader sees whichever
+process wrote last. A gateway with several workers should give the writer to
+the single choke point they all feed, not to each worker.
+
+This is easy to get wrong and invisible when you do, so :class:`StatusWriter`
+detects it: if the file it is about to replace was written by a different live
+process, it says so once rather than silently fighting over it.
 """
 
 import json
@@ -125,6 +135,11 @@ class StatusWriter:
         self.write_errors: int = 0
         self._logged_write_error = False
         self._last_write: float = 0.0
+        self._pid = os.getpid()
+        self._last_contention_check: float = 0.0
+        self._logged_contention = False
+        #: Set when another live process is found writing the same file.
+        self.contended_with: Optional[int] = None
 
     # -- collection -------------------------------------------------------
 
@@ -196,10 +211,57 @@ class StatusWriter:
             # data and should say so rather than quietly rendering it as fact.
             "write_errors": self.write_errors,
         }
+        if self.contended_with is not None:
+            # A reader seeing this knows the figures may be from another
+            # process entirely, and should say so rather than render them.
+            doc["contended_with"] = self.contended_with
         doc.update(self._extra)
         return doc
 
     # -- output -----------------------------------------------------------
+
+
+    def _check_sole_writer(self, now: float) -> None:
+        """Warn once if another live process is writing this same file.
+
+        Two writers on one path is not a crash, which is what makes it nasty:
+        the file simply alternates between two disjoint documents and whichever
+        wrote last wins. A UI then shows counters that flicker between two
+        gateways' worth of traffic, and nothing anywhere reports a problem.
+
+        Checked periodically rather than per write, and only until it has
+        something to say, so the common (correct) case costs nothing.
+        """
+        if self._logged_contention or (now - self._last_contention_check) < 30.0:
+            return
+        self._last_contention_check = now
+        try:
+            with open(self.path, "r") as handle:
+                other = json.load(handle)
+        except (OSError, ValueError):
+            return  # absent or mid-replace; nothing to conclude
+
+        pid = other.get("pid")
+        if not isinstance(pid, int) or pid == self._pid:
+            return
+
+        try:
+            os.kill(pid, 0)  # signal 0: liveness test, sends nothing
+        except ProcessLookupError:
+            return  # a previous run of ours; taking the file over is correct
+        except OSError:
+            pass  # exists but not ours to signal -- still a live process
+
+        self.contended_with = pid
+        self._logged_contention = True
+        self._logger.warning(
+            "Status file %s is also being written by PID %s. Each write "
+            "replaces the whole document, so the two will overwrite one "
+            "another and readers will see only whichever wrote last. Give the "
+            "StatusWriter to a single choke point rather than to each worker.",
+            self.path,
+            pid,
+        )
 
     def write(self, now: Optional[float] = None, force: bool = False) -> bool:
         """Write the status file atomically. Returns True if written.
@@ -221,6 +283,8 @@ class StatusWriter:
         now = now if now is not None else time.time()
         if not force and (now - self._last_write) < self.min_write_interval:
             return False
+
+        self._check_sole_writer(now)
 
         try:
             directory = os.path.dirname(self.path)
