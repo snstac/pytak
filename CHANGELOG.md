@@ -1,3 +1,34 @@
+## PyTAK 7.4.0
+
+- Added `pytak.StatusWriter`, a small runtime-status surface for gateways.
+  A gateway that is working and a gateway that is wedged look identical from
+  the outside -- both are `active (running)` to systemd and both hold their
+  socket open -- and nothing in PyTAK recorded whether contacts were still
+  arriving. Operators were left reading journal text.
+- `StatusWriter` maintains `/run/<app>/status.json` with lifetime counters, a
+  per-minute trend suitable for a sparkline, and a ring buffer of recent
+  contacts. Management UIs (the AryaOS Cockpit plugins) read it with a file
+  watch, so they update on write with no polling.
+- Writes are atomic (tempfile + `os.replace`), so a reader never observes a
+  partially written document.
+- Bounded by design: `recent` is a ring buffer and the trend is a fixed number
+  of buckets, so a gateway running for months has a file size ceiling.
+- A status-write failure never raises into the gateway -- moving CoT is the
+  job, reporting on it is not -- but it is not silent either: failures are
+  counted into `write_errors`, surfaced in the document so a UI can report
+  stale data rather than render it as fact, and logged once rather than per
+  message.
+- The document carries `wall_t` so a reader can distinguish a gateway that is
+  quiet from one that has stopped writing; `recent` alone looks identical for
+  both.
+- `status_path()` falls back to `XDG_RUNTIME_DIR` or the temp directory when
+  `/run` is not writable, so a gateway started from a developer shell still
+  produces a status file.
+- Fixed the WS TX warning tests, which had been failing on Python 3.7, 3.8 and
+  3.9 since 7.3.14. PyTAK's logger sets `propagate = False`, so records never
+  reached the root logger where pytest's `caplog` handler lives. The behaviour
+  under test was correct throughout; only the test was wrong.
+
 ## PyTAK 7.3.13
 
 - Fixed a stale-certificate reuse bug in the `tak://` onboarding flow that
