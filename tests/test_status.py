@@ -219,6 +219,19 @@ class TestStatusPath:
         monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
         assert status_path("acarscot") == str(tmp_path / "acarscot" / "status.json")
 
+    def test_uses_systemd_runtime_directory_when_run_root_is_not_writable(
+        self, monkeypatch
+    ):
+        """RuntimeDirectory is writable by the service; /run itself is not."""
+        app_dir = f"{DEFAULT_STATUS_ROOT}/acarscot"
+        monkeypatch.setattr(os.path, "isdir", lambda path: path == app_dir)
+        monkeypatch.setattr(
+            os,
+            "access",
+            lambda path, mode: path == app_dir and mode == os.W_OK,
+        )
+        assert status_path("acarscot") == f"{app_dir}/status.json"
+
     def test_explicit_root_wins(self, tmp_path):
         assert status_path("x", root=str(tmp_path)).startswith(str(tmp_path))
 

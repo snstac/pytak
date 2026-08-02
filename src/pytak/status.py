@@ -78,7 +78,16 @@ def status_path(app_name: str, root: Optional[str] = None) -> str:
     """
     if root is None:
         root = DEFAULT_STATUS_ROOT
-        if not os.access(root, os.W_OK):
+        app_runtime_dir = os.path.join(root, app_name)
+
+        # Under systemd, RuntimeDirectory=<app_name> is owned by the service
+        # account while /run itself remains root-only. Checking only /run made
+        # every unprivileged gateway incorrectly fall back to /tmp even though
+        # its intended runtime directory already existed and was writable.
+        app_runtime_writable = os.path.isdir(app_runtime_dir) and os.access(
+            app_runtime_dir, os.W_OK
+        )
+        if not app_runtime_writable and not os.access(root, os.W_OK):
             root = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
     return os.path.join(root, app_name, "status.json")
 
