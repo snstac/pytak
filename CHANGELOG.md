@@ -1,3 +1,11 @@
+## PyTAK 7.4.1
+
+- Fixed gateway processes remaining `active (running)` after a transport worker
+  failed. Worker close hooks now run before PyTAK waits for cancelled sibling
+  tasks, and both cleanup and cancellation waits are bounded and identify any
+  worker that stalls. The original transport exception reaches systemd so its
+  restart policy can reconnect the gateway.
+
 ## PyTAK 7.4.0
 
 - Added `pytak.StatusWriter`, a small runtime-status surface for gateways.

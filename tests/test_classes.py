@@ -44,6 +44,7 @@ except ImportError:
 import pytest
 
 import pytak
+from pytak import classes as pytak_classes
 
 
 _SENTINEL = enum.Enum("_SENTINEL", "sentinel")
@@ -331,3 +332,70 @@ async def test_clitool_run_closes_workers_on_exception(cli_tool):
 
     assert failing.closed is True
     assert blocking.closed is True
+
+
+@pytest.mark.asyncio
+async def test_clitool_closes_worker_before_waiting_for_cancellation(cli_tool):
+    """A close hook must be able to unblock a cancellation-resistant worker."""
+
+    class _FailingWorker:
+        async def run(self):
+            raise ConnectionAbortedError("WebSocket closed by server")
+
+        async def close(self):
+            return
+
+    class _CloseUnblocksWorker:
+        def __init__(self):
+            self.release = asyncio.Event()
+            self.closed = False
+
+        async def run(self):
+            try:
+                await self.release.wait()
+            except asyncio.CancelledError:
+                # Model a listener whose run coroutine cannot finish until its
+                # close hook shuts down an owned socket/client task.
+                await self.release.wait()
+
+        async def close(self):
+            self.closed = True
+            self.release.set()
+
+    blocked = _CloseUnblocksWorker()
+    cli_tool.add_task(_FailingWorker())
+    cli_tool.add_task(blocked)
+
+    with pytest.raises(ConnectionAbortedError, match="closed by server"):
+        await asyncio.wait_for(cli_tool.run(), timeout=1.0)
+
+    assert blocked.closed is True
+
+
+@pytest.mark.asyncio
+async def test_clitool_cleanup_timeout_preserves_worker_exception(
+    cli_tool, monkeypatch
+):
+    """A stuck close hook must not hide the transport exception."""
+    monkeypatch.setattr(pytak_classes, "_WORKER_SHUTDOWN_TIMEOUT", 0.01)
+
+    class _FailingWorker:
+        async def run(self):
+            raise ConnectionAbortedError("WebSocket closed by server")
+
+        async def close(self):
+            return
+
+    class _SlowCloseWorker:
+        async def run(self):
+            while True:
+                await asyncio.sleep(1)
+
+        async def close(self):
+            await asyncio.sleep(3600)
+
+    cli_tool.add_task(_FailingWorker())
+    cli_tool.add_task(_SlowCloseWorker())
+
+    with pytest.raises(ConnectionAbortedError, match="closed by server"):
+        await asyncio.wait_for(cli_tool.run(), timeout=1.0)
