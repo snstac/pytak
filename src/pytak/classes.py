@@ -52,6 +52,11 @@ except ImportError:
     takproto = None
 
 
+# Worker shutdown must be bounded so a failed transport can reach the process
+# boundary and let service supervisors restart the gateway.
+_WORKER_SHUTDOWN_TIMEOUT = 5.0
+
+
 def _takmsg2xml(msg) -> Optional[bytes]:
     """Convert a takproto TakMessage back to CoT XML bytes.
 
@@ -961,11 +966,50 @@ class CLITool:
             if worker is not None and worker not in workers:
                 workers.append(worker)
 
-        for worker in workers:
+        async def close_worker(worker) -> None:
             try:
-                await worker.close()
+                await asyncio.wait_for(
+                    worker.close(), timeout=_WORKER_SHUTDOWN_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                self._logger.warning(
+                    "Timed out closing worker %s after %.1fs",
+                    worker.__class__.__name__,
+                    _WORKER_SHUTDOWN_TIMEOUT,
+                )
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 self._logger.debug("Worker close error for %s: %s", worker, exc)
+
+        if workers:
+            await asyncio.gather(
+                *(close_worker(worker) for worker in workers),
+                return_exceptions=True,
+            )
+
+    def _worker_name(self, task: asyncio.Task) -> str:
+        """Return a useful identity for a worker task in shutdown logs."""
+        worker = getattr(task, "_pytak_worker", None)
+        if worker is not None:
+            return worker.__class__.__name__
+        return task.get_name() if hasattr(task, "get_name") else repr(task)
+
+    async def _wait_for_cancelled_workers(
+        self, tasks: Set[asyncio.Task]
+    ) -> None:
+        """Wait a bounded time for cancelled workers to release resources."""
+        if not tasks:
+            return
+
+        _, stalled = await asyncio.wait(
+            tasks, timeout=_WORKER_SHUTDOWN_TIMEOUT
+        )
+        for task in stalled:
+            self._logger.warning(
+                "Worker %s did not stop within %.1fs after cancellation",
+                self._worker_name(task),
+                _WORKER_SHUTDOWN_TIMEOUT,
+            )
+            task.cancel()
 
     def run_tasks(self, tasks=None):
         """Run the given list or set of couroutine tasks."""
@@ -988,21 +1032,26 @@ class CLITool:
         )
 
         failing_exc = None
-        try:
-            for task in done:
-                self._logger.info("Complete: %s", task)
-                exc = task.exception()
-                if exc is not None and failing_exc is None:
-                    failing_exc = exc
+        for task in done:
+            self._logger.info("Complete: %s", task)
+            if task.cancelled():
+                continue
+            exc = task.exception()
+            if exc is not None and failing_exc is None:
+                failing_exc = exc
 
-            if failing_exc is not None:
-                for pending_task in pending:
-                    pending_task.cancel()
-                if pending:
-                    await asyncio.gather(*pending, return_exceptions=True)
-                raise failing_exc
-        finally:
-            await self._close_running_workers(done | pending)
+        if failing_exc is not None:
+            for pending_task in pending:
+                pending_task.cancel()
+
+        # Close hooks may be what unblocks a worker's cancelled run coroutine
+        # (for example, a listener with active client connections), so invoke
+        # them before waiting for pending tasks to finish.
+        await self._close_running_workers(done | pending)
+        await self._wait_for_cancelled_workers(pending)
+
+        if failing_exc is not None:
+            raise failing_exc
 
 
 @dataclass
