@@ -93,26 +93,37 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
         "ca_pem_path": None,
     }
 
-    private_key, cert, additional_certificates = load_cert(cert_path, cert_pass)
+    try:
+        private_key, cert, additional_certificates = load_cert(cert_path, cert_pass)
 
-    # Load privkey
-    pk_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    cert_paths["pk_pem_path"] = save_pem(pk_pem)
+        # Load privkey
+        pk_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        cert_paths["pk_pem_path"] = save_pem(pk_pem)
 
-    cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
-    if additional_certificates:
-        for ca_cert in additional_certificates:
-            cert_pem += ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
-    cert_paths["cert_pem_path"] = save_pem(cert_pem)
+        cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
+        if additional_certificates:
+            for ca_cert in additional_certificates:
+                cert_pem += ca_cert.public_bytes(encoding=serialization.Encoding.PEM)
+        cert_paths["cert_pem_path"] = save_pem(cert_pem)
 
-    if additional_certificates:
-        ca_cert_obj: Certificate = additional_certificates[0]
-        ca_pem = ca_cert_obj.public_bytes(encoding=serialization.Encoding.PEM)
-        cert_paths["ca_pem_path"] = save_pem(ca_pem)
+        if additional_certificates:
+            ca_cert_obj: Certificate = additional_certificates[0]
+            ca_pem = ca_cert_obj.public_bytes(encoding=serialization.Encoding.PEM)
+            cert_paths["ca_pem_path"] = save_pem(ca_pem)
+    except Exception:
+        # A full tmpfs can fail after one or two files were already written.
+        # Remove partial output before propagating the original error.
+        for path in cert_paths.values():
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+        raise
 
     assert cert_paths["pk_pem_path"] and cert_paths["cert_pem_path"]
     return cert_paths

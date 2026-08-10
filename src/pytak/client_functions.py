@@ -19,6 +19,7 @@
 
 import argparse
 import asyncio
+import errno
 import hashlib
 import importlib
 import ipaddress
@@ -26,6 +27,8 @@ import logging
 import os
 import platform
 import pprint
+import random
+import re
 import secrets
 import socket
 import ssl
@@ -923,17 +926,22 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
     ssl_ctx.check_hostname = True
     ssl_ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED
 
-    # PCKS#12
+    # PKCS#12. OpenSSL's load_cert_chain() requires filesystem paths, but the
+    # extracted PEMs are needed only for that call. Keeping them in /tmp for
+    # the life of a gateway leaks three files on every reconnect and can fill a
+    # RAM-backed tmpfs during a long TAK Server outage.
+    temporary_cert_paths = []
     if client_cert.endswith(".p12"):
         cert_paths = convert_cert(client_cert, client_password)
+        temporary_cert_paths = [path for path in cert_paths.values() if path]
         client_cert = cert_paths["cert_pem_path"]
         client_key = cert_paths["pk_pem_path"]
-        if not os.path.exists(client_cert) and os.path.exists(client_key):
+
+    try:
+        if not os.path.exists(client_cert) or not os.path.exists(client_key):
             raise SystemError(
                 f"Missing PKCS#12 extracted {client_cert} & {client_key}."
             )
-
-    try:
         ssl_ctx.load_cert_chain(
             client_cert, keyfile=client_key, password=client_password
         )
@@ -943,6 +951,12 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
             f"[PYTAK_TLS_CLIENT_KEY={client_key}] Using "
             f"Password: {bool(client_password)}?"
         ) from exc
+    finally:
+        for path in temporary_cert_paths:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
 
     # CA File
     if client_cafile:
@@ -1017,6 +1031,127 @@ async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -
     # await clitool.setup()
     clitool.add_tasks(create_tasks(config, clitool))
     await clitool.run()
+
+
+def _retryable_transport_error(exc: Exception) -> bool:
+    """Return whether a failed client run can recover without configuration changes."""
+    if isinstance(exc, (ConnectionError, TimeoutError, socket.gaierror, ssl.SSLError)):
+        return True
+    if isinstance(exc, OSError):
+        # Socket failures inherit from OSError, but local faults such as
+        # ENOENT, EACCES, and ENOSPC must remain fatal instead of disappearing
+        # into an endless TAK reconnect loop.
+        network_errnos = {
+            errno.ECONNABORTED,
+            errno.ECONNREFUSED,
+            errno.ECONNRESET,
+            errno.EHOSTUNREACH,
+            errno.ENETDOWN,
+            errno.ENETUNREACH,
+            errno.ETIMEDOUT,
+        }
+        if hasattr(errno, "EHOSTDOWN"):
+            network_errnos.add(errno.EHOSTDOWN)
+        return exc.errno in network_errnos
+    try:
+        import aiohttp
+
+        return isinstance(exc, aiohttp.ClientError)
+    except ImportError:
+        return False
+
+
+def _safe_error_text(exc: Exception) -> str:
+    """Redact enrollment credentials from an exception before logging it."""
+    text = re.sub(r"tak://[^\s\"'<>]+", "tak://REDACTED", str(exc))
+    return re.sub(
+        r"(?i)(token|username|password)=([^&\s\"'<>]+)",
+        r"\1=REDACTED",
+        text,
+    )
+
+
+def _reconnect_number(config: SectionProxy, key: str, default: str) -> float:
+    """Read and validate a positive reconnect tuning value."""
+    value = float(config.get(key, default))
+    if value <= 0:
+        raise ValueError(f"{key} must be greater than zero")
+    return value
+
+
+def _reconnect_jitter(config: SectionProxy) -> float:
+    """Read a reconnect jitter fraction in the half-open range [0, 1)."""
+    value = float(
+        config.get("PYTAK_RECONNECT_JITTER", pytak.DEFAULT_RECONNECT_JITTER)
+    )
+    if value < 0 or value >= 1:
+        raise ValueError("PYTAK_RECONNECT_JITTER must be >= 0 and < 1")
+    return value
+
+
+async def run_with_reconnect(
+    app_name: str,
+    config: SectionProxy,
+    full_config: ConfigParser,
+    tak_url: str = "",
+) -> None:
+    """Run an integration continuously through transient TAK outages.
+
+    Worker failures tear down their sockets and source tasks cleanly, then this
+    supervisor rebuilds the complete client in the same process. Backoff keeps
+    DNS failures, refused connections, and server-side WebSocket closes from
+    becoming a systemd crash loop. Queues are recreated on each attempt, so a
+    long outage cannot accumulate an unbounded in-memory backlog.
+    """
+    reconnect = config.getboolean("PYTAK_RECONNECT", fallback=True)
+    initial = _reconnect_number(
+        config, "PYTAK_RECONNECT_INITIAL", pytak.DEFAULT_RECONNECT_INITIAL
+    )
+    maximum = _reconnect_number(
+        config, "PYTAK_RECONNECT_MAX", pytak.DEFAULT_BACKOFF
+    )
+    factor = _reconnect_number(
+        config, "PYTAK_RECONNECT_FACTOR", pytak.DEFAULT_RECONNECT_FACTOR
+    )
+    jitter = _reconnect_jitter(config)
+    reset_after = _reconnect_number(
+        config, "PYTAK_RECONNECT_RESET", pytak.DEFAULT_RECONNECT_RESET
+    )
+    if maximum < initial:
+        raise ValueError("PYTAK_RECONNECT_MAX must be >= PYTAK_RECONNECT_INITIAL")
+    if factor < 1:
+        raise ValueError("PYTAK_RECONNECT_FACTOR must be >= 1")
+
+    delay = initial
+    while True:
+        started = asyncio.get_running_loop().time()
+        try:
+            if tak_url:
+                config.update(await resolve_tak_url(tak_url))
+            await main(app_name, config, full_config)
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if not reconnect or not _retryable_transport_error(exc):
+                raise
+
+            connected_for = asyncio.get_running_loop().time() - started
+            if connected_for >= reset_after:
+                delay = initial
+            sleep_for = delay
+            if jitter:
+                sleep_for = min(
+                    maximum, delay * random.uniform(1 - jitter, 1 + jitter)
+                )
+            logging.warning(
+                "TAK transport unavailable (%s: %s); retrying in %.1fs",
+                type(exc).__name__,
+                _safe_error_text(exc),
+                sleep_for,
+            )
+            await asyncio.sleep(sleep_for)
+            delay = min(maximum, delay * factor)
 
 
 def read_pref_package(pref_package: str) -> dict:
@@ -1120,17 +1255,6 @@ def cli(app_name: str) -> None:
         _cot = config.get("COT_URL", "")
         if _cot.lower().startswith("tak://"):
             tak_url = _cot
-    if tak_url:
-        if sys.version_info[:2] >= (3, 7):
-            _tak_resolved = asyncio.run(resolve_tak_url(tak_url))
-        else:
-            _loop = asyncio.new_event_loop()
-            try:
-                _tak_resolved = _loop.run_until_complete(resolve_tak_url(tak_url))
-            finally:
-                _loop.close()
-        config.update(_tak_resolved)
-
     debug = config.getboolean("DEBUG")
     if debug:
         print(f"Showing Config: {config_file}")
@@ -1139,10 +1263,14 @@ def cli(app_name: str) -> None:
         print("=" * 10)
 
     if sys.version_info[:2] >= (3, 7):
-        asyncio.run(main(app_name, config, full_config), debug=debug)
+        asyncio.run(
+            run_with_reconnect(app_name, config, full_config, tak_url), debug=debug
+        )
     else:
         loop = get_running_loop()
         try:
-            loop.run_until_complete(main(app_name, config, full_config))
+            loop.run_until_complete(
+                run_with_reconnect(app_name, config, full_config, tak_url)
+            )
         finally:
             loop.close()

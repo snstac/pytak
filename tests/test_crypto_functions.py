@@ -24,6 +24,7 @@ from unittest import mock
 from tempfile import NamedTemporaryFile
 
 import pytak
+import pytest
 
 
 def test_convert_cert():
@@ -68,3 +69,23 @@ def test_convert_cert():
             os.remove(cert_paths["pk_pem_path"])
             os.remove(cert_paths["cert_pem_path"])
             os.remove(cert_paths["ca_pem_path"])
+
+
+def test_convert_cert_removes_partial_output_on_failure(tmp_path):
+    """A full temp filesystem must not strand partially extracted keys."""
+    first_path = tmp_path / "partial-key.pem"
+    first_path.write_bytes(b"partial")
+
+    with mock.patch("pytak.crypto_functions.load_cert") as mock_load_cert:
+        mock_private_key = mock.Mock()
+        mock_private_key.private_bytes.return_value = b"private-key-pem"
+        mock_cert = mock.Mock()
+        mock_cert.public_bytes.return_value = b"cert-pem"
+        mock_load_cert.return_value = (mock_private_key, mock_cert, [])
+
+        with mock.patch("pytak.crypto_functions.save_pem") as mock_save_pem:
+            mock_save_pem.side_effect = [str(first_path), OSError("tmp full")]
+            with pytest.raises(OSError, match="tmp full"):
+                pytak.crypto_functions.convert_cert("test.p12", "secret")
+
+    assert not first_path.exists()
