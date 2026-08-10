@@ -37,8 +37,7 @@ except ImportError:
 
     class AsyncMock(mock.MagicMock):
         def __call__(self, *args, **kwargs):
-            super().__call__(*args, **kwargs)
-            ret = self.return_value
+            ret = super().__call__(*args, **kwargs)
 
             async def _coro():
                 return ret
@@ -483,7 +482,7 @@ async def test_run_with_reconnect_backs_off_transient_failures():
         )
 
     assert fake_main.call_count == 3
-    assert [call.args[0] for call in fake_sleep.call_args_list] == [1, 2]
+    assert fake_sleep.call_args_list == [mock.call(1), mock.call(2)]
 
 
 @pytest.mark.asyncio
@@ -522,7 +521,7 @@ async def test_run_with_reconnect_resets_after_stable_session():
             "fakeapp", config, config_p
         )
 
-    assert [call.args[0] for call in fake_sleep.call_args_list] == [1, 1]
+    assert fake_sleep.call_args_list == [mock.call(1), mock.call(1)]
 
 
 @pytest.mark.asyncio
