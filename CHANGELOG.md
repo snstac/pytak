@@ -230,3 +230,8 @@ New Features:
 
 Bug & Performance Fixes:
 - Added async sleeps to each TX & RX loops iteration to fix broken async regiment in PYTAK.
+# 7.5.0
+
+* Add a common, additive runtime health contract to `StatusWriter`: `health`,
+  `input`, and `output` blocks describe process state, receiver activity, and
+  egress connection health without removing gateway-specific counters.

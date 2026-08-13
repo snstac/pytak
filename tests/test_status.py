@@ -58,6 +58,45 @@ class TestCollection:
         writer.set(tracked=42)
         assert writer.as_dict(now=1000.0)["tracked"] == 42
 
+    def test_common_health_contract_is_present_by_default(self, writer):
+        doc = writer.as_dict(now=1000.0)
+        assert doc["health"]["state"] == "ok"
+        assert doc["input"] == {}
+        assert doc["output"]["state"] == "unknown"
+
+    def test_common_health_contract_accepts_normalized_activity(self, writer):
+        writer.set_health("degraded", "receiver quiet", since=900.0)
+        writer.set_input(last_observation=990.0, rate_min=12.5, total=42, tracked=3)
+        writer.set_output(
+            "retrying",
+            last_success=980.0,
+            rate_min=10,
+            total=40,
+            destination="tls://example:8089",
+            retry_in_s=5,
+            last_error="offline",
+        )
+        doc = writer.as_dict(now=1000.0)
+        assert doc["health"] == {
+            "state": "degraded",
+            "detail": "receiver quiet",
+            "since": 900.0,
+        }
+        assert doc["input"]["last_observation"] == 990.0
+        assert doc["input"]["tracked"] == 3
+        assert doc["output"]["state"] == "retrying"
+        assert doc["output"]["destination"] == "tls://example:8089"
+
+    @pytest.mark.parametrize("method,state", [("health", "green"), ("output", "up")])
+    def test_common_health_contract_rejects_ambiguous_states(
+        self, writer, method, state
+    ):
+        with pytest.raises(ValueError):
+            if method == "health":
+                writer.set_health(state)
+            else:
+                writer.set_output(state)
+
 
 class TestTrend:
     def test_counts_per_bucket(self, tmp_path):
@@ -145,7 +184,9 @@ class TestWrite:
             writer.write(now=1000.0 + i, force=True)
             json.loads(open(writer.path).read())  # never raises
         leftovers = [
-            f for f in os.listdir(os.path.dirname(writer.path)) if f.startswith(".status-")
+            f
+            for f in os.listdir(os.path.dirname(writer.path))
+            if f.startswith(".status-")
         ]
         assert leftovers == []
 
@@ -296,11 +337,11 @@ class TestSingleWriter:
     def test_missing_or_corrupt_file_is_not_contention(self, tmp_path):
         path = str(tmp_path / "status.json")
         w = StatusWriter("t", path=path)
-        w.write(now=1000.0, force=True)   # absent
+        w.write(now=1000.0, force=True)  # absent
         with open(path, "w") as handle:
             handle.write("{not json")
         w._last_contention_check = 0.0
-        w.write(now=2000.0, force=True)   # corrupt
+        w.write(now=2000.0, force=True)  # corrupt
         assert w.contended_with is None
 
     def test_check_does_not_run_on_every_write(self, tmp_path):

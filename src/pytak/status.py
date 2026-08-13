@@ -53,6 +53,11 @@ from typing import Any, Dict, List, Optional
 
 __all__ = ["StatusWriter", "status_path"]
 
+HEALTH_STATES = frozenset(("ok", "degraded", "fault", "unknown"))
+CONNECTION_STATES = frozenset(
+    ("connected", "connecting", "retrying", "disconnected", "not_applicable", "unknown")
+)
+
 # Where systemd's RuntimeDirectory= lands. tmpfs, so this costs no flash wear
 # on the SD cards these gateways run from -- which is why it is not /var.
 DEFAULT_STATUS_ROOT: str = "/run"
@@ -178,6 +183,68 @@ class StatusWriter:
         """Set free-form top-level fields, e.g. a tracked-object count."""
         self._extra.update(fields)
 
+    def set_health(self, state: str, detail: str = "", **fields: Any) -> None:
+        """Set the common process-health block used by AryaOS and Gutcheck."""
+        state = str(state or "unknown").lower()
+        if state not in HEALTH_STATES:
+            raise ValueError(f"unsupported health state: {state}")
+        block = {"state": state, "detail": str(detail or "")}
+        block.update(fields)
+        self._extra["health"] = block
+
+    def set_input(
+        self,
+        *,
+        last_observation: Optional[float] = None,
+        rate_min: Optional[float] = None,
+        total: Optional[int] = None,
+        tracked: Optional[int] = None,
+        **fields: Any,
+    ) -> None:
+        """Set normalized receiver activity without removing app-specific data."""
+        block = dict(fields)
+        if last_observation is not None:
+            block["last_observation"] = round(float(last_observation), 3)
+        if rate_min is not None:
+            block["rate_min"] = float(rate_min)
+        if total is not None:
+            block["total"] = int(total)
+        if tracked is not None:
+            block["tracked"] = int(tracked)
+        self._extra["input"] = block
+
+    def set_output(
+        self,
+        state: str,
+        *,
+        last_success: Optional[float] = None,
+        rate_min: Optional[float] = None,
+        total: Optional[int] = None,
+        destination: str = "",
+        retry_in_s: Optional[float] = None,
+        last_error: str = "",
+        **fields: Any,
+    ) -> None:
+        """Set normalized egress health; callers must pass a redacted destination."""
+        state = str(state or "unknown").lower()
+        if state not in CONNECTION_STATES:
+            raise ValueError(f"unsupported output state: {state}")
+        block: Dict[str, Any] = {"state": state}
+        if last_success is not None:
+            block["last_success"] = round(float(last_success), 3)
+        if rate_min is not None:
+            block["rate_min"] = float(rate_min)
+        if total is not None:
+            block["total"] = int(total)
+        if destination:
+            block["destination"] = str(destination)
+        if retry_in_s is not None:
+            block["retry_in_s"] = float(retry_in_s)
+        if last_error:
+            block["last_error"] = str(last_error)
+        block.update(fields)
+        self._extra["output"] = block
+
     def _bump_trend(self, now: float) -> None:
         bucket = int(now // self.trend_interval)
         if self._trend and self._trend[-1][0] == bucket:
@@ -219,6 +286,11 @@ class StatusWriter:
             # Surfaced deliberately: if this is non-zero the UI is showing stale
             # data and should say so rather than quietly rendering it as fact.
             "write_errors": self.write_errors,
+            # Common contract. Gateways may progressively enrich these blocks;
+            # their presence lets management UIs avoid app-specific guessing.
+            "health": {"state": "ok", "detail": "process reporting"},
+            "input": {},
+            "output": {"state": "unknown"},
         }
         if self.contended_with is not None:
             # A reader seeing this knows the figures may be from another
@@ -228,7 +300,6 @@ class StatusWriter:
         return doc
 
     # -- output -----------------------------------------------------------
-
 
     def _check_sole_writer(self, now: float) -> None:
         """Warn once if another live process is writing this same file.
