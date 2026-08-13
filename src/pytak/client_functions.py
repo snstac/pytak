@@ -42,7 +42,7 @@ from configparser import ConfigParser, SectionProxy
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse, parse_qs, unquote
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Awaitable, Callable, Optional, Tuple, Union
 
 import pytak
 
@@ -1094,19 +1094,19 @@ def _reconnect_jitter(config: SectionProxy) -> float:
     return value
 
 
-async def run_with_reconnect(
-    app_name: str,
+async def supervise_with_reconnect(
     config: SectionProxy,
-    full_config: ConfigParser,
-    tak_url: str = "",
+    run_once: Callable[[], Awaitable[None]],
 ) -> None:
-    """Run an integration continuously through transient TAK outages.
+    """Run a client factory continuously through transient TAK outages.
 
     Worker failures tear down their sockets and source tasks cleanly, then this
-    supervisor rebuilds the complete client in the same process. Backoff keeps
-    DNS failures, refused connections, and server-side WebSocket closes from
-    becoming a systemd crash loop. Queues are recreated on each attempt, so a
-    long outage cannot accumulate an unbounded in-memory backlog.
+    supervisor calls ``run_once`` again in the same process. Custom PyTAK
+    integrations should construct a fresh ``CLITool`` and workers inside that
+    callback so queues are bounded and transports are not reused after a
+    failure. Backoff keeps DNS failures, refused connections, server-side
+    WebSocket closes, and transient network-policy replacement from becoming
+    a systemd crash loop.
     """
     reconnect = config.getboolean("PYTAK_RECONNECT", fallback=True)
     initial = _reconnect_number(
@@ -1131,9 +1131,7 @@ async def run_with_reconnect(
     while True:
         started = asyncio.get_running_loop().time()
         try:
-            if tak_url:
-                config.update(await resolve_tak_url(tak_url))
-            await main(app_name, config, full_config)
+            await run_once()
             return
         except asyncio.CancelledError:
             raise
@@ -1157,6 +1155,22 @@ async def run_with_reconnect(
             )
             await asyncio.sleep(sleep_for)
             delay = min(maximum, delay * factor)
+
+
+async def run_with_reconnect(
+    app_name: str,
+    config: SectionProxy,
+    full_config: ConfigParser,
+    tak_url: str = "",
+) -> None:
+    """Run a standard PyTAK integration through transient TAK outages."""
+
+    async def run_once() -> None:
+        if tak_url:
+            config.update(await resolve_tak_url(tak_url))
+        await main(app_name, config, full_config)
+
+    await supervise_with_reconnect(config, run_once)
 
 
 def read_pref_package(pref_package: str) -> dict:

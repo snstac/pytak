@@ -121,6 +121,7 @@ from .client_functions import (  # NOQA
     read_pref_package,
     parse_tak_url,
     resolve_tak_url,
+    supervise_with_reconnect,
     marti_txworker_factory,
     marti_rxworker_factory,
 )
