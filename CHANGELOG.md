@@ -1,3 +1,10 @@
+## PyTAK 7.5.2
+
+- Added the public `supervise_with_reconnect()` helper for custom PyTAK
+  integrations. Applications that construct their own `CLITool` and worker
+  graph can now use the same bounded, in-process recovery policy as the
+  standard CLI while rebuilding their queues and transports on each attempt.
+
 ## PyTAK 7.5.1
 
 - Treats a transient `EPERM` from a network send as a recoverable transport

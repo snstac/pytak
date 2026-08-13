@@ -602,6 +602,31 @@ async def test_run_with_reconnect_retries_transient_udp_permission_error():
 
 
 @pytest.mark.asyncio
+async def test_custom_client_supervisor_rebuilds_after_udp_permission_error():
+    """Custom CLITool integrations get the same in-process recovery policy."""
+    config_p = ConfigParser(
+        {
+            "PYTAK_RECONNECT_INITIAL": "1",
+            "PYTAK_RECONNECT_MAX": "2",
+            "PYTAK_RECONNECT_FACTOR": "2",
+            "PYTAK_RECONNECT_JITTER": "0",
+            "PYTAK_RECONNECT_RESET": "300",
+        }
+    )
+    config_p.add_section("custom")
+    run_once = AsyncMock(
+        side_effect=[PermissionError(errno.EPERM, "Operation not permitted"), None]
+    )
+    fake_sleep = AsyncMock()
+
+    with mock.patch("pytak.client_functions.asyncio.sleep", new=fake_sleep):
+        await pytak.supervise_with_reconnect(config_p["custom"], run_once)
+
+    assert run_once.call_count == 2
+    fake_sleep.assert_called_once_with(1)
+
+
+@pytest.mark.asyncio
 async def test_run_with_reconnect_retries_tak_enrollment_resolution():
     """A transient enrollment failure retries from the original deep link."""
     config_p = ConfigParser(
