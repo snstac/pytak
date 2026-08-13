@@ -69,7 +69,13 @@ class DatagramStream:
         self._drained = drained
 
     def __del__(self):
-        self._transport.close()
+        try:
+            self._transport.close()
+        except RuntimeError:
+            # asyncio transports schedule connection_lost() on close. During
+            # interpreter or asyncio.run() teardown that loop may already be
+            # closed, and a destructor must not emit an ignored traceback.
+            pass
 
     @property
     def exception(self):

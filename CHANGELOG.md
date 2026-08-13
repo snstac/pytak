@@ -5,6 +5,8 @@
   state is being replaced during an appliance update. PyTAK now tears down the
   affected client cleanly and reconnects with bounded backoff instead of
   terminating the gateway process.
+- Datagram cleanup no longer emits an ignored `Event loop is closed` traceback
+  when an asyncio transport is collected after loop teardown.
 
 ## PyTAK 7.5.0
 

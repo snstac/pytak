@@ -21,6 +21,7 @@ multicast SA feed is that several tools consume it.
 import asyncio
 import socket
 import unittest
+from unittest import mock
 from urllib.parse import urlparse
 
 import pytak
@@ -31,11 +32,25 @@ PORT = 26969
 
 
 class MulticastReuseTestCase(unittest.TestCase):
+    def test_destructor_tolerates_closed_event_loop(self):
+        """Best-effort cleanup must not raise after asyncio.run() teardown."""
+        transport = mock.Mock()
+        transport.close.side_effect = RuntimeError("Event loop is closed")
+        stream = pytak.asyncio_dgram.DatagramStream(
+            transport, mock.sentinel.recvq, mock.sentinel.excq, mock.sentinel.drained
+        )
+
+        stream.__del__()
+
+        transport.close.assert_called_once_with()
+        transport.close.side_effect = None
+
     def test_second_subscriber_can_bind(self):
         """A second reader on the same group/port must not raise EADDRINUSE."""
 
         async def go():
             first = await pytak.create_udp_client(urlparse(f"udp+ro://{GROUP}:{PORT}"))
+            second = (None, None)
             try:
                 # This is the call that used to raise OSError(98).
                 second = await pytak.create_udp_client(urlparse(f"udp+ro://{GROUP}:{PORT}"))
@@ -43,7 +58,7 @@ class MulticastReuseTestCase(unittest.TestCase):
                     pass
                 self.assertIsNotNone(second)
             finally:
-                for pair in (first,):
+                for pair in (second, first):
                     for sock in pair:
                         if sock is not None and hasattr(sock, "close"):
                             try:
@@ -70,11 +85,17 @@ class MulticastReuseTestCase(unittest.TestCase):
         holder.bind(("", PORT + 1))
 
         async def go():
-            return await pytak.create_udp_client(urlparse(f"udp+ro://{GROUP}:{PORT + 1}"))
+            reader, _writer = await pytak.create_udp_client(
+                urlparse(f"udp+ro://{GROUP}:{PORT + 1}")
+            )
+            try:
+                return reader is not None
+            finally:
+                if reader is not None:
+                    reader.close()
 
         try:
-            reader, _writer = asyncio.run(go())
-            self.assertIsNotNone(reader)
+            self.assertTrue(asyncio.run(go()))
         finally:
             holder.close()
 
