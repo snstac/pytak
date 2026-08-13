@@ -1048,6 +1048,11 @@ def _retryable_transport_error(exc: Exception) -> bool:
             errno.EHOSTUNREACH,
             errno.ENETDOWN,
             errno.ENETUNREACH,
+            # Linux can report EPERM from UDP sendto() while nftables,
+            # routes, or network namespaces are being replaced. Treat it as
+            # a transport outage so an appliance update cannot terminate a
+            # high-rate feeder during that short transition.
+            errno.EPERM,
             errno.ETIMEDOUT,
         }
         if hasattr(errno, "EHOSTDOWN"):

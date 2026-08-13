@@ -1,3 +1,17 @@
+## PyTAK 7.5.1
+
+- Treats a transient `EPERM` from a network send as a recoverable transport
+  outage. Linux can return this while firewall, route, or network namespace
+  state is being replaced during an appliance update. PyTAK now tears down the
+  affected client cleanly and reconnects with bounded backoff instead of
+  terminating the gateway process.
+
+## PyTAK 7.5.0
+
+- Added a common, additive runtime health contract to `StatusWriter`: `health`,
+  `input`, and `output` blocks describe process state, receiver activity, and
+  egress connection health without removing gateway-specific counters.
+
 ## PyTAK 7.4.3
 
 - PyTAK-backed gateways now survive transient TAK transport failures in the
@@ -230,8 +244,3 @@ New Features:
 
 Bug & Performance Fixes:
 - Added async sleeps to each TX & RX loops iteration to fix broken async regiment in PYTAK.
-# 7.5.0
-
-* Add a common, additive runtime health contract to `StatusWriter`: `health`,
-  `input`, and `output` blocks describe process state, receiver activity, and
-  egress connection health without removing gateway-specific counters.
