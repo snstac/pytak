@@ -174,6 +174,39 @@ Maximum number of outgoing CoT events to buffer before dropping the oldest. Incr
 
 Maximum number of incoming CoT events to buffer. Increase this if your receiver is processing events slower than they arrive.
 
+### TAK outage recovery
+
+Clients built on `pytak.cli()` retry transient transport failures in-process by
+default. This includes DNS failures, refused connections, timeouts, TLS
+transport failures, and a TAK Server closing a WebSocket. Invalid local
+configuration remains fatal so a typo does not disappear into a retry loop.
+
+The delay starts at five seconds, doubles after each failed attempt, and is
+capped at two minutes. Twenty percent jitter keeps a fleet from reconnecting
+all at once when a shared server returns. A connection that remains healthy for
+five minutes resets the next delay to five seconds. Queues and network workers
+are recreated between attempts, so a long outage cannot build an unbounded
+backlog. PKCS#12 temporary PEM files are removed immediately after each TLS
+context is loaded.
+
+| Key | Default | Description |
+|---|---:|---|
+| `PYTAK_RECONNECT` | `1` | Retry transient TAK transport failures in-process |
+| `PYTAK_RECONNECT_INITIAL` | `5` | Initial retry delay, seconds |
+| `PYTAK_RECONNECT_MAX` | `120` | Maximum retry delay, seconds |
+| `PYTAK_RECONNECT_FACTOR` | `2` | Delay multiplier after each failed attempt |
+| `PYTAK_RECONNECT_JITTER` | `0.2` | Random delay variation as a fraction; `0` disables it |
+| `PYTAK_RECONNECT_RESET` | `300` | Healthy-session duration that resets the delay, seconds |
+
+For example, a deliberately slower field deployment can use:
+
+```ini
+PYTAK_RECONNECT_INITIAL = 15
+PYTAK_RECONNECT_MAX = 600
+PYTAK_RECONNECT_FACTOR = 2
+PYTAK_RECONNECT_RESET = 300
+```
+
 ---
 
 ## Multicast Parameters

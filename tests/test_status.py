@@ -58,6 +58,45 @@ class TestCollection:
         writer.set(tracked=42)
         assert writer.as_dict(now=1000.0)["tracked"] == 42
 
+    def test_common_health_contract_is_present_by_default(self, writer):
+        doc = writer.as_dict(now=1000.0)
+        assert doc["health"]["state"] == "ok"
+        assert doc["input"] == {}
+        assert doc["output"]["state"] == "unknown"
+
+    def test_common_health_contract_accepts_normalized_activity(self, writer):
+        writer.set_health("degraded", "receiver quiet", since=900.0)
+        writer.set_input(last_observation=990.0, rate_min=12.5, total=42, tracked=3)
+        writer.set_output(
+            "retrying",
+            last_success=980.0,
+            rate_min=10,
+            total=40,
+            destination="tls://example:8089",
+            retry_in_s=5,
+            last_error="offline",
+        )
+        doc = writer.as_dict(now=1000.0)
+        assert doc["health"] == {
+            "state": "degraded",
+            "detail": "receiver quiet",
+            "since": 900.0,
+        }
+        assert doc["input"]["last_observation"] == 990.0
+        assert doc["input"]["tracked"] == 3
+        assert doc["output"]["state"] == "retrying"
+        assert doc["output"]["destination"] == "tls://example:8089"
+
+    @pytest.mark.parametrize("method,state", [("health", "green"), ("output", "up")])
+    def test_common_health_contract_rejects_ambiguous_states(
+        self, writer, method, state
+    ):
+        with pytest.raises(ValueError):
+            if method == "health":
+                writer.set_health(state)
+            else:
+                writer.set_output(state)
+
 
 class TestTrend:
     def test_counts_per_bucket(self, tmp_path):
@@ -145,7 +184,9 @@ class TestWrite:
             writer.write(now=1000.0 + i, force=True)
             json.loads(open(writer.path).read())  # never raises
         leftovers = [
-            f for f in os.listdir(os.path.dirname(writer.path)) if f.startswith(".status-")
+            f
+            for f in os.listdir(os.path.dirname(writer.path))
+            if f.startswith(".status-")
         ]
         assert leftovers == []
 
@@ -219,5 +260,98 @@ class TestStatusPath:
         monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
         assert status_path("acarscot") == str(tmp_path / "acarscot" / "status.json")
 
+    def test_uses_systemd_runtime_directory_when_run_root_is_not_writable(
+        self, monkeypatch
+    ):
+        """RuntimeDirectory is writable by the service; /run itself is not."""
+        app_dir = f"{DEFAULT_STATUS_ROOT}/acarscot"
+        monkeypatch.setattr(os.path, "isdir", lambda path: path == app_dir)
+        monkeypatch.setattr(
+            os,
+            "access",
+            lambda path, mode: path == app_dir and mode == os.W_OK,
+        )
+        assert status_path("acarscot") == f"{app_dir}/status.json"
+
     def test_explicit_root_wins(self, tmp_path):
         assert status_path("x", root=str(tmp_path)).startswith(str(tmp_path))
+
+
+class TestSingleWriter:
+    """Two writers on one path is silent damage, so it must not be silent.
+
+    Each write serialises a whole document, so two processes sharing an
+    app_name do not merge: the file alternates between two disjoint sets of
+    counters and every reader sees whichever wrote last. Three separate
+    gateway integrations hit this independently, which is why the class now
+    detects it rather than only documenting it.
+    """
+
+    def test_warns_once_when_another_live_process_owns_the_file(self, tmp_path, caplog):
+        path = str(tmp_path / "status.json")
+        # A document written by a DIFFERENT but live pid: our own parent works,
+        # and is guaranteed to exist without inventing one.
+        other_pid = os.getppid()
+        with open(path, "w") as handle:
+            json.dump({"app": "other", "pid": other_pid, "wall_t": 1000.0}, handle)
+
+        w = StatusWriter("t", path=path)
+        with caplog.at_level("WARNING"):
+            w.write(now=1000.0, force=True)
+            w._last_contention_check = 0.0  # allow a second check
+            w.write(now=2000.0, force=True)
+
+        warnings = [r for r in caplog.records if "also being written" in r.getMessage()]
+        assert len(warnings) == 1, "must warn, and only once"
+        assert w.contended_with == other_pid
+
+    def test_contention_is_surfaced_in_the_document(self, tmp_path):
+        """So a UI can say the figures may not be this gateway's."""
+        path = str(tmp_path / "status.json")
+        with open(path, "w") as handle:
+            json.dump({"app": "other", "pid": os.getppid(), "wall_t": 1.0}, handle)
+        w = StatusWriter("t", path=path)
+        w.write(now=1000.0, force=True)
+        assert json.loads(open(path).read())["contended_with"] == os.getppid()
+
+    def test_our_own_file_is_not_contention(self, tmp_path, caplog):
+        w = StatusWriter("t", path=str(tmp_path / "status.json"))
+        with caplog.at_level("WARNING"):
+            w.write(now=1000.0, force=True)
+            w._last_contention_check = 0.0
+            w.write(now=2000.0, force=True)
+        assert w.contended_with is None
+        assert not [r for r in caplog.records if "also being written" in r.getMessage()]
+
+    def test_a_dead_pid_is_not_contention(self, tmp_path, caplog):
+        """Our own previous run left this behind; taking it over is correct."""
+        path = str(tmp_path / "status.json")
+        # PID 2^22 is above the default pid_max on Linux, so it cannot be live.
+        with open(path, "w") as handle:
+            json.dump({"app": "old", "pid": 4194304, "wall_t": 1.0}, handle)
+        w = StatusWriter("t", path=path)
+        with caplog.at_level("WARNING"):
+            w.write(now=1000.0, force=True)
+        assert w.contended_with is None
+
+    def test_missing_or_corrupt_file_is_not_contention(self, tmp_path):
+        path = str(tmp_path / "status.json")
+        w = StatusWriter("t", path=path)
+        w.write(now=1000.0, force=True)  # absent
+        with open(path, "w") as handle:
+            handle.write("{not json")
+        w._last_contention_check = 0.0
+        w.write(now=2000.0, force=True)  # corrupt
+        assert w.contended_with is None
+
+    def test_check_does_not_run_on_every_write(self, tmp_path):
+        """The correct case must cost nothing."""
+        w = StatusWriter("t", path=str(tmp_path / "status.json"), min_write_interval=0)
+        calls = []
+        original = w._check_sole_writer
+        w._check_sole_writer = lambda now: (calls.append(now), original(now))[1]
+        for i in range(20):
+            w.write(now=1000.0 + i, force=True)
+        # Called every time, but the expensive read is rate-limited inside.
+        assert len(calls) == 20
+        assert w._last_contention_check == 1000.0

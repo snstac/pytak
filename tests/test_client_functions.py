@@ -37,8 +37,7 @@ except ImportError:
 
     class AsyncMock(mock.MagicMock):
         def __call__(self, *args, **kwargs):
-            super().__call__(*args, **kwargs)
-            ret = self.return_value
+            ret = super().__call__(*args, **kwargs)
 
             async def _coro():
                 return ret
@@ -118,6 +117,47 @@ def _test_get_tls_config_incomplete():
     config = config_p["pytak"]
     with pytest.raises(Exception):
         pytak.client_functions.get_tls_config(config)
+
+
+@pytest.mark.parametrize("load_error", [None, ValueError("bad certificate")])
+def test_get_ssl_ctx_removes_pkcs12_temporary_pems(tmp_path, load_error):
+    """PKCS#12 extraction must not accumulate PEMs across reconnects."""
+    p12_path = tmp_path / "client.p12"
+    p12_path.write_bytes(b"placeholder")
+    pem_paths = []
+    for name in ("key.pem", "cert.pem", "ca.pem"):
+        path = tmp_path / name
+        path.write_bytes(b"temporary")
+        pem_paths.append(str(path))
+
+    defaults = {
+        "PYTAK_TLS_CLIENT_CERT": str(p12_path),
+        "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE": "secret",
+        "PYTAK_TLS_DONT_VERIFY": "1",
+        "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",
+    }
+    parser = ConfigParser(defaults)
+    parser.add_section("pytak")
+    config = parser["pytak"]
+    converted = {
+        "pk_pem_path": pem_paths[0],
+        "cert_pem_path": pem_paths[1],
+        "ca_pem_path": pem_paths[2],
+    }
+    ssl_ctx = mock.MagicMock()
+    ssl_ctx.options = 0
+    ssl_ctx.load_cert_chain.side_effect = load_error
+
+    with mock.patch(
+        "pytak.client_functions.convert_cert", return_value=converted
+    ), mock.patch("pytak.client_functions.ssl.SSLContext", return_value=ssl_ctx):
+        if load_error:
+            with pytest.raises(ValueError, match="Error opening resource"):
+                pytak.client_functions.get_ssl_ctx(config)
+        else:
+            assert pytak.client_functions.get_ssl_ctx(config) is ssl_ctx
+
+    assert not any(os.path.exists(path) for path in pem_paths)
 
 
 @pytest.mark.asyncio
@@ -403,6 +443,171 @@ async def test_main_bootstraps_import_other_configs():
     fake_clitool.add_tasks.assert_called_once_with(fake_tasks)
     assert fake_clitool.run.call_count == 1
     assert fake_clitool.run.call_args == mock.call()
+
+
+@pytest.mark.asyncio
+async def test_run_with_reconnect_backs_off_transient_failures():
+    """Transient transport failures stay in-process with bounded backoff."""
+    config_p = ConfigParser(
+        {
+            "PYTAK_RECONNECT_INITIAL": "1",
+            "PYTAK_RECONNECT_MAX": "4",
+            "PYTAK_RECONNECT_FACTOR": "2",
+            "PYTAK_RECONNECT_JITTER": "0",
+            "PYTAK_RECONNECT_RESET": "300",
+        }
+    )
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+    fake_main = AsyncMock(
+        side_effect=[
+            ConnectionRefusedError("server offline"),
+            ConnectionAbortedError("WebSocket closed by server"),
+            None,
+        ]
+    )
+    fake_sleep = AsyncMock()
+    fake_loop = mock.MagicMock()
+    fake_loop.time.side_effect = [0, 0.1, 1, 1.1, 2]
+
+    with mock.patch(
+        "pytak.client_functions.main", new=fake_main
+    ), mock.patch(
+        "pytak.client_functions.asyncio.sleep", new=fake_sleep
+    ), mock.patch(
+        "pytak.client_functions.asyncio.get_running_loop", return_value=fake_loop
+    ):
+        await pytak.client_functions.run_with_reconnect(
+            "fakeapp", config, config_p
+        )
+
+    assert fake_main.call_count == 3
+    assert fake_sleep.call_args_list == [mock.call(1), mock.call(2)]
+
+
+@pytest.mark.asyncio
+async def test_run_with_reconnect_resets_after_stable_session():
+    """A long-lived connection gets the fast initial retry when it drops."""
+    config_p = ConfigParser(
+        {
+            "PYTAK_RECONNECT_INITIAL": "1",
+            "PYTAK_RECONNECT_MAX": "8",
+            "PYTAK_RECONNECT_FACTOR": "2",
+            "PYTAK_RECONNECT_JITTER": "0",
+            "PYTAK_RECONNECT_RESET": "5",
+        }
+    )
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+    fake_main = AsyncMock(
+        side_effect=[
+            ConnectionRefusedError("offline"),
+            ConnectionError("dropped"),
+            None,
+        ]
+    )
+    fake_sleep = AsyncMock()
+    fake_loop = mock.MagicMock()
+    fake_loop.time.side_effect = [0, 0.1, 1, 11, 12]
+
+    with mock.patch(
+        "pytak.client_functions.main", new=fake_main
+    ), mock.patch(
+        "pytak.client_functions.asyncio.sleep", new=fake_sleep
+    ), mock.patch(
+        "pytak.client_functions.asyncio.get_running_loop", return_value=fake_loop
+    ):
+        await pytak.client_functions.run_with_reconnect(
+            "fakeapp", config, config_p
+        )
+
+    assert fake_sleep.call_args_list == [mock.call(1), mock.call(1)]
+
+
+@pytest.mark.asyncio
+async def test_run_with_reconnect_keeps_configuration_errors_fatal():
+    """Retry scaffolding must not hide invalid local configuration."""
+    config_p = ConfigParser()
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+    fake_sleep = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.main",
+        new=AsyncMock(side_effect=ValueError("invalid setting")),
+    ), mock.patch("pytak.client_functions.asyncio.sleep", new=fake_sleep):
+        with pytest.raises(ValueError, match="invalid setting"):
+            await pytak.client_functions.run_with_reconnect(
+                "fakeapp", config, config_p
+            )
+
+    fake_sleep.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_with_reconnect_keeps_local_os_errors_fatal():
+    """Missing files and full disks are not TAK reachability failures."""
+    config_p = ConfigParser()
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+    fake_sleep = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.main",
+        new=AsyncMock(side_effect=FileNotFoundError("missing local input")),
+    ), mock.patch("pytak.client_functions.asyncio.sleep", new=fake_sleep):
+        with pytest.raises(FileNotFoundError, match="missing local input"):
+            await pytak.client_functions.run_with_reconnect(
+                "fakeapp", config, config_p
+            )
+
+    fake_sleep.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_with_reconnect_retries_tak_enrollment_resolution():
+    """A transient enrollment failure retries from the original deep link."""
+    config_p = ConfigParser(
+        {
+            "PYTAK_RECONNECT_INITIAL": "1",
+            "PYTAK_RECONNECT_MAX": "2",
+            "PYTAK_RECONNECT_FACTOR": "2",
+            "PYTAK_RECONNECT_JITTER": "0",
+            "PYTAK_RECONNECT_RESET": "300",
+        }
+    )
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+    tak_url = "tak://com.atakmap.app/enroll?host=example&token=redacted"
+    resolved = {"COT_URL": "wss://example:8443/takproto/1"}
+    fake_resolve = AsyncMock(side_effect=[ConnectionError("offline"), resolved])
+    fake_main = AsyncMock()
+    fake_sleep = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.resolve_tak_url", new=fake_resolve
+    ), mock.patch(
+        "pytak.client_functions.main", new=fake_main
+    ), mock.patch("pytak.client_functions.asyncio.sleep", new=fake_sleep):
+        await pytak.client_functions.run_with_reconnect(
+            "fakeapp", config, config_p, tak_url
+        )
+
+    assert fake_resolve.call_count == 2
+    fake_main.assert_called_once_with("fakeapp", config, config_p)
+    fake_sleep.assert_called_once_with(1)
+    assert config.get("COT_URL") == resolved["COT_URL"]
+
+
+def test_reconnect_log_redacts_enrollment_credentials():
+    """Retry diagnostics must never print one-time onboarding secrets."""
+    error = OSError(
+        "failed tak://com.atakmap.app/enroll?host=example&username=user&token=secret"
+    )
+    text = pytak.client_functions._safe_error_text(error)
+    assert text == "failed tak://REDACTED"
+    assert "user" not in text
+    assert "secret" not in text
 
 
 def test_cli_builds_downstream_config_and_calls_main():

@@ -1,3 +1,20 @@
+## PyTAK 7.4.3
+
+- PyTAK-backed gateways now survive transient TAK transport failures in the
+  same process. DNS failures, refused connections, timeouts, TLS failures, and
+  server-side WebSocket closes retry with exponential backoff from 5 seconds
+  to a two-minute ceiling. Twenty percent jitter prevents a recovering server
+  from receiving a synchronized fleet reconnect. A connection stable for five
+  minutes resets the delay, while invalid local configuration still fails
+  immediately.
+- Fixed a PKCS#12 conversion leak which left three temporary PEM files behind
+  on every connection attempt. Long server outages could fill a RAM-backed
+  `/tmp`, prevent unrelated services from creating temporary files, and turn a
+  recoverable network outage into a host-wide resource incident.
+- Enrollment credentials are redacted from reconnect diagnostics. Worker
+  queues and sockets are rebuilt between attempts, bounding memory use during
+  an arbitrarily long outage.
+
 ## PyTAK 7.4.1
 
 - Fixed gateway processes remaining `active (running)` after a transport worker
@@ -213,3 +230,8 @@ New Features:
 
 Bug & Performance Fixes:
 - Added async sleeps to each TX & RX loops iteration to fix broken async regiment in PYTAK.
+# 7.5.0
+
+* Add a common, additive runtime health contract to `StatusWriter`: `health`,
+  `input`, and `output` blocks describe process state, receiver activity, and
+  egress connection health without removing gateway-specific counters.
