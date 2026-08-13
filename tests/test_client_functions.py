@@ -20,6 +20,7 @@
 
 
 import asyncio
+import errno
 import os
 
 from configparser import ConfigParser, SectionProxy
@@ -562,6 +563,42 @@ async def test_run_with_reconnect_keeps_local_os_errors_fatal():
             )
 
     fake_sleep.assert_not_called()
+
+
+def test_reconnect_keeps_local_access_denied_fatal():
+    """Ordinary local file access failures remain configuration errors."""
+    error = PermissionError(errno.EACCES, "Permission denied")
+    assert not pytak.client_functions._retryable_transport_error(error)
+
+
+@pytest.mark.asyncio
+async def test_run_with_reconnect_retries_transient_udp_permission_error():
+    """A firewall transition must not terminate a UDP-backed gateway."""
+    config_p = ConfigParser(
+        {
+            "PYTAK_RECONNECT_INITIAL": "1",
+            "PYTAK_RECONNECT_MAX": "2",
+            "PYTAK_RECONNECT_FACTOR": "2",
+            "PYTAK_RECONNECT_JITTER": "0",
+            "PYTAK_RECONNECT_RESET": "300",
+        }
+    )
+    config_p.add_section("fakeapp")
+    config = config_p["fakeapp"]
+    fake_main = AsyncMock(
+        side_effect=[PermissionError(errno.EPERM, "Operation not permitted"), None]
+    )
+    fake_sleep = AsyncMock()
+
+    with mock.patch(
+        "pytak.client_functions.main", new=fake_main
+    ), mock.patch("pytak.client_functions.asyncio.sleep", new=fake_sleep):
+        await pytak.client_functions.run_with_reconnect(
+            "fakeapp", config, config_p
+        )
+
+    assert fake_main.call_count == 2
+    fake_sleep.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio
