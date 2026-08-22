@@ -699,7 +699,15 @@ async def create_udp_client(
 
     def _multicast_hosts() -> Tuple[str, ...]:
         raw = multicast_local_addrs
-        values = re.split(r"[\s,]+", str(raw).strip()) if raw else []
+        raw_text = str(raw).strip() if raw else ""
+        # AryaOS uses ``auto`` as a resolver sentinel.  Generic PyTAK clients
+        # do not resolve interfaces themselves, so preserve the historical
+        # singular/default bind behavior when that sentinel reaches us.
+        values = (
+            re.split(r"[\s,]+", raw_text)
+            if raw_text and raw_text.lower() != "auto"
+            else []
+        )
         if not values:
             values = [_local_host(local_addr)]
         hosts = []

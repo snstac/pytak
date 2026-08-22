@@ -249,6 +249,24 @@ async def test_multicast_writer_fans_out_and_survives_partial_connect_failure():
 
 
 @pytest.mark.asyncio
+async def test_multicast_auto_uses_singular_local_address():
+    """The AryaOS auto sentinel falls back to the resolved singular setting."""
+    client = mock.MagicMock()
+    with mock.patch(
+        "pytak.client_functions.dgconnect", AsyncMock(return_value=client)
+    ) as connect:
+        reader, writer = await pytak.create_udp_client(
+            urlparse("udp+wo://239.2.3.1:6969"),
+            ("192.0.2.10", 0),
+            multicast_local_addrs="auto",
+        )
+
+    assert reader is None
+    assert writer is client
+    assert connect.await_args.kwargs["local_addr"] == ("192.0.2.10", 0)
+
+
+@pytest.mark.asyncio
 async def test_datagram_fanout_drops_failed_link_but_keeps_healthy_link():
     """A runtime failure on one fanout member does not poison the others."""
     good = mock.MagicMock()
