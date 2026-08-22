@@ -26,7 +26,14 @@ import pathlib
 import socket
 import warnings
 
-__all__ = ("TransportClosed", "bind", "connect", "from_socket", "DatagramClient")
+__all__ = (
+    "TransportClosed",
+    "bind",
+    "connect",
+    "from_socket",
+    "DatagramClient",
+    "DatagramFanoutClient",
+)
 
 
 class TransportClosed(Exception):
@@ -179,6 +186,49 @@ class DatagramClient(DatagramStream):
         @param data - bytes to send
         """
         await super().send(data)
+
+
+class DatagramFanoutClient:
+    """Send each datagram through every healthy client in a multicast fanout."""
+
+    def __init__(self, clients):
+        if not clients:
+            raise ValueError("DatagramFanoutClient requires at least one client")
+        self._clients = list(clients)
+
+    @property
+    def clients(self):
+        """Return a stable snapshot of the underlying clients."""
+        return tuple(self._clients)
+
+    def close(self):
+        """Close every client owned by this fanout."""
+        clients, self._clients = self._clients, []
+        for client in clients:
+            client.close()
+
+    async def send(self, data):
+        """Send to all clients, retaining healthy links after partial failure."""
+        if not self._clients:
+            raise TransportClosed()
+
+        clients = tuple(self._clients)
+        results = await asyncio.gather(
+            *(client.send(data) for client in clients), return_exceptions=True
+        )
+        healthy = []
+        failures = []
+        for client, result in zip(clients, results):
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+            if isinstance(result, BaseException):
+                failures.append(result)
+                client.close()
+            else:
+                healthy.append(client)
+        self._clients = healthy
+        if not healthy:
+            raise failures[0] if failures else TransportClosed()
 
 
 class Protocol(asyncio.DatagramProtocol):

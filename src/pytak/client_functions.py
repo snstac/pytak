@@ -50,6 +50,7 @@ from pytak.functions import unzip_file, find_file, load_preferences, connectStri
 
 from pytak.asyncio_dgram import (
     DatagramClient,
+    DatagramFanoutClient,
     connect as dgconnect,
     from_socket,
 )
@@ -607,16 +608,19 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
 
     # UDP
     elif "udp" in base_scheme:
-        # Support Linux hosts with no default gateway defined with local addr:
+        # Support Linux hosts with no default gateway defined with local addr.
+        # The plural setting deliberately remains a string here: create_udp_client
+        # owns validation and backward-compatible fallback to the singular value.
         local_addr = (
             config.get(
                 "PYTAK_MULTICAST_LOCAL_ADDR", pytak.DEFAULT_PYTAK_MULTICAST_LOCAL_ADDR
             ),
             0,
         )
+        local_addrs = config.get("PYTAK_MULTICAST_LOCAL_ADDRS")
         multicast_ttl = config.get("PYTAK_MULTICAST_TTL", 1)
         reader, writer = await pytak.create_udp_client(
-            cot_url, local_addr, multicast_ttl
+            cot_url, local_addr, multicast_ttl, local_addrs
         )
 
     # LOG
@@ -651,8 +655,11 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
 
 
 async def create_udp_client(
-    url: ParseResult, local_addr=None, multicast_ttl=1
-) -> Tuple[Union[DatagramClient, None], Union[DatagramClient, None]]:
+    url: ParseResult,
+    local_addr=None,
+    multicast_ttl=1,
+    multicast_local_addrs=None,
+) -> Tuple[Any, Any]:
     """Create an AsyncIO UDP network client for Unicast, Broadcast & Multicast.
 
     Parameters
@@ -685,21 +692,74 @@ async def create_udp_client(
             # It's probably not an ip address...
             pass
 
-    writer: Union[DatagramClient, None] = None
+    def _local_host(value) -> str:
+        if isinstance(value, (tuple, list)):
+            return str(value[0])
+        return str(value)
+
+    def _multicast_hosts() -> Tuple[str, ...]:
+        raw = multicast_local_addrs
+        values = re.split(r"[\s,]+", str(raw).strip()) if raw else []
+        if not values:
+            values = [_local_host(local_addr)]
+        hosts = []
+        for value in values:
+            if not value:
+                continue
+            address = str(ipaddress.IPv4Address(value))
+            if address not in hosts:
+                hosts.append(address)
+        if not hosts:
+            hosts.append("0.0.0.0")
+        return tuple(hosts)
+
+    multicast_hosts = _multicast_hosts() if is_multicast else ("0.0.0.0",)
+    writer: Any = None
 
     if not is_read_only:
-        # Create the Writer
-        writer = await dgconnect(
-            (host, port), local_addr=local_addr, allow_broadcast=is_broadcast
-        )
+        clients = []
+        failures = []
+        for local_host in multicast_hosts:
+            client = None
+            try:
+                client = await dgconnect(
+                    (host, port),
+                    local_addr=(local_host, 0),
+                    allow_broadcast=is_broadcast,
+                )
+                if is_broadcast:
+                    client.socket.setsockopt(
+                        socket.SOL_SOCKET, socket.SO_BROADCAST, 1
+                    )
+                if is_multicast:
+                    client.socket.setsockopt(
+                        socket.IPPROTO_IP,
+                        socket.IP_MULTICAST_TTL,
+                        struct.pack("b", int(multicast_ttl)),
+                    )
+                    if local_host != "0.0.0.0":
+                        client.socket.setsockopt(
+                            socket.IPPROTO_IP,
+                            socket.IP_MULTICAST_IF,
+                            socket.inet_aton(local_host),
+                        )
+                clients.append(client)
+            except (OSError, ValueError) as exc:
+                if client is not None:
+                    client.close()
+                failures.append((local_host, exc))
 
-        if is_broadcast:
-            writer.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        if is_multicast:
-            writer.socket.setsockopt(
-                socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, struct.pack("b", multicast_ttl)
+        if not clients:
+            if failures:
+                raise failures[0][1]
+            raise OSError(errno.ENETUNREACH, "No usable UDP output interface")
+        if failures:
+            logging.getLogger(__name__).warning(
+                "Multicast output unavailable on %s; continuing on %s",
+                ", ".join(item[0] for item in failures),
+                ", ".join(client.sockname[0] for client in clients),
             )
+        writer = clients[0] if len(clients) == 1 else DatagramFanoutClient(clients)
 
     if is_write_only:
         return reader, writer
@@ -741,26 +801,28 @@ async def create_udp_client(
 
     # Create Multicast Reader
     if is_multicast:
-        # local_addr may be an (addr, port) TUPLE from a caller, or the bare host
-        # STRING this function defaults it to a few lines up ("0.0.0.0"). The old
-        # code indexed [0] unconditionally, so with the default it evaluated
-        # IPv4Address("0") -- the first CHARACTER of the string -- and raised
-        #     AddressValueError: Expected 4 octets in '0'
-        # for every multicast reader that did not pass an explicit tuple.
-        #
-        # That went unnoticed because the bind() above used to fail first with
-        # EADDRINUSE; fixing the socket-option ordering is what exposed it.
-        local_host = (
-            local_addr[0] if isinstance(local_addr, (tuple, list)) else local_addr
-        )
-        ip = (
-            socket.INADDR_ANY
-            if not local_host or local_host == "0.0.0.0"
-            else int(ipaddress.IPv4Address(local_host))
-        )
         group = int(ipaddress.IPv4Address(host))
-        mreq = struct.pack("!LL", group, ip)
-        reader.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        memberships = 0
+        membership_errors = []
+        for local_host in multicast_hosts:
+            ip = (
+                socket.INADDR_ANY
+                if local_host == "0.0.0.0"
+                else int(ipaddress.IPv4Address(local_host))
+            )
+            try:
+                mreq = struct.pack("!LL", group, ip)
+                reader.socket.setsockopt(
+                    socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq
+                )
+                memberships += 1
+            except OSError as exc:
+                membership_errors.append(exc)
+        if not memberships:
+            reader.close()
+            if writer is not None:
+                writer.close()
+            raise membership_errors[0]
 
     return reader, writer
 

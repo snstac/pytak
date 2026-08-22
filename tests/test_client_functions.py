@@ -201,6 +201,87 @@ async def test_protocol_factory_udp_multicast_ro():
     assert writer is None
 
 
+@pytest.mark.asyncio
+async def test_protocol_factory_passes_plural_multicast_addresses():
+    """The plural multicast setting takes the dedicated UDP factory path."""
+    config = {
+        "COT_URL": "udp+wo://239.2.3.1:6969",
+        "PYTAK_MULTICAST_LOCAL_ADDR": "10.41.0.1",
+        "PYTAK_MULTICAST_LOCAL_ADDRS": "192.0.2.10, 169.254.2.3",
+        "PYTAK_MULTICAST_TTL": "2",
+    }
+    sentinel = mock.MagicMock()
+    with mock.patch(
+        "pytak.create_udp_client", AsyncMock(return_value=(None, sentinel))
+    ) as factory:
+        reader, writer = await pytak.protocol_factory(config)
+
+    assert reader is None
+    assert writer is sentinel
+    args = factory.await_args.args
+    assert args[1] == ("10.41.0.1", 0)
+    assert args[2:] == ("2", "192.0.2.10, 169.254.2.3")
+
+
+@pytest.mark.asyncio
+async def test_multicast_writer_fans_out_and_survives_partial_connect_failure():
+    """One unusable interface must not prevent a healthy multicast output."""
+    healthy = mock.MagicMock()
+    healthy.sockname = ("192.0.2.10", 12345)
+    healthy.send = AsyncMock()
+
+    async def connect(_remote, *, local_addr, allow_broadcast):
+        del allow_broadcast
+        if local_addr[0] == "169.254.2.3":
+            raise OSError(errno.ENETUNREACH, "gone")
+        return healthy
+
+    with mock.patch("pytak.client_functions.dgconnect", side_effect=connect):
+        reader, writer = await pytak.create_udp_client(
+            urlparse("udp+wo://239.2.3.1:6969"),
+            multicast_local_addrs="192.0.2.10,169.254.2.3",
+        )
+
+    assert reader is None
+    assert writer is healthy
+    await writer.send(b"cot")
+    healthy.send.assert_awaited_once_with(b"cot")
+
+
+@pytest.mark.asyncio
+async def test_datagram_fanout_drops_failed_link_but_keeps_healthy_link():
+    """A runtime failure on one fanout member does not poison the others."""
+    good = mock.MagicMock()
+    good.send = AsyncMock()
+    bad = mock.MagicMock()
+    bad.send = AsyncMock(side_effect=OSError(errno.ENETDOWN, "down"))
+    writer = pytak.asyncio_dgram.DatagramFanoutClient([good, bad])
+
+    await writer.send(b"first")
+    await writer.send(b"second")
+
+    assert writer.clients == (good,)
+    assert good.send.await_count == 2
+    bad.send.assert_awaited_once_with(b"first")
+    bad.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_unicast_udp_ignores_multicast_source_settings():
+    """A multicast interface choice must never bind a localhost feeder output."""
+    client = mock.MagicMock()
+    with mock.patch(
+        "pytak.client_functions.dgconnect", AsyncMock(return_value=client)
+    ) as connect:
+        await pytak.create_udp_client(
+            urlparse("udp+wo://127.0.0.1:28087"),
+            ("10.41.0.1", 0),
+            multicast_local_addrs="169.254.2.3",
+        )
+
+    assert connect.await_args.kwargs["local_addr"] == ("0.0.0.0", 0)
+
+
 def test_parse_cot_scheme_tls_wo():
     """parse_cot_scheme strips +wo and sets write_only."""
     assert pytak.parse_cot_scheme("tls+wo") == ("tls", True, False)

@@ -223,6 +223,25 @@ PYTAK_MULTICAST_LOCAL_ADDR = 192.168.1.100
 
 ---
 
+### `PYTAK_MULTICAST_LOCAL_ADDRS`
+
+**Default:** unset
+
+Comma- or whitespace-separated interface IPv4 addresses for multicast fanout.
+PyTAK sends each multicast datagram once through every usable address and joins
+the multicast group on each address for receive transports. This setting takes
+precedence over `PYTAK_MULTICAST_LOCAL_ADDR`.
+
+```ini
+PYTAK_MULTICAST_LOCAL_ADDRS = 10.41.0.1, 169.254.28.4
+```
+
+If one listed output disappears, PyTAK keeps the remaining outputs active. The
+setting only affects multicast; ordinary UDP destinations continue to use the
+kernel-selected local address.
+
+---
+
 ### `PYTAK_MULTICAST_TTL`
 
 **Default:** `1`
