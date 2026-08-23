@@ -36,6 +36,13 @@ try:
     from unittest.mock import AsyncMock
 except ImportError:
 
+    class _AwaitCall:
+        """Expose await arguments consistently across Python versions."""
+
+        def __init__(self, args, kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
     class AsyncMock(mock.MagicMock):
         """Small Python 3.7-compatible subset of unittest.mock.AsyncMock."""
 
@@ -46,7 +53,7 @@ except ImportError:
             object.__setattr__(self, "await_args_list", [])
 
         async def __call__(self, *args, **kwargs):
-            awaited = mock.call(*args, **kwargs)
+            awaited = _AwaitCall(args, kwargs)
             object.__setattr__(self, "await_count", self.await_count + 1)
             object.__setattr__(self, "await_args", awaited)
             self.await_args_list.append(awaited)
@@ -54,7 +61,8 @@ except ImportError:
 
         def assert_awaited_once_with(self, *args, **kwargs):
             assert self.await_count == 1
-            assert self.await_args == mock.call(*args, **kwargs)
+            assert self.await_args.args == args
+            assert self.await_args.kwargs == kwargs
 
 @pytest.fixture(params=["tcp", "udp"])
 def gen_url(request) -> ParseResult:
