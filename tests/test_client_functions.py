@@ -37,13 +37,24 @@ try:
 except ImportError:
 
     class AsyncMock(mock.MagicMock):
-        def __call__(self, *args, **kwargs):
-            ret = super().__call__(*args, **kwargs)
+        """Small Python 3.7-compatible subset of unittest.mock.AsyncMock."""
 
-            async def _coro():
-                return ret
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            object.__setattr__(self, "await_count", 0)
+            object.__setattr__(self, "await_args", None)
+            object.__setattr__(self, "await_args_list", [])
 
-            return _coro()
+        async def __call__(self, *args, **kwargs):
+            awaited = mock.call(*args, **kwargs)
+            object.__setattr__(self, "await_count", self.await_count + 1)
+            object.__setattr__(self, "await_args", awaited)
+            self.await_args_list.append(awaited)
+            return super().__call__(*args, **kwargs)
+
+        def assert_awaited_once_with(self, *args, **kwargs):
+            assert self.await_count == 1
+            assert self.await_args == mock.call(*args, **kwargs)
 
 @pytest.fixture(params=["tcp", "udp"])
 def gen_url(request) -> ParseResult:
