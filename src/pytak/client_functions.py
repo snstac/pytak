@@ -1008,10 +1008,11 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
         client_key = cert_paths["pk_pem_path"]
 
     try:
-        if not os.path.exists(client_cert) or not os.path.exists(client_key):
-            raise SystemError(
-                f"Missing PKCS#12 extracted {client_cert} & {client_key}."
-            )
+        # PYTAK_TLS_CLIENT_KEY is optional: the cert PEM may hold the key too.
+        if not os.path.exists(client_cert) or (
+            client_key and not os.path.exists(client_key)
+        ):
+            raise SystemError(f"Missing client cert {client_cert} or key {client_key}.")
         ssl_ctx.load_cert_chain(
             client_cert, keyfile=client_key, password=client_password
         )

@@ -22,6 +22,7 @@
 import asyncio
 import errno
 import os
+import ssl
 
 from configparser import ConfigParser, SectionProxy
 import io
@@ -821,3 +822,53 @@ def test_cli_builds_downstream_config_and_calls_main():
     assert config.get("COT_HOST_ID") == "fakeapp@testnode"
     assert config.get("COT_STALE") == "42"
     assert config.get("TAK_PROTO") == pytak.DEFAULT_TAK_PROTO
+
+
+def _write_combined_pem(path):
+    """Write a self-signed certificate and its private key to one PEM file."""
+    datetime = pytest.importorskip("datetime")
+    x509 = pytest.importorskip("cryptography.x509")
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "pytak-test")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .sign(key, hashes.SHA256())
+    )
+    path.write_bytes(
+        cert.public_bytes(serialization.Encoding.PEM)
+        + key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+    )
+
+
+def test_get_ssl_ctx_cert_and_key_in_same_pem(tmp_path):
+    """PYTAK_TLS_CLIENT_KEY is optional when the cert PEM also holds the key."""
+    combined = tmp_path / "cert_key.pem"
+    _write_combined_pem(combined)
+
+    parser = ConfigParser(
+        {
+            "PYTAK_TLS_CLIENT_CERT": str(combined),
+            "PYTAK_TLS_DONT_VERIFY": "1",
+            "PYTAK_TLS_DONT_CHECK_HOSTNAME": "1",
+        }
+    )
+    parser.add_section("pytak")
+
+    ssl_ctx = pytak.client_functions.get_ssl_ctx(parser["pytak"])
+
+    assert isinstance(ssl_ctx, ssl.SSLContext)
+    assert combined.exists()
