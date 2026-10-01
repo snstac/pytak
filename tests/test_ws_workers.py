@@ -349,6 +349,85 @@ async def test_make_workers_wss_scheme():
 
 
 # ---------------------------------------------------------------------------
+# ws_factory 403 handling (issue #99)
+# ---------------------------------------------------------------------------
+
+
+def _wss_config(cert_path):
+    from configparser import ConfigParser
+
+    config = ConfigParser()
+    config.add_section("test")
+    config.set("test", "COT_URL", "wss://takserver.example.com:8443/takproto/1")
+    config.set("test", "PYTAK_TLS_CLIENT_CERT", str(cert_path))
+    return config["test"]
+
+
+async def _run_ws_factory_with_403(cfg):
+    import aiohttp
+
+    exc = aiohttp.WSServerHandshakeError(
+        mock.MagicMock(), (), status=403, message="Forbidden"
+    )
+    with mock.patch("pytak.client_functions.get_ssl_ctx", return_value=mock.MagicMock()):
+        with mock.patch(
+            "aiohttp.ClientSession.ws_connect", new=AsyncMock(side_effect=exc)
+        ):
+            await pytak.ws_factory(asyncio.Queue(), asyncio.Queue(), cfg)
+
+
+@pytest.mark.asyncio
+async def test_ws_factory_403_keeps_user_provided_cert(tmp_path, monkeypatch):
+    """A 403 must never delete a user-managed PYTAK_TLS_CLIENT_CERT (#99)."""
+    import aiohttp
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    user_pem = tmp_path / "client.pem"
+    user_pem.write_text("user managed cert")
+
+    with pytest.raises(aiohttp.WSServerHandshakeError):
+        await _run_ws_factory_with_403(_wss_config(user_pem))
+
+    assert user_pem.read_text() == "user managed cert"
+
+
+@pytest.mark.asyncio
+async def test_ws_factory_403_keeps_user_p12_outside_cache(tmp_path, monkeypatch):
+    """A user .p12 outside ~/.pytak/certs is not a cache file (#99)."""
+    import aiohttp
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    user_p12 = tmp_path / "mine.p12"
+    user_p12.write_text("user p12")
+    user_pass = tmp_path / "mine.pass"
+    user_pass.write_text("secret")
+
+    with pytest.raises(aiohttp.WSServerHandshakeError):
+        await _run_ws_factory_with_403(_wss_config(user_p12))
+
+    assert user_p12.exists()
+    assert user_pass.exists()
+
+
+@pytest.mark.asyncio
+async def test_ws_factory_403_clears_enrollment_cache_p12(tmp_path, monkeypatch):
+    """A 403 still clears the stale p12 that pytak itself cached."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cache_dir = tmp_path / ".pytak" / "certs"
+    cache_dir.mkdir(parents=True)
+    cached_p12 = cache_dir / "abc123.p12"
+    cached_pass = cache_dir / "abc123.pass"
+    cached_p12.write_text("cached")
+    cached_pass.write_text("pw")
+
+    with pytest.raises(PermissionError):
+        await _run_ws_factory_with_403(_wss_config(cached_p12))
+
+    assert not cached_p12.exists()
+    assert not cached_pass.exists()
+
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 

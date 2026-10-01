@@ -123,6 +123,21 @@ def _cert_cache_paths(hostname: str, port: int, username: str) -> Tuple[str, str
     return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
 
 
+def _is_cached_enrollment_p12(cert_path: str) -> bool:
+    """Return True only for a .p12 inside pytak's own enrollment cache.
+
+    Guards destructive cleanup so that a user-managed ``PYTAK_TLS_CLIENT_CERT``
+    is never deleted.
+    """
+    if not cert_path or not cert_path.endswith(".p12"):
+        return False
+    cache_dir = (Path.home() / ".pytak" / "certs").resolve()
+    try:
+        return Path(cert_path).resolve().parent == cache_dir
+    except OSError:
+        return False
+
+
 def _cert_cache_server_fingerprint_path(p12_path: str) -> str:
     """Return the sidecar path storing the server certificate fingerprint."""
     return str(Path(p12_path).with_suffix(".server"))
@@ -452,12 +467,13 @@ async def ws_factory(
     except aiohttp.WSServerHandshakeError as exc:
         await session.close()
         if exc.status == 403:
-            # Server rejected the cert — clear the cert cache so the next
-            # run forces a fresh enrollment with the new token.
+            # Server rejected the cert — clear the enrollment cache so the next
+            # run forces a fresh enrollment with the new token. Only files
+            # pytak itself cached are removed; a user-provided cert is left
+            # untouched.
             cert_path = config.get("PYTAK_TLS_CLIENT_CERT", "")
-            if cert_path and os.path.exists(cert_path):
-                pass_path = cert_path.replace(".p12", ".pass")
-                for p in (cert_path, pass_path):
+            if _is_cached_enrollment_p12(cert_path):
+                for p in (cert_path, str(Path(cert_path).with_suffix(".pass"))):
                     try:
                         os.remove(p)
                     except OSError:
