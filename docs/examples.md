@@ -53,8 +53,9 @@ event = pytak.cot_event(
 payload = pytak.serialize_cot(event, trailing_newline=True)
 ```
 
-`cot_point()` and `cot_event()` truncate latitude and longitude to at most four
-decimal places by default. This is intentional for TAK client compatibility.
+`cot_point()` and `cot_event()` truncate latitude and longitude to at most seven
+decimal places (about 1 cm) by default. Pass `precision=4` to `cot_point()` for the
+previous, coarser (about 10 m) output.
 
 ---
 
