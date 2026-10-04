@@ -10,6 +10,9 @@
 """Tests for queue backpressure when RX workers enqueue into a full queue."""
 
 import asyncio
+import logging
+import multiprocessing as mp
+import queue as stdlib_queue
 from unittest import mock
 
 try:
@@ -25,7 +28,7 @@ except ImportError:
 
 import pytest
 
-from pytak.classes import MartiRXWorker, RXWorker, WSRXWorker
+from pytak.classes import MartiRXWorker, RXWorker, WSRXWorker, _safe_queue_put
 
 
 SAMPLE_COT = (
@@ -49,6 +52,90 @@ SAMPLE_SA_RESPONSE = """
   </event>
 </events>
 """
+
+
+class _DrainedAfterFullCheck(stdlib_queue.Queue):
+    """Simulate a concurrent consumer between full() and get_nowait()."""
+
+    def full(self):
+        was_full = super().full()
+        if was_full:
+            super().get_nowait()
+        return was_full
+
+
+class _RefilledAfterDrop(stdlib_queue.Queue):
+    """Simulate another producer filling the slot released by a drop."""
+
+    def get_nowait(self):
+        item = super().get_nowait()
+        super().put_nowait(b"other-producer")
+        return item
+
+
+class _UnavailableQsize(stdlib_queue.Queue):
+    """Model multiprocessing.Queue.qsize() on macOS."""
+
+    def qsize(self):
+        raise NotImplementedError
+
+
+@pytest.mark.asyncio
+async def test_non_asyncio_queue_drained_after_full_check():
+    queue = _DrainedAfterFullCheck(maxsize=1)
+    queue.put_nowait(b"old")
+
+    await _safe_queue_put(queue, b"new", logging.getLogger(__name__))
+
+    assert queue.get_nowait() == b"new"
+    assert queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_non_asyncio_queue_refilled_after_drop(caplog):
+    queue = _RefilledAfterDrop(maxsize=1)
+    queue.put_nowait(b"old")
+
+    await _safe_queue_put(queue, b"new", logging.getLogger(__name__))
+
+    assert stdlib_queue.Queue.get_nowait(queue) == b"other-producer"
+    assert queue.empty()
+    assert "dropping new data" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_non_asyncio_queue_without_qsize():
+    queue = _UnavailableQsize(maxsize=1)
+
+    await _safe_queue_put(queue, b"new", logging.getLogger(__name__))
+
+    assert queue.get_nowait() == b"new"
+
+
+@pytest.mark.asyncio
+async def test_multiprocessing_queue_feeder_lag_drops_new_without_crashing(caplog):
+    queue = mp.Queue(maxsize=1)
+    feeder_write_lock = getattr(queue, "_wlock", None)
+    if feeder_write_lock is None:
+        queue.close()
+        pytest.skip("multiprocessing.Queue has no feeder write lock")
+
+    try:
+        feeder_write_lock.acquire()
+        try:
+            queue.put_nowait(b"old")
+            assert queue.full()
+            await _safe_queue_put(queue, b"new", logging.getLogger(__name__))
+        finally:
+            feeder_write_lock.release()
+
+        assert queue.get(timeout=2) == b"old"
+        with pytest.raises(stdlib_queue.Empty):
+            queue.get(timeout=0.1)
+        assert "dropping new data" in caplog.text
+    finally:
+        queue.close()
+        queue.join_thread()
 
 
 class _AsyncCM:

@@ -22,6 +22,7 @@ import asyncio
 import ipaddress
 import logging
 import multiprocessing as mp
+import queue as stdlib_queue
 import random
 import re
 from datetime import datetime, timezone, timedelta
@@ -168,14 +169,19 @@ def _setup_logger(logger: logging.Logger, level: int = None) -> logging.Logger:
 async def _drop_oldest_queue_item(
     queue: Union[asyncio.Queue, mp.Queue], logger: logging.Logger
 ) -> None:
-    """Remove the oldest item from a full queue."""
+    """Try to remove the oldest item from a full queue."""
     logger.warning(
-        "Queue full, dropping oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
+        "Queue full, attempting to drop oldest data. Consider raising MAX_IN_QUEUE or MAX_OUT_QUEUE see https://pytak.rtfd.io/"
     )
     if isinstance(queue, asyncio.Queue):
         await queue.get()
     else:
-        queue.get_nowait()
+        try:
+            queue.get_nowait()
+        except stdlib_queue.Empty:
+            # A consumer may have drained it, or an mp.Queue feeder has not
+            # flushed the item to the pipe yet despite full() being true.
+            pass
 
 
 async def _safe_queue_put(
@@ -183,14 +189,28 @@ async def _safe_queue_put(
     data: bytes,
     logger: logging.Logger,
 ) -> None:
-    """Put data on a queue, dropping the oldest item if full."""
-    logger.debug("Queue size=%s", queue.qsize())
+    """Put data on a queue, dropping the oldest item if available.
+
+    A contended multiprocessing queue may still be full after the attempt;
+    discard the new item rather than failing the worker.
+    """
+    try:
+        size = queue.qsize()
+    except NotImplementedError:
+        # multiprocessing.Queue.qsize() is unavailable on some platforms.
+        size = "unknown"
+    logger.debug("Queue size=%s", size)
     if queue.full():
         await _drop_oldest_queue_item(queue, logger)
     if isinstance(queue, asyncio.Queue):
         await queue.put(data)
     else:
-        queue.put_nowait(data)
+        try:
+            queue.put_nowait(data)
+        except stdlib_queue.Full:
+            # Another producer may have refilled it, or an mp.Queue item may
+            # still be waiting for its feeder to flush.
+            logger.warning("Queue still full; dropping new data")
 
 
 class Worker:
