@@ -128,6 +128,30 @@ def _cert_cache_server_fingerprint_path(p12_path: str) -> str:
     return str(Path(p12_path).with_suffix(".server"))
 
 
+def _write_private_passphrase(path: str, passphrase: str) -> None:
+    """Replace a cache passphrase without ever exposing it in a public file.
+
+    A temporary file in the same directory is private from creation. Replacing
+    the directory entry also avoids following a stale symlink or retaining the
+    permissions of an existing passphrase file.
+    """
+    parent = os.path.dirname(path)
+    fd, temp_path = tempfile.mkstemp(prefix=".pytak-pass-", dir=parent)
+    try:
+        with os.fdopen(fd, "w") as file:
+            # mkstemp creates mode 0600; restore owner access if umask stripped
+            # any bits, before secret data is written.
+            os.chmod(temp_path, 0o600)
+            file.write(passphrase)
+        os.replace(temp_path, path)
+    except BaseException:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
+
+
 def _legacy_cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
     """Return (p12_path, pass_path) using the pre-7.3.13 cache key format.
 
@@ -310,9 +334,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
             raise RuntimeError(
                 f"TAK certificate enrollment failed for {username}@{hostname}"
             )
-        with open(new_pass_path, "w") as f:
-            f.write(passphrase)
-        os.chmod(new_pass_path, 0o600)
+        _write_private_passphrase(new_pass_path, passphrase)
         os.chmod(new_p12_path, 0o600)
         if current_server_fp:
             with open(new_server_fp_path, "w") as f:
