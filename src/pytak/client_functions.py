@@ -41,7 +41,7 @@ from asyncio import get_running_loop
 from configparser import ConfigParser, SectionProxy
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from urllib.parse import ParseResult, urlparse, parse_qs, unquote
+from urllib.parse import ParseResult, urlparse, parse_qs
 from typing import Any, Awaitable, Callable, Optional, Tuple, Union
 
 import pytak
@@ -79,13 +79,29 @@ def parse_tak_url(tak_url: str) -> dict:
         vals = qs.get(param)
         if not vals or not str(vals[0]).strip():
             raise ValueError(f"TAK URL missing required parameter: {param!r}")
-        return unquote(str(vals[0]).strip())
+        # parse_qs() has already percent-decoded the value; decoding again
+        # would corrupt secrets containing a literal '%'.
+        return str(vals[0]).strip()
 
     host_param = _one("host")
     username = _one("username")
     token = _one("token")
 
-    if ":" in host_param:
+    # IPv6: "[addr]:port", "[addr]" or a bare "addr" (no port). The hostname is
+    # returned without brackets; callers bracket it when building URLs.
+    if host_param.startswith("["):
+        hostname, _, rest = host_param[1:].partition("]")
+        if rest.startswith(":") and rest[1:].isdigit():
+            port = int(rest[1:])
+            explicit_port = True
+        else:
+            port = pytak.DEFAULT_TAK_STREAMING_PORT
+            explicit_port = False
+    elif host_param.count(":") > 1:
+        hostname = host_param
+        port = pytak.DEFAULT_TAK_STREAMING_PORT
+        explicit_port = False
+    elif ":" in host_param:
         hostname, port_str = host_param.rsplit(":", 1)
         try:
             port = int(port_str)
@@ -225,6 +241,8 @@ async def resolve_tak_url(tak_url: str) -> dict:
     explicit_port = params["explicit_port"]
     username = params["username"]
     token = params["token"]
+    # IPv6 literals must be bracketed inside URLs.
+    url_host = f"[{hostname}]" if ":" in hostname else hostname
 
     new_p12_path, new_pass_path = _cert_cache_paths(hostname, port, username)
     new_server_fp_path = _cert_cache_server_fingerprint_path(new_p12_path)
@@ -299,7 +317,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
         enrollment = CertificateEnrollment()
         # Enrollment always writes to the new-format path.
         await enrollment.begin_enrollment(
-            domain=hostname,
+            domain=url_host,
             username=username,
             password=token,
             output_path=new_p12_path,
@@ -329,11 +347,11 @@ async def resolve_tak_url(tak_url: str) -> dict:
         os.chmod(server_fp_path, 0o600)
 
     if explicit_port and port == pytak.DEFAULT_TAK_STREAMING_PORT:
-        cot_url = f"tls://{hostname}:{port}"
+        cot_url = f"tls://{url_host}:{port}"
     else:
         if not explicit_port:
             port = pytak.DEFAULT_MARTI_PORT
-        cot_url = f"wss://{hostname}:{port}{pytak.DEFAULT_WS_PATH}"
+        cot_url = f"wss://{url_host}:{port}{pytak.DEFAULT_WS_PATH}"
 
     return {
         "COT_URL": cot_url,
@@ -505,8 +523,9 @@ async def mqtt_factory(
     scheme = raw_url.split("://")[0].lower() if "://" in raw_url else ""
     _, write_only, read_only = pytak.parse_cot_scheme(scheme)
 
-    cot_url = get_cot_url(config)
-    parts = parse_mqtt_url(cot_url)
+    get_cot_url(config)  # Validate COT_URL.
+    # Parse the raw string: a parsed URL has already dropped a '#' wildcard.
+    parts = parse_mqtt_url(raw_url)
 
     username = parts.username or config.get("MQTT_USERNAME")
     password = parts.password or config.get("MQTT_PASSWORD")
@@ -774,35 +793,48 @@ async def create_udp_client(
 
     # Create the Reader
     rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # SO_REUSEADDR/SO_REUSEPORT MUST be set BEFORE bind() -- setting them
+        # afterwards has no effect on a bind that already happened.
+        #
+        # They used to be applied after, which meant only ONE process per host could
+        # subscribe to a given multicast group. Observed on an AryaOS box: the
+        # neighbour-discovery daemon holds 239.2.3.1:6969, so gdltak died with
+        #
+        #   OSError: [Errno 98] Address already in use
+        #
+        # restarted 10 times, hit the systemd start limit and left the machine
+        # `degraded`. Two subscribers to one CoT multicast group is a normal
+        # arrangement, not an error.
+        if is_broadcast:
+            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    # SO_REUSEADDR/SO_REUSEPORT MUST be set BEFORE bind() -- setting them
-    # afterwards has no effect on a bind that already happened.
-    #
-    # They used to be applied after, which meant only ONE process per host could
-    # subscribe to a given multicast group. Observed on an AryaOS box: the
-    # neighbour-discovery daemon holds 239.2.3.1:6969, so gdltak died with
-    #
-    #   OSError: [Errno 98] Address already in use
-    #
-    # restarted 10 times, hit the systemd start limit and left the machine
-    # `degraded`. Two subscribers to one CoT multicast group is a normal
-    # arrangement, not an error.
-    if is_broadcast:
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if is_broadcast or is_multicast:
+            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except (AttributeError, OSError):
+                # Not every platform has SO_REUSEPORT; SO_REUSEADDR alone is enough
+                # for multiple multicast subscribers on Linux.
+                pass
 
-    if is_broadcast or is_multicast:
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        bindall = sys.platform == "win32"
         try:
-            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except (AttributeError, OSError):
-            # Not every platform has SO_REUSEPORT; SO_REUSEADDR alone is enough
-            # for multiple multicast subscribers on Linux.
-            pass
+            rsock.bind(("" if bindall else host, port))
+        except OSError as exc:
+            # Plain unicast (udp://<remote-host>:<port>) names the REMOTE peer,
+            # which is not a local address: listen on all interfaces instead.
+            # Local unicast addresses (e.g. 127.0.0.1) still bind explicitly.
+            if is_broadcast or is_multicast or exc.errno != errno.EADDRNOTAVAIL:
+                raise
+            rsock.bind(("", port))
 
-    bindall = sys.platform == "win32"
-    rsock.bind(("" if bindall else host, port))
-
-    reader = await from_socket(rsock)
+        reader = await from_socket(rsock)
+    except BaseException:
+        rsock.close()
+        if writer is not None:
+            writer.close()
+        raise
 
     if not reader:
         return reader, writer
@@ -869,7 +901,11 @@ def get_tls_config(config: SectionProxy) -> SectionProxy:
 
     tls_config_req.update(tls_config_opt)
 
-    return ConfigParser(dict(filter(lambda x: x[1], tls_config_req.items())))["DEFAULT"]
+    # Values were already interpolated when read from ``config``; re-interpolating
+    # would reject (or rewrite) a literal '%' in e.g. a TLS password.
+    return ConfigParser(
+        dict(filter(lambda x: x[1], tls_config_req.items())), interpolation=None
+    )["DEFAULT"]
 
 
 async def create_tls_client(
@@ -1092,9 +1128,17 @@ async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -
     clitool: pytak.CLITool = pytak.CLITool(config)
     create_tasks = getattr(app, "create_tasks")
     await clitool.create_workers(config)
-    if bool(config.get("IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS)):
+    import_other = config.get(
+        "IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS
+    )
+    if str(import_other).strip().lower() in ("1", "yes", "true", "on"):
+        own_section = getattr(config, "name", None)
+        if own_section:
+            other_sections = [s for s in full_config.sections() if s != own_section]
+        else:
+            other_sections = full_config.sections()[1:]
         try:
-            for i in full_config.sections()[1:]:
+            for i in other_sections:
                 await clitool.create_workers(full_config[i])
         except EOFError:
             logging.warning("No more configs to create workers for!")
