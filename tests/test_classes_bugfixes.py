@@ -285,4 +285,6 @@ def test_manifest_xml_works_without_xml_declaration_kwarg(tmp_path):
         manifest = package._generate_manifest_xml()
 
     assert manifest.startswith("<?xml version='1.0' encoding='utf-8'?>\n<")
-    assert pytak_classes.ET.fromstring(manifest.encode()).tag == "MissionPackageManifest"
+    assert (
+        pytak_classes.ET.fromstring(manifest.encode()).tag == "MissionPackageManifest"
+    )
