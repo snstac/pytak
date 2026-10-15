@@ -56,6 +56,38 @@ except ImportError:
 # boundary and let service supervisors restart the gateway.
 _WORKER_SHUTDOWN_TIMEOUT = 5.0
 
+# Upper bound on a single inbound CoT event read from a stream transport.
+# Events larger than the asyncio StreamReader limit (64 KiB) are reassembled in
+# RXWorker.readcot(); this cap stops a peer that never sends "</event>" from
+# exhausting memory.
+_MAX_COT_EVENT_SIZE = 64 * 1024 * 1024
+
+_TRUE_STRINGS = ("1", "true", "yes", "on")
+
+
+def _is_true(value) -> bool:
+    """Interpret a config value (bool, int or str) as a boolean flag."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    if text.isdigit():
+        return int(text) != 0
+    return text in _TRUE_STRINGS
+
+
+class _CoTEventTooLargeError(ConnectionError, ValueError):
+    """An inbound CoT event exceeded _MAX_COT_EVENT_SIZE.
+
+    Subclasses ConnectionError so the reconnect supervisor treats it as
+    retryable: part of the oversized event has already been consumed, the
+    stream can no longer be resynchronised, and reconnecting is the only
+    recovery that does not require operator action.
+    """
+
 
 def _takmsg2xml(msg) -> Optional[bytes]:
     """Convert a takproto TakMessage back to CoT XML bytes.
@@ -213,7 +245,7 @@ class Worker:
             config_p.add_section("pytak")
             self.config = config_p["pytak"] or {}
 
-        if bool(self.config.get("DEBUG")):
+        if _is_true(self.config.get("DEBUG")):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
 
@@ -236,7 +268,7 @@ class Worker:
         either a given (PYTAK_SLEEP) or random (FTS_COMPAT) time.
         """
         pytak_sleep: int = int(self.config.get("PYTAK_SLEEP") or 0)
-        if bool(self.config.get("FTS_COMPAT") or pytak_sleep):
+        if _is_true(self.config.get("FTS_COMPAT")) or pytak_sleep:
             sleep_period: int = int(
                 pytak_sleep or (int(pytak.DEFAULT_SLEEP) * random.random())
             )
@@ -366,22 +398,42 @@ class RXWorker(Worker):
         """Handle data (placeholder method, please override)."""
         pass
 
+    async def _readuntil_event(self) -> bytes:
+        """Read up to and including "</event>", even past the reader's limit."""
+        separator = b"</event>"
+        parts = []
+        size = 0
+        while True:
+            try:
+                parts.append(await self.reader.readuntil(separator))
+                return b"".join(parts)
+            except asyncio.LimitOverrunError as exc:
+                size += exc.consumed
+                if size > _MAX_COT_EVENT_SIZE:
+                    raise _CoTEventTooLargeError(
+                        f"Inbound CoT event exceeds {_MAX_COT_EVENT_SIZE} bytes"
+                    ) from exc
+                parts.append(await self.reader.readexactly(exc.consumed))
+
     async def readcot(self):
         """Read CoT from the wire until we hit an event boundary."""
         cot = None
         try:
             if hasattr(self.reader, "readuntil"):
-                cot = await self.reader.readuntil("</event>".encode("UTF-8"))
+                cot = await self._readuntil_event()
             elif hasattr(self.reader, "recv"):
                 cot, _ = await self.reader.recv()
+        except asyncio.IncompleteReadError as exc:
+            # Peer closed the stream: surface a retryable transport error so
+            # the reconnect supervisor can act instead of spinning on EOF.
+            raise ConnectionResetError("CoT stream closed by peer") from exc
 
-            if self.use_protobuf:
-                tak_v1 = takproto.parse_proto(cot)
-                if tak_v1 != -1:
-                    cot = tak_v1  # .SerializeToString()
-            return cot
-        except asyncio.IncompleteReadError:
-            return None
+        if self.use_protobuf:
+            tak_v1 = takproto.parse_proto(cot)
+            # parse_proto() returns None (or -1) for non-protobuf (XML) input.
+            if tak_v1 not in (None, -1):
+                cot = tak_v1  # .SerializeToString()
+        return cot
 
     async def run_once(self) -> None:
         """Run this worker once."""
@@ -536,7 +588,6 @@ class MartiRXWorker(Worker):
     async def run_once(self) -> None:
         now = datetime.now(timezone.utc)
         start = self._last_poll or (now - timedelta(seconds=self._seconds_ago))
-        self._last_poll = now
 
         fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
         params = {"start": start.strftime(fmt), "end": now.strftime(fmt)}
@@ -549,6 +600,9 @@ class MartiRXWorker(Worker):
                     text = await resp.text()
                     for event_xml in _extract_cot_events(text):
                         await self.put_queue(event_xml.encode("utf-8"))
+                    # Only advance the window once it has been fetched, so a
+                    # failed or non-200 poll is retried from the same start.
+                    self._last_poll = now
                 else:
                     self._logger.debug("Marti RX returned HTTP %s", resp.status)
         except Exception as exc:
@@ -884,7 +938,9 @@ class CLITool:
             self.max_in_queue
         )
 
-        if isinstance(self._config, SectionProxy) and bool(self._config.get("DEBUG")):
+        if isinstance(self._config, SectionProxy) and _is_true(
+            self._config.get("DEBUG")
+        ):
             for handler in self._logger.handlers:
                 handler.setLevel(logging.DEBUG)
 
@@ -1022,7 +1078,7 @@ class CLITool:
         """Run this Thread and its associated coroutine tasks."""
         self._logger.info("Run: %s", self.__class__.__name__)
 
-        if not self.config.get("PYTAK_NO_HELLO", False):
+        if not _is_true(self.config.get("PYTAK_NO_HELLO", False)):
             await self.hello_event()
 
         self.run_tasks()
@@ -1252,10 +1308,14 @@ class TAKDataPackage:
             raise ValueError("No files added to the package")
         
         # Ensure proper extension
-        if use_dpk_extension and not output_path.endswith('.dpk'):
-            output_path = output_path.rsplit('.', 1)[0] + '.dpk'
-        elif not use_dpk_extension and not output_path.endswith('.zip'):
-            output_path = output_path.rsplit('.', 1)[0] + '.zip'
+        # Only the file name's extension is replaced; dots in directory
+        # names (e.g. "/x/v1.2/out/mission") are left untouched.
+        extension = '.dpk' if use_dpk_extension else '.zip'
+        if not output_path.endswith(extension):
+            out_dir, out_name = os.path.split(output_path)
+            output_path = os.path.join(
+                out_dir, os.path.splitext(out_name)[0] + extension
+            )
         
         # Create the zip file
         with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
