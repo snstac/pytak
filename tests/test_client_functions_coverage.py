@@ -609,7 +609,7 @@ async def test_udp_multicast_empty_address_list_uses_any_interface():
     assert out is writer
     assert [c["local_addr"] for c in calls] == [("0.0.0.0", 0)]
     # INADDR_ANY: no explicit IP_MULTICAST_IF is selected.
-    opts = [c.args[1] for c in writer.socket.setsockopt.call_args_list]
+    opts = [c[0][1] for c in writer.socket.setsockopt.call_args_list]
     assert socket.IP_MULTICAST_TTL in opts
     assert socket.IP_MULTICAST_IF not in opts
 

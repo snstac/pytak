@@ -347,10 +347,18 @@ async def test_mqtt_factory_subscribes_with_multilevel_wildcard():
 
     subscribed = []
 
+    class FakeMessages:
+        # MagicMock does not support __aiter__ on Python 3.7.
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
     class FakeClient:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
-            self.messages = mock.MagicMock()
+            self.messages = FakeMessages()
 
         async def __aenter__(self):
             return self
