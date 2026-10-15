@@ -28,8 +28,8 @@ Bug fixes (each with a regression test):
 - `tak://` URLs: values are no longer percent-decoded twice, and IPv6 hosts
   (bare or bracketed) produce valid `tls://`/`wss://` URLs.
 - `udp://<remote-host>:<port>` unicast no longer fails with
-  `EADDRNOTAVAIL`; the receive socket falls back to listening on all
-  interfaces. Sockets are closed if UDP setup fails.
+  `EADDRNOTAVAIL`; the receive socket binds to the local interface address
+  routed to that host. Sockets are closed if UDP setup fails.
 - `mqtt://.../topic/#` keeps the multi-level wildcard in the topic.
 - `pytak` CLI: self-closing `<event .../>` events are sent; `--tx-file` works
   when stdin is `/dev/null` (cron, systemd, CI).

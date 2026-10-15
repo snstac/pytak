@@ -16,6 +16,7 @@ import types
 import xml.etree.ElementTree as ET
 from argparse import Namespace
 from unittest import mock
+from urllib.parse import urlparse
 
 try:
     from unittest.mock import AsyncMock
@@ -218,8 +219,8 @@ def test_tak_candidates_wss_explicit_non_default_port():
     cands = _tak_connection_candidates(url, "wss://takserver.example.com:9443/x")
     port = cli_main.pytak.DEFAULT_MARTI_PORT
     assert cands[0] == "wss://takserver.example.com:9443/x"
-    assert "marti://takserver.example.com:9443" in cands
-    assert "marti://takserver.example.com:%s" % port in cands
+    assert cands.count("marti://takserver.example.com:9443") == 1
+    assert cands.count("marti://takserver.example.com:%s" % port) == 1
     assert any(c.startswith("wss://takserver.example.com:%s" % port) for c in cands)
 
 
@@ -313,7 +314,8 @@ async def test_run_tak_url_falls_back_to_next_candidate(fake_clitool, capsys):
             await cli_main._run(_args(url=TAK_URL))
     urls = [t.config["cot_url"] for t in fake_clitool.instances]
     assert urls[0] == "wss://takserver.example.com/x"
-    assert urls[1].startswith("marti://takserver.example.com")
+    marti = urlparse(urls[1])
+    assert (marti.scheme, marti.hostname) == ("marti", "takserver.example.com")
     err = capsys.readouterr().err
     assert "Trying transport 1/" in err
     assert "Retrying" in err

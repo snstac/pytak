@@ -244,9 +244,9 @@ async def resolve_tak_url(tak_url: str) -> dict:
     username = params["username"]
     token = params["token"]
     # IPv6 literals must be bracketed inside URLs.
-    url_host = (
-        f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
-    )
+    url_host = hostname
+    if ":" in hostname and not hostname.startswith("["):
+        url_host = f"[{hostname}]"
 
     new_p12_path, new_pass_path = _cert_cache_paths(hostname, port, username)
     new_server_fp_path = _cert_cache_server_fingerprint_path(new_p12_path)
@@ -679,6 +679,19 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     return reader, writer
 
 
+def _local_address_for(host: str, port: int) -> str:
+    """Return the local IPv4 address the OS would use to reach *host*.
+
+    Connecting a UDP socket sends no packets; it only selects a route.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect((host, port or 9))
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
+
+
 async def create_udp_client(
     url: ParseResult,
     local_addr=None,
@@ -829,11 +842,12 @@ async def create_udp_client(
             rsock.bind(("" if bindall else host, port))
         except OSError as exc:
             # Plain unicast (udp://<remote-host>:<port>) names the REMOTE peer,
-            # which is not a local address: listen on all interfaces instead.
+            # which is not a local address: listen on the local interface
+            # address used to reach that peer (not on every interface).
             # Local unicast addresses (e.g. 127.0.0.1) still bind explicitly.
             if is_broadcast or is_multicast or exc.errno != errno.EADDRNOTAVAIL:
                 raise
-            rsock.bind(("", port))
+            rsock.bind((_local_address_for(host, port), port))
 
         reader = await from_socket(rsock)
     except BaseException:

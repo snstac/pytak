@@ -43,7 +43,7 @@ The destination for CoT events. Supported URL schemes:
 | `tls+wo://host:port` | TLS write-only (send; drain inbound, do not enqueue) |
 | `tls+ro://host:port` | TLS read-only (receive only) |
 | `udp://group:port` | UDP multicast (Mesh SA) |
-| `udp://host:port` | UDP unicast (if `host` is not a local address, the receive socket listens on all interfaces) |
+| `udp://host:port` | UDP unicast (if `host` is not a local address, the receive socket listens on the local interface address routed to `host`) |
 | `udp+broadcast://network:port` | UDP broadcast |
 | `udp+wo://host:port` | UDP write-only (no port binding) |
 | `udp+ro://host:port` | UDP read-only (bind to receive; no send socket) |

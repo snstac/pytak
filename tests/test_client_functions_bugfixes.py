@@ -261,14 +261,29 @@ async def test_resolve_tak_url_brackets_ipv6_in_cot_url(tmp_path, host, expected
 async def test_unicast_udp_reader_binds_locally_not_to_remote_host():
     """udp://<remote>:<port> must create a reader without EADDRNOTAVAIL."""
     writer = mock.MagicMock()
-    with _patch_dgconnect(writer):
+    routes = []
+
+    def fake_local_address_for(host, port):
+        routes.append(host)
+        return "127.0.0.1"
+
+    with _patch_dgconnect(writer), mock.patch.object(
+        cf, "_local_address_for", fake_local_address_for
+    ):
         reader, out = await pytak.create_udp_client(urlparse("udp://192.0.2.10:0"))
     try:
         assert out is writer
         assert reader is not None
-        assert reader.socket.getsockname()[0] == "0.0.0.0"
+        assert routes == ["192.0.2.10"]
+        # Bound to the routed local interface address, not to all interfaces.
+        assert reader.socket.getsockname()[0] == "127.0.0.1"
     finally:
         reader.close()
+
+
+def test_local_address_for_loopback_peer():
+    """The routed local address for a loopback peer is a loopback address."""
+    assert cf._local_address_for("127.0.0.1", 6969).startswith("127.")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows binds all")
