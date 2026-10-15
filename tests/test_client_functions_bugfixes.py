@@ -80,8 +80,12 @@ async def test_import_other_configs_zero_does_not_import(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_import_other_configs_default_does_not_import(monkeypatch):
-    """The default (DEFAULT_IMPORT_OTHER_CONFIGS='0') must not import."""
+async def test_import_other_configs_unset_keeps_legacy_import(monkeypatch):
+    """Unset keeps the historical behaviour: other sections are imported.
+
+    Existing multi-section config.ini files must not silently lose a
+    destination; only an explicit off value disables the import.
+    """
     app = _install_fake_app(monkeypatch)
     calls = await _run_main(
         monkeypatch,
@@ -89,7 +93,7 @@ async def test_import_other_configs_default_does_not_import(monkeypatch):
         "[other]\nCOT_URL=tcp://takserver.example.com:8088\n",
         app,
     )
-    assert calls == [app]
+    assert calls == [app, "other"]
 
 
 @pytest.mark.asyncio
@@ -179,11 +183,11 @@ def test_parse_tak_url_bare_ipv6_literal():
 
 
 def test_parse_tak_url_bracketed_ipv6_with_port():
-    """'[::1]:8089' yields the unbracketed address and the explicit port."""
+    """'[addr]:8089' keeps the bracketed host (stable cache key) and the port."""
     result = cf.parse_tak_url(
         "tak://com.atakmap.app/enroll?host=%5B2001:db8::1%5D:8089&username=u&token=t"
     )
-    assert result["hostname"] == "2001:db8::1"
+    assert result["hostname"] == "[2001:db8::1]"
     assert result["port"] == 8089
     assert result["explicit_port"] is True
 
@@ -192,9 +196,21 @@ def test_parse_tak_url_bracketed_ipv6_without_port():
     result = cf.parse_tak_url(
         "tak://com.atakmap.app/enroll?host=[2001:db8::1]&username=u&token=t"
     )
-    assert result["hostname"] == "2001:db8::1"
+    assert result["hostname"] == "[2001:db8::1]"
     assert result["port"] == pytak.DEFAULT_TAK_STREAMING_PORT
     assert result["explicit_port"] is False
+
+
+def test_parse_tak_url_bracketed_ipv6_cache_key_unchanged():
+    """Existing IPv6 users must keep hitting their cached certificate."""
+    result = cf.parse_tak_url(
+        "tak://com.atakmap.app/enroll?host=[fd00::1]:8089&username=u&token=t"
+    )
+    # Before the IPv6 fix the hostname was '[fd00::1]'; the cache key derives
+    # from it, so changing it would force a re-enrollment.
+    assert cf._cert_cache_paths(
+        result["hostname"], result["port"], "u"
+    ) == cf._cert_cache_paths("[fd00::1]", 8089, "u")
 
 
 @pytest.mark.parametrize(

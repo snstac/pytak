@@ -87,10 +87,12 @@ def parse_tak_url(tak_url: str) -> dict:
     username = _one("username")
     token = _one("token")
 
-    # IPv6: "[addr]:port", "[addr]" or a bare "addr" (no port). The hostname is
-    # returned without brackets; callers bracket it when building URLs.
+    # IPv6: "[addr]:port", "[addr]" or a bare "addr" (no port). A bracketed
+    # hostname is returned as given ("[addr]"), which keeps certificate cache
+    # keys stable; callers bracket a bare address when building URLs.
     if host_param.startswith("["):
-        hostname, _, rest = host_param[1:].partition("]")
+        address, _, rest = host_param[1:].partition("]")
+        hostname = f"[{address}]"
         if rest.startswith(":") and rest[1:].isdigit():
             port = int(rest[1:])
             explicit_port = True
@@ -242,7 +244,9 @@ async def resolve_tak_url(tak_url: str) -> dict:
     username = params["username"]
     token = params["token"]
     # IPv6 literals must be bracketed inside URLs.
-    url_host = f"[{hostname}]" if ":" in hostname else hostname
+    url_host = (
+        f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+    )
 
     new_p12_path, new_pass_path = _cert_cache_paths(hostname, port, username)
     new_server_fp_path = _cert_cache_server_fingerprint_path(new_p12_path)
@@ -276,7 +280,9 @@ async def resolve_tak_url(tak_url: str) -> dict:
         if explicit_port
         else pytak.DEFAULT_MARTI_PORT
     )
-    current_server_fp = await _server_cert_fingerprint_async(hostname, fingerprint_port)
+    current_server_fp = await _server_cert_fingerprint_async(
+        hostname.strip("[]"), fingerprint_port
+    )
 
     cached_server_fp = ""
     if os.path.exists(server_fp_path):
@@ -1128,10 +1134,11 @@ async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -
     clitool: pytak.CLITool = pytak.CLITool(config)
     create_tasks = getattr(app, "create_tasks")
     await clitool.create_workers(config)
-    import_other = config.get(
-        "IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS
-    )
-    if str(import_other).strip().lower() in ("1", "yes", "true", "on"):
+    # Historically any value (even "0") enabled this, and so did leaving it
+    # unset; keep importing when unset so existing multi-section config.ini
+    # files keep every destination, but honour an explicit off value.
+    import_other = config.get("IMPORT_OTHER_CONFIGS")
+    if import_other is None or pytak.classes._is_true(import_other):
         own_section = getattr(config, "name", None)
         if own_section:
             other_sections = [s for s in full_config.sections() if s != own_section]

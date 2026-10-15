@@ -74,9 +74,10 @@ def _is_true(value) -> bool:
     if value is None:
         return False
     text = str(value).strip().lower()
-    if text.isdigit():
-        return int(text) != 0
-    return text in _TRUE_STRINGS
+    try:
+        return float(text) != 0
+    except ValueError:
+        return text in _TRUE_STRINGS
 
 
 class _CoTEventTooLargeError(ConnectionError, ValueError):

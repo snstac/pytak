@@ -11,6 +11,7 @@
 
 import asyncio
 import os
+import socket
 import warnings
 from argparse import Namespace
 from unittest import mock
@@ -153,6 +154,21 @@ def test_regular_file_stdin_is_a_data_source(tmp_path):
     src.write_bytes(SELF_CLOSING)
     args = Namespace(rx_only=False, tx_file=None)
     assert _run_with_stdin(str(src), args) == "stdin"
+
+
+@pytest.mark.skipif(not hasattr(socket, "socketpair"), reason="no socketpair")
+def test_socket_stdin_is_a_data_source():
+    """socat/inetd/systemd socket activation hand pytak a socket as stdin."""
+    left, right = socket.socketpair()
+    try:
+        fake_stdin = mock.MagicMock()
+        fake_stdin.fileno.return_value = left.fileno()
+        args = Namespace(rx_only=False, tx_file=None)
+        with mock.patch.object(cli_main.sys, "stdin", fake_stdin):
+            assert _get_tx_source(args, False) == "stdin"
+    finally:
+        left.close()
+        right.close()
 
 
 # ---------------------------------------------------------------------------

@@ -178,6 +178,9 @@ async def test_marti_rx_keeps_window_after_failed_poll():
         (1, True),
         ("2", True),
         ("00", False),
+        ("-1", True),
+        (1.0, True),
+        ("0.0", False),
     ],
 )
 def test_is_true(value, expected):

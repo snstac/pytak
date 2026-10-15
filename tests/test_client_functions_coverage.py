@@ -81,7 +81,7 @@ def test_parse_tak_url_bracketed_ipv6_bad_port_uses_default():
     result = cf.parse_tak_url(
         "tak://com.atakmap.app/enroll?host=[2001:db8::1]:x&username=u&token=t"
     )
-    assert result["hostname"] == "2001:db8::1"
+    assert result["hostname"] == "[2001:db8::1]"
     assert result["port"] == pytak.DEFAULT_TAK_STREAMING_PORT
     assert result["explicit_port"] is False
 

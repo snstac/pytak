@@ -205,7 +205,8 @@ def _stdin_is_data_source(stdin_is_tty: bool) -> bool:
     """Return True if stdin is a pipe or regular file carrying CoT data.
 
     A non-TTY stdin is not necessarily a data source: under cron, systemd or
-    CI it is often ``/dev/null`` (a character device) or a socket.
+    CI it is often ``/dev/null`` (a character device). Pipes, regular files
+    and sockets (socat, inetd, systemd socket activation) carry data.
     """
     if stdin_is_tty:
         return False
@@ -215,7 +216,7 @@ def _stdin_is_data_source(stdin_is_tty: bool) -> bool:
         # stdin replaced by an object without a real descriptor (e.g. under a
         # test harness); keep the historical "non-TTY means data" behaviour.
         return True
-    return stat.S_ISFIFO(mode) or stat.S_ISREG(mode)
+    return stat.S_ISFIFO(mode) or stat.S_ISREG(mode) or stat.S_ISSOCK(mode)
 
 
 def _get_tx_source(args, stdin_is_tty: bool) -> str:

@@ -43,7 +43,7 @@ The destination for CoT events. Supported URL schemes:
 | `tls+wo://host:port` | TLS write-only (send; drain inbound, do not enqueue) |
 | `tls+ro://host:port` | TLS read-only (receive only) |
 | `udp://group:port` | UDP multicast (Mesh SA) |
-| `udp://host:port` | UDP unicast |
+| `udp://host:port` | UDP unicast (if `host` is not a local address, the receive socket listens on all interfaces) |
 | `udp+broadcast://network:port` | UDP broadcast |
 | `udp+wo://host:port` | UDP write-only (no port binding) |
 | `udp+ro://host:port` | UDP read-only (bind to receive; no send socket) |
@@ -122,6 +122,12 @@ TAK Protocol version for CoT output:
 
 Set to `1` to enable verbose debug logging.
 
+!!! note
+    Boolean options (`DEBUG`, `FTS_COMPAT`, `PYTAK_NO_HELLO`, `IMPORT_OTHER_CONFIGS`)
+    accept `1`/`true`/`yes`/`on` (any non-zero number) as on, and `0`/`false`/`no`/`off`
+    or empty as off. In PyTAK 7.5.2 and earlier, any non-empty value, including `0`, turned
+    `DEBUG`, `FTS_COMPAT` and `PYTAK_NO_HELLO` on.
+
 ---
 
 ### `FTS_COMPAT`
@@ -173,6 +179,17 @@ Maximum number of outgoing CoT events to buffer before dropping the oldest. Incr
 **Default:** `500`
 
 Maximum number of incoming CoT events to buffer. Increase this if your receiver is processing events slower than they arrive.
+
+---
+
+### `IMPORT_OTHER_CONFIGS`
+
+**Default:** unset (import)
+
+When `pytak.cli()` reads a `config.ini` with several sections, workers are also created for every section other than the application's own. Set to `0` to use only the application's section.
+
+!!! note
+    In PyTAK 7.5.2 and earlier, setting this to `0` had no effect, and the application's own section was connected twice if it was not the first section in the file.
 
 ### TAK outage recovery
 
