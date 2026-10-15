@@ -1276,7 +1276,10 @@ class TAKDataPackage:
         self._indent_xml(root)
         
         # Convert to string
-        xml_str = ET.tostring(root, encoding='unicode', xml_declaration=True)
+        # (ET.tostring's xml_declaration argument is Python 3.8+.)
+        xml_str = "<?xml version='1.0' encoding='utf-8'?>\n" + ET.tostring(
+            root, encoding='unicode'
+        )
         return xml_str
     
     def _indent_xml(self, elem, level=0):

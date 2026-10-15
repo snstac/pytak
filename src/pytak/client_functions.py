@@ -1359,6 +1359,15 @@ def cli(app_name: str) -> None:
     # Remove env vars that contain '%', which ConfigParser or pprint barf on:
     env_vars = {key: val for key, val in env_vars.items() if "%" not in val}
 
+    # ConfigParser lower-cases option names, so env vars differing only by case
+    # (e.g. no_proxy and NO_PROXY) would raise DuplicateOptionError. Keep one
+    # per name, preferring the upper-case spelling PyTAK documents.
+    deduped_env_vars: dict = {}
+    for key in sorted(env_vars, key=lambda k: k != k.upper()):
+        if key.lower() not in deduped_env_vars:
+            deduped_env_vars[key.lower()] = (key, env_vars[key])
+    env_vars = dict(deduped_env_vars.values())
+
     env_vars["COT_URL"] = env_vars.get("COT_URL", pytak.DEFAULT_COT_URL)
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"
     env_vars["COT_STALE"] = getattr(app, "DEFAULT_COT_STALE", pytak.DEFAULT_COT_STALE)

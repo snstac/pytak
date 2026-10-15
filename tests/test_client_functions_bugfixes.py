@@ -356,3 +356,44 @@ async def test_mqtt_factory_subscribes_with_multilevel_wildcard():
     assert tx_worker is None
     assert rx_worker is not None
     assert subscribed == [("cot/#", 0)]
+
+
+# ---------------------------------------------------------------------------
+# cli(): environment variables differing only by case
+# ---------------------------------------------------------------------------
+
+
+def test_cli_tolerates_env_vars_differing_only_by_case(monkeypatch, tmp_path):
+    """no_proxy + NO_PROXY (common behind proxies) crashed cli() at startup.
+
+    ConfigParser lower-cases option names, so building it from os.environ
+    raised DuplicateOptionError.
+    """
+    module = types.ModuleType("fake_case_app")
+    monkeypatch.setitem(sys.modules, "fake_case_app", module)
+    monkeypatch.setattr(
+        cf.os,
+        "environ",
+        {
+            "no_proxy": "lower.example.com",
+            "NO_PROXY": "upper.example.com",
+            "cot_url": "udp://239.2.3.1:6969",
+            "COT_URL": "tcp://takserver.example.com:8087",
+        },
+    )
+    monkeypatch.setattr(sys, "argv", ["prog", "-c", str(tmp_path / "missing.ini")])
+    captured = {}
+
+    def fake_run_with_reconnect(app_name, config, full_config, tak_url):
+        captured["config"] = config
+        return "coroutine-sentinel"
+
+    monkeypatch.setattr(cf, "run_with_reconnect", fake_run_with_reconnect)
+    monkeypatch.setattr(cf.asyncio, "run", lambda coro, debug=False: None)
+
+    cf.cli("fake_case_app")
+
+    config = captured["config"]
+    # The upper-case spelling (PyTAK's documented form) wins.
+    assert config["COT_URL"] == "tcp://takserver.example.com:8087"
+    assert config["NO_PROXY"] == "upper.example.com"

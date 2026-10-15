@@ -264,3 +264,25 @@ def test_create_package_replaces_file_extension(tmp_path):
     pkg.add_file(str(src))
     pkg.create_package(str(outdir / "mission.zip"), use_dpk_extension=True)
     assert os.path.exists(str(outdir / "mission.dpk"))
+
+
+def test_manifest_xml_works_without_xml_declaration_kwarg(tmp_path):
+    """ET.tostring(xml_declaration=...) is Python 3.8+; 3.7 raised TypeError."""
+    real_tostring = pytak_classes.ET.tostring
+
+    def py37_tostring(element, encoding=None, method=None, **kwargs):
+        if "xml_declaration" in kwargs:
+            raise TypeError(
+                "tostring() got an unexpected keyword argument 'xml_declaration'"
+            )
+        return real_tostring(element, encoding=encoding, method=method, **kwargs)
+
+    src = tmp_path / "f.txt"
+    src.write_text("x")
+    package = pytak.TAKDataPackage("t")
+    package.add_file(str(src))
+    with mock.patch.object(pytak_classes.ET, "tostring", py37_tostring):
+        manifest = package._generate_manifest_xml()
+
+    assert manifest.startswith("<?xml version='1.0' encoding='utf-8'?>\n<")
+    assert pytak_classes.ET.fromstring(manifest.encode()).tag == "MissionPackageManifest"
