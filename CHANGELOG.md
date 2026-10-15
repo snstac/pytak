@@ -1,3 +1,41 @@
+## Unreleased
+
+Bug fixes (each with a regression test):
+
+- TCP/TLS: `RXWorker.readcot()` now raises a retryable `ConnectionResetError`
+  when the peer closes the stream, instead of returning `None` forever. The
+  receive loop previously spun at 100% CPU and the reconnect supervisor never
+  noticed the outage. With `PYTAK_RECONNECT` disabled the client now exits
+  with that error. Custom subclasses that relied on `readcot()` returning
+  `None` at EOF should catch `ConnectionResetError`.
+- TCP/TLS: inbound CoT events larger than 64 KiB no longer kill the client
+  with `LimitOverrunError` (#82); events up to 64 MiB are reassembled.
+- `TAK_PROTO=1`: XML events received on the same socket are no longer dropped.
+- `marti://`: a failed or non-200 poll no longer skips that time window.
+- `DEBUG`, `FTS_COMPAT` and `PYTAK_NO_HELLO` no longer treat `0`/`false` as
+  on. The `pytak` CLI sets `DEBUG=0`, so it always logged at debug level.
+- `IMPORT_OTHER_CONFIGS=0` is now honoured (unset keeps the previous
+  behaviour of importing other sections), and the application's own section
+  is no longer connected twice when it is not first in `config.ini`.
+- `cli()` no longer crashes with `DuplicateOptionError` when the environment
+  has variables differing only by case (e.g. `no_proxy` and `NO_PROXY`).
+- TLS passwords containing `%` no longer raise `InterpolationSyntaxError`.
+- `.p12` files without a client key/certificate (e.g. a CA trust store) now
+  raise a clear `ValueError` instead of
+  `'NoneType' object has no attribute 'private_bytes'` (#74).
+- Certificate enrollment via the v1 endpoint no longer fails with `TypeError`,
+  and the resulting `.p12` is encrypted with the requested passphrase.
+- `tak://` URLs: values are no longer percent-decoded twice, and IPv6 hosts
+  (bare or bracketed) produce valid `tls://`/`wss://` URLs.
+- `udp://<remote-host>:<port>` unicast no longer fails with
+  `EADDRNOTAVAIL`; the receive socket binds to the local interface address
+  routed to that host. Sockets are closed if UDP setup fails.
+- `mqtt://.../topic/#` keeps the multi-level wildcard in the topic.
+- `pytak` CLI: self-closing `<event .../>` events are sent; `--tx-file` works
+  when stdin is `/dev/null` (cron, systemd, CI).
+- `TAKDataPackage.create_package()` no longer truncates paths at a dot in a
+  directory name, and works on Python 3.7.
+
 ## PyTAK 7.5.2
 
 - Added the public `supervise_with_reconnect()` helper for custom PyTAK

@@ -163,7 +163,8 @@ def parse_mqtt_url(url: Union[str, ParseResult]) -> MqttUrlParts:
         If the URL scheme is not mqtt/mqtts or the topic path is empty.
     """
     if isinstance(url, str):
-        _url: ParseResult = urlparse(url)
+        # '#' is the MQTT multi-level wildcard, not a URL fragment delimiter.
+        _url: ParseResult = urlparse(url, allow_fragments=False)
     else:
         _url = url
 
@@ -187,6 +188,10 @@ def parse_mqtt_url(url: Union[str, ParseResult]) -> MqttUrlParts:
     port = _url.port if _url.port is not None else default_port
 
     topic = _url.path.lstrip("/")
+    if _url.fragment:
+        # A ParseResult built with fragments enabled split the topic at '#'.
+        # (A bare trailing '#' is lost by urlparse(); pass the raw string.)
+        topic = f"{topic}#{_url.fragment}"
     if not topic:
         raise SyntaxError(
             "MQTT COT_URL must include a topic in the URL path, "
