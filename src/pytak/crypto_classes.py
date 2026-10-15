@@ -607,7 +607,11 @@ class CertificateEnrollment:
             self.logger.error(f"Full traceback: {traceback.format_exc()}")
 
     async def _process_pkcs12_certificate_response(
-        self, response_content: bytes, private_key, output_path: Optional[str] = None
+        self,
+        response_content: bytes,
+        private_key,
+        output_path: Optional[str] = None,
+        passphrase: Optional[str] = None,
     ) -> None:
         """
         Process the certificate response and create client keystore.
@@ -674,7 +678,7 @@ class CertificateEnrollment:
 
                 # Create client certificate file
                 self._create_client_certificate(
-                    cert_pem, ca_pems, private_key, output_path
+                    cert_pem, ca_pems, private_key, output_path, passphrase
                 )
 
             except Exception as pkcs12_error:
