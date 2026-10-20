@@ -382,12 +382,16 @@ async def test_ws_factory_handshake_error_non_403_reraised():
 
 
 @pytest.mark.asyncio
-async def test_ws_factory_403_removes_cached_cert(tmp_path):
+async def test_ws_factory_403_removes_cached_cert(tmp_path, monkeypatch):
     import aiohttp
 
-    p12 = tmp_path / "cached.p12"
+    # Only certs inside pytak's own enrollment cache are removed (#99, #117).
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cache = tmp_path / ".pytak" / "certs"
+    cache.mkdir(parents=True)
+    p12 = cache / "cached.p12"
     p12.write_bytes(b"p12")
-    passfile = tmp_path / "cached.pass"
+    passfile = cache / "cached.pass"
     passfile.write_text("pw")
     exc = aiohttp.WSServerHandshakeError(mock.MagicMock(), (), status=403)
     fake = _FakeWSSession(exc=exc)
