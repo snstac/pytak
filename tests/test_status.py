@@ -195,10 +195,12 @@ class TestWriteFailureIsSurvivable:
     """Moving CoT is the job; reporting on it is not."""
 
     def _readonly_writer(self, tmp_path):
+        # A regular file where the parent directory should be makes every
+        # write fail, even as root (where a chmod-ed directory is writable).
         d = tmp_path / "ro"
-        d.mkdir()
+        d.write_text("not a directory")
         w = StatusWriter("t", path=str(d / "sub" / "status.json"))
-        d.chmod(stat.S_IRUSR | stat.S_IXUSR)  # no write permission
+        d.chmod(stat.S_IRUSR | stat.S_IXUSR)
         return w, d
 
     def test_write_failure_does_not_raise(self, tmp_path):
