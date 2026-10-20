@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `cot_point()` (and therefore `cot_event()`) now truncates latitude and longitude
+  to 7 decimal places by default instead of 4, so RTK-grade positions are no
+  longer rounded to ~10 m. Pass `precision=4` for the previous behavior.
+
 Bug fixes (each with a regression test):
 
 - TCP/TLS: `RXWorker.readcot()` now raises a retryable `ConnectionResetError`
