@@ -242,9 +242,13 @@ def cot_point(
     ce: Union[bytes, str, float, int, None] = None,
     hae: Union[bytes, str, float, int, None] = None,
     le: Union[bytes, str, float, int, None] = None,
-    precision: int = 4,
+    precision: int = 7,
 ) -> ET.Element:
-    """Return a CoT ``point`` element with TAK-safe latitude and longitude."""
+    """Return a CoT ``point`` element with TAK-safe latitude and longitude.
+
+    Coordinates are truncated (not rounded) to ``precision`` decimal places,
+    7 by default (~1 cm).
+    """
     point = ET.Element("point")
     point.set("lat", truncate_float(lat, precision) if lat is not None else "0.0")
     point.set("lon", truncate_float(lon, precision) if lon is not None else "0.0")

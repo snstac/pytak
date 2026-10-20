@@ -168,12 +168,30 @@ def test_cot_point_truncates_coordinates():
         hae=12.5,
         ce=3,
         le=4,
+        precision=4,
     )
     assert point.get("lat") == "37.76"
     assert point.get("lon") == "-122.4977"
     assert point.get("hae") == "12.5"
     assert point.get("ce") == "3"
     assert point.get("le") == "4"
+
+
+def test_cot_point_default_precision_keeps_seven_decimals():
+    """cot_point() default precision must not round to ~10 m (#102)."""
+    point = pytak.cot_point(lat="37.76005019", lon="-122.49770299")
+    assert point.get("lat") == "37.7600501"
+    assert point.get("lon") == "-122.4977029"
+
+
+def test_cot_event_default_precision_keeps_seven_decimals():
+    """cot_event() inherits cot_point()'s default precision (#102)."""
+    event = pytak.cot_event(
+        uid="PREC-1", cot_type="a-f-G-U-C", lat="37.76005019", lon="-122.49770299"
+    )
+    point = event.find("point")
+    assert point.get("lat") == "37.7600501"
+    assert point.get("lon") == "-122.4977029"
 
 
 def test_cot_event_builds_standard_event():
@@ -198,8 +216,8 @@ def test_cot_event_builds_standard_event():
     assert event.get("type") == "a-f-G-U-C"
     assert event.get("how") == "m-g"
     assert event.get("access") == "UNCLASSIFIED"
-    assert event.find("point").get("lat") == "37.7749"
-    assert event.find("point").get("lon") == "-122.4194"
+    assert event.find("point").get("lat") == "37.7749295"
+    assert event.find("point").get("lon") == "-122.4194155"
     assert event.find("detail").find("_flow-tags_") is not None
     assert event.find("detail").find("track").get("course") == "90"
     assert event.find("detail").find("contact").get("callsign") == "UNIT 1"
