@@ -321,14 +321,23 @@ class StatusWriter:
         except (OSError, ValueError):
             return  # absent or mid-replace; nothing to conclude
 
+        if not isinstance(other, dict):
+            return  # valid JSON, but not a status document
         pid = other.get("pid")
-        if not isinstance(pid, int) or pid == self._pid:
+        if (
+            not isinstance(pid, int)
+            or isinstance(pid, bool)
+            or pid <= 0
+            or pid == self._pid
+        ):
             return
 
         try:
             os.kill(pid, 0)  # signal 0: liveness test, sends nothing
         except ProcessLookupError:
             return  # a previous run of ours; taking the file over is correct
+        except OverflowError:
+            return  # invalid PID outside this platform's range
         except OSError:
             pass  # exists but not ours to signal -- still a live process
 
@@ -364,7 +373,12 @@ class StatusWriter:
         if not force and (now - self._last_write) < self.min_write_interval:
             return False
 
-        self._check_sole_writer(now)
+        try:
+            self._check_sole_writer(now)
+        except Exception:  # noqa: BLE001 -- status diagnostics must not halt writes
+            self._logger.debug(
+                "Could not check status writer contention", exc_info=True
+            )
 
         try:
             directory = os.path.dirname(self.path)

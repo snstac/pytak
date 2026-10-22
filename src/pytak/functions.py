@@ -163,7 +163,8 @@ def parse_mqtt_url(url: Union[str, ParseResult]) -> MqttUrlParts:
         If the URL scheme is not mqtt/mqtts or the topic path is empty.
     """
     if isinstance(url, str):
-        _url: ParseResult = urlparse(url)
+        # '#' is the MQTT multi-level wildcard, not a URL fragment delimiter.
+        _url: ParseResult = urlparse(url, allow_fragments=False)
     else:
         _url = url
 
@@ -187,6 +188,10 @@ def parse_mqtt_url(url: Union[str, ParseResult]) -> MqttUrlParts:
     port = _url.port if _url.port is not None else default_port
 
     topic = _url.path.lstrip("/")
+    if _url.fragment:
+        # A ParseResult built with fragments enabled split the topic at '#'.
+        # (A bare trailing '#' is lost by urlparse(); pass the raw string.)
+        topic = f"{topic}#{_url.fragment}"
     if not topic:
         raise SyntaxError(
             "MQTT COT_URL must include a topic in the URL path, "
@@ -242,9 +247,13 @@ def cot_point(
     ce: Union[bytes, str, float, int, None] = None,
     hae: Union[bytes, str, float, int, None] = None,
     le: Union[bytes, str, float, int, None] = None,
-    precision: int = 4,
+    precision: int = 7,
 ) -> ET.Element:
-    """Return a CoT ``point`` element with TAK-safe latitude and longitude."""
+    """Return a CoT ``point`` element with TAK-safe latitude and longitude.
+
+    Coordinates are truncated (not rounded) to ``precision`` decimal places,
+    7 by default (~1 cm).
+    """
     point = ET.Element("point")
     point.set("lat", truncate_float(lat, precision) if lat is not None else "0.0")
     point.set("lon", truncate_float(lon, precision) if lon is not None else "0.0")

@@ -11,6 +11,7 @@
 
 import asyncio
 import os
+import stat
 import tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -37,6 +38,7 @@ from pytak.client_functions import (
     _cert_cache_server_fingerprint_path,
     _legacy_cert_cache_paths,
     _cached_cert_valid,
+    _write_private_passphrase,
     resolve_tak_url,
 )
 
@@ -290,6 +292,90 @@ async def test_resolve_tak_url_enrolls_when_no_cache(tmp_path):
     assert "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE" in result
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("preexisting", [False, True])
+async def test_enrollment_passphrase_is_private_before_chmod(tmp_path, preexisting):
+    """Both a new file and a reused filename stay private without chmod."""
+    p12_path = tmp_path / "cert.p12"
+    pass_path = tmp_path / "cert.pass"
+    if preexisting:
+        pass_path.write_text("stale")
+        pass_path.chmod(0o644)
+
+    async def fake_enroll(*args, **kwargs):
+        p12_path.write_bytes(b"fakep12data")
+
+    old_umask = os.umask(0o022)
+    try:
+        with mock.patch(
+            "pytak.client_functions._cert_cache_paths",
+            return_value=(str(p12_path), str(pass_path)),
+        ), mock.patch(
+            "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+            new=fake_enroll,
+        ), mock.patch("os.chmod"):
+            result = await resolve_tak_url(
+                "tak://com.atakmap.app/enroll?host=tak.example.com"
+                "&username=alice&token=fake"
+            )
+    finally:
+        os.umask(old_umask)
+
+    assert pass_path.read_text() == result[
+        "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"
+    ]
+    assert stat.S_IMODE(pass_path.stat().st_mode) == 0o600
+    assert not list(tmp_path.glob(".pytak-pass-*"))
+
+
+@pytest.mark.asyncio
+async def test_enrollment_passphrase_does_not_follow_symlink(tmp_path):
+    """A stale cache symlink must not overwrite an outside file."""
+    p12_path = tmp_path / "cert.p12"
+    pass_path = tmp_path / "cert.pass"
+    outside = tmp_path / "outside.txt"
+    outside.write_text("untouched")
+    try:
+        pass_path.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+    async def fake_enroll(*args, **kwargs):
+        p12_path.write_bytes(b"fakep12data")
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(p12_path), str(pass_path)),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=fake_enroll,
+    ):
+        result = await resolve_tak_url(
+            "tak://com.atakmap.app/enroll?host=tak.example.com"
+            "&username=alice&token=fake"
+        )
+
+    assert outside.read_text() == "untouched"
+    assert not pass_path.is_symlink()
+    assert pass_path.read_text() == result[
+        "PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"
+    ]
+    assert not list(tmp_path.glob(".pytak-pass-*"))
+
+
+def test_private_passphrase_replace_failure_preserves_old_file(tmp_path):
+    """A failed replacement must not leave a partial secret or temp file."""
+    pass_path = tmp_path / "cert.pass"
+    pass_path.write_text("old passphrase")
+    with mock.patch("pytak.client_functions.os.replace", side_effect=OSError("boom")):
+        with pytest.raises(OSError, match="boom"):
+            _write_private_passphrase(str(pass_path), "new passphrase")
+
+    assert pass_path.read_text() == "old passphrase"
+    assert not list(tmp_path.glob(".pytak-pass-*"))
+
+
 @pytest.mark.asyncio
 async def test_resolve_tak_url_uses_cached_cert(tmp_path):
     """resolve_tak_url should skip enrollment when a valid cached cert exists."""
@@ -438,10 +524,13 @@ async def test_legacy_cache_migrates_with_readable_fingerprint(
     assert second["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)
     assert new_p12.read_bytes() == b"new-cert"
     assert new_pass.read_text() == first["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"]
-    assert new_pass.stat().st_mode & 0o777 == 0o600
+    assert second["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == new_pass.read_text()
     assert (tmp_path / "new.server").read_text() == "current-fingerprint"
-    assert new_p12.stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":
+        for path in (new_p12, new_pass, tmp_path / "new.server"):
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert list(tmp_path.glob(".pytak-migrate-*")) == []
+    assert list(tmp_path.glob(".pytak-pass-*")) == []
     assert legacy_p12.read_bytes() == b"old-cert"
     assert legacy_pass.read_text() == "old-pass"
     assert (tmp_path / "legacy.server").exists() is backfilled_sidecar
@@ -498,6 +587,7 @@ async def test_failed_legacy_migration_preserves_old_cache(tmp_path, failure):
     assert not (tmp_path / "legacy.server").exists()
     assert not new_p12.exists()
     assert not new_pass.exists()
+    assert list(tmp_path.glob(".pytak-migrate-*")) == []
 
 
 @pytest.mark.asyncio
@@ -541,6 +631,7 @@ async def test_legacy_fingerprint_mismatch_fails_closed(tmp_path, failure):
     enroll.assert_called_once()
     assert legacy_p12.read_bytes() == b"old-cert"
     assert legacy_pass.read_text() == "old-pass"
+    assert (tmp_path / "legacy.server").read_text() == "old-fingerprint"
     assert not new_p12.exists()
     assert not new_pass.exists()
     assert list(tmp_path.glob(".pytak-migrate-*")) == []
@@ -590,11 +681,15 @@ async def test_failed_legacy_migration_commit_keeps_legacy_selected(tmp_path):
         result = await resolve_tak_url(url)
 
     assert result["PYTAK_TLS_CLIENT_CERT"] == str(legacy_p12)
+    assert result["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == "old-pass"
     assert legacy_p12.read_bytes() == b"old-cert"
     assert legacy_pass.read_text() == "old-pass"
     assert not new_p12.exists()
-    assert new_pass.stat().st_mode & 0o777 == 0o600
+    assert not (tmp_path / "new.server").exists()
+    if os.name == "posix":
+        assert stat.S_IMODE(new_pass.stat().st_mode) == 0o600
     assert list(tmp_path.glob(".pytak-migrate-*")) == []
+    assert list(tmp_path.glob(".pytak-pass-*")) == []
 
 
 @pytest.mark.asyncio
@@ -629,6 +724,7 @@ async def test_cancelled_legacy_migration_propagates(tmp_path):
 
     assert legacy_p12.read_bytes() == b"old-cert"
     assert not new_p12.exists()
+    assert not new_pass.exists()
     assert list(tmp_path.glob(".pytak-migrate-*")) == []
 
 

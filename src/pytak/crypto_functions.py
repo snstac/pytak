@@ -82,6 +82,14 @@ def load_cert(
     return res
 
 
+def _require_key_and_cert(private_key, cert, p12_path: str) -> None:
+    if private_key is None or cert is None:
+        raise ValueError(
+            f"PKCS#12 file {p12_path} has no private key and/or client "
+            "certificate (trust-store .p12 given as client cert?)"
+        )
+
+
 def convert_cert(cert_path: str, cert_pass: str) -> dict:
     """Convert a P12 cert to PEM."""
     if not USE_CRYPTOGRAPHY:
@@ -95,6 +103,7 @@ def convert_cert(cert_path: str, cert_pass: str) -> dict:
 
     try:
         private_key, cert, additional_certificates = load_cert(cert_path, cert_pass)
+        _require_key_and_cert(private_key, cert, cert_path)
 
         # Load privkey
         pk_pem = private_key.private_bytes(
@@ -242,6 +251,8 @@ def write_enrollment_artifacts(
     private_key, cert, additional = load_cert(p12_path, passphrase)
     if cert is None:
         raise ValueError(f"No certificate in PKCS#12: {p12_path}")
+    if private_key is None:
+        raise ValueError(f"No private key in PKCS#12: {p12_path}")
     ca_list = list(additional or [])
 
     key_path = os.path.join(output_dir, f"{stem}-key.pem")
@@ -307,6 +318,7 @@ def convert_p12_to_pem(output_path: str, passphrase: str) -> Tuple[str, str]:
     private_key, cert, additional_certs = pkcs12.load_key_and_certificates(
         p12_data, passphrase.encode()
     )
+    _require_key_and_cert(private_key, cert, output_path)
     
     # Write PEM files
     pem_key_path = output_path + ".key.pem"

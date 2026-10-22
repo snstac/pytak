@@ -41,7 +41,7 @@ from asyncio import get_running_loop
 from configparser import ConfigParser, SectionProxy
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from urllib.parse import ParseResult, urlparse, parse_qs, unquote
+from urllib.parse import ParseResult, urlparse, parse_qs
 from typing import Any, Awaitable, Callable, Optional, Tuple, Union
 
 import pytak
@@ -85,13 +85,31 @@ def parse_tak_url(tak_url: str) -> dict:
         vals = qs.get(param)
         if not vals or not str(vals[0]).strip():
             raise ValueError(f"TAK URL missing required parameter: {param!r}")
-        return unquote(str(vals[0]).strip())
+        # parse_qs() has already percent-decoded the value; decoding again
+        # would corrupt secrets containing a literal '%'.
+        return str(vals[0]).strip()
 
     host_param = _one("host")
     username = _one("username")
     token = _one("token")
 
-    if ":" in host_param:
+    # IPv6: "[addr]:port", "[addr]" or a bare "addr" (no port). A bracketed
+    # hostname is returned as given ("[addr]"), which keeps certificate cache
+    # keys stable; callers bracket a bare address when building URLs.
+    if host_param.startswith("["):
+        address, _, rest = host_param[1:].partition("]")
+        hostname = f"[{address}]"
+        if rest.startswith(":") and rest[1:].isdigit():
+            port = int(rest[1:])
+            explicit_port = True
+        else:
+            port = pytak.DEFAULT_TAK_STREAMING_PORT
+            explicit_port = False
+    elif host_param.count(":") > 1:
+        hostname = host_param
+        port = pytak.DEFAULT_TAK_STREAMING_PORT
+        explicit_port = False
+    elif ":" in host_param:
         hostname, port_str = host_param.rsplit(":", 1)
         try:
             port = int(port_str)
@@ -129,9 +147,48 @@ def _cert_cache_paths(hostname: str, port: int, username: str) -> Tuple[str, str
     return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
 
 
+def _is_cached_enrollment_p12(cert_path: str) -> bool:
+    """Return True only for a .p12 inside pytak's own enrollment cache.
+
+    Guards destructive cleanup so that a user-managed ``PYTAK_TLS_CLIENT_CERT``
+    is never deleted.
+    """
+    if not cert_path or not cert_path.endswith(".p12"):
+        return False
+    cache_dir = (Path.home() / ".pytak" / "certs").resolve()
+    try:
+        return Path(cert_path).resolve().parent == cache_dir
+    except OSError:
+        return False
+
+
 def _cert_cache_server_fingerprint_path(p12_path: str) -> str:
     """Return the sidecar path storing the server certificate fingerprint."""
     return str(Path(p12_path).with_suffix(".server"))
+
+
+def _write_private_passphrase(path: str, passphrase: str) -> None:
+    """Replace a cache passphrase without ever exposing it in a public file.
+
+    A temporary file in the same directory is private from creation. Replacing
+    the directory entry also avoids following a stale symlink or retaining the
+    permissions of an existing passphrase file.
+    """
+    parent = os.path.dirname(path)
+    fd, temp_path = tempfile.mkstemp(prefix=".pytak-pass-", dir=parent)
+    try:
+        with os.fdopen(fd, "w") as file:
+            # mkstemp creates mode 0600; restore owner access if umask stripped
+            # any bits, before secret data is written.
+            os.chmod(temp_path, 0o600)
+            file.write(passphrase)
+        os.replace(temp_path, path)
+    except BaseException:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _legacy_cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
@@ -146,20 +203,6 @@ def _legacy_cert_cache_paths(hostname: str, username: str) -> Tuple[str, str]:
     cache_dir = Path.home() / ".pytak" / "certs"
     key = hashlib.sha256(f"{hostname}:{username}".encode()).hexdigest()[:16]
     return str(cache_dir / f"{key}.p12"), str(cache_dir / f"{key}.pass")
-
-
-def _stage_private_cache_text(path: str, value: str) -> str:
-    """Write migration metadata privately in the destination directory."""
-    fd, staged = tempfile.mkstemp(prefix=".pytak-migrate-", dir=Path(path).parent)
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(value)
-            f.flush()
-            os.fsync(f.fileno())
-        return staged
-    except BaseException:
-        os.unlink(staged)
-        raise
 
 
 def _cached_cert_valid(
@@ -245,6 +288,10 @@ async def resolve_tak_url(tak_url: str) -> dict:
     explicit_port = params["explicit_port"]
     username = params["username"]
     token = params["token"]
+    # IPv6 literals must be bracketed inside URLs.
+    url_host = hostname
+    if ":" in hostname and not hostname.startswith("["):
+        url_host = f"[{hostname}]"
 
     new_p12_path, new_pass_path = _cert_cache_paths(hostname, port, username)
     new_server_fp_path = _cert_cache_server_fingerprint_path(new_p12_path)
@@ -280,7 +327,9 @@ async def resolve_tak_url(tak_url: str) -> dict:
         if explicit_port
         else pytak.DEFAULT_MARTI_PORT
     )
-    current_server_fp = await _server_cert_fingerprint_async(hostname, fingerprint_port)
+    current_server_fp = await _server_cert_fingerprint_async(
+        hostname.strip("[]"), fingerprint_port
+    )
 
     cached_server_fp = ""
     if os.path.exists(server_fp_path):
@@ -334,8 +383,6 @@ async def resolve_tak_url(tak_url: str) -> dict:
         # A migration must not leave a partial new-key cert that masks the
         # working legacy entry on the next run. Enroll into a private temp file.
         temporary_p12 = None
-        temporary_pass = None
-        temporary_server = None
         try:
             if migrate_legacy:
                 with tempfile.NamedTemporaryFile(
@@ -344,8 +391,9 @@ async def resolve_tak_url(tak_url: str) -> dict:
                 ) as temporary:
                     temporary_p12 = temporary.name
             enrollment = CertificateEnrollment()
+            # Enrollment always writes to the new-format path (or its staging file).
             await enrollment.begin_enrollment(
-                domain=hostname,
+                domain=url_host,
                 username=username,
                 password=token,
                 output_path=temporary_p12 or new_p12_path,
@@ -363,35 +411,25 @@ async def resolve_tak_url(tak_url: str) -> dict:
                     f"TAK certificate enrollment failed for {username}@{hostname}"
                 )
             if migrate_legacy:
-                temporary_pass = _stage_private_cache_text(
-                    new_pass_path, new_passphrase
-                )
-                temporary_server = _stage_private_cache_text(
-                    new_server_fp_path, current_server_fp
-                )
+                # Private metadata first; the p12 is the commit point, so the
+                # legacy entry stays selected until it is published.
                 os.chmod(temporary_p12, 0o600)
-                with open(temporary_p12, "rb") as f:
-                    os.fsync(f.fileno())
-                os.replace(temporary_pass, new_pass_path)
-                temporary_pass = None
-                os.replace(temporary_server, new_server_fp_path)
-                temporary_server = None
-                # The p12 is the commit point; before it, legacy remains selected.
+                _write_private_passphrase(new_pass_path, new_passphrase)
+                _write_private_passphrase(new_server_fp_path, current_server_fp)
                 os.replace(temporary_p12, new_p12_path)
                 temporary_p12 = None
                 if not _cached_cert_valid(new_p12_path, new_passphrase):
                     raise RuntimeError("TAK migrated certificate failed readback")
                 _failed_legacy_migrations.discard(migration_key)
             else:
-                with open(new_pass_path, "w") as f:
-                    f.write(new_passphrase)
-                os.chmod(new_pass_path, 0o600)
+                _write_private_passphrase(new_pass_path, new_passphrase)
                 os.chmod(new_p12_path, 0o600)
                 if current_server_fp:
                     with open(new_server_fp_path, "w") as f:
                         f.write(current_server_fp)
                     os.chmod(new_server_fp_path, 0o600)
             logging.info("TAK client certificate cached at %s", new_p12_path)
+            # Return dict will use new-format paths.
             passphrase = new_passphrase
             p12_path = new_p12_path
             server_fp_path = new_server_fp_path
@@ -400,8 +438,11 @@ async def resolve_tak_url(tak_url: str) -> dict:
         except Exception as exc:
             if migrate_legacy:
                 _failed_legacy_migrations.add(migration_key)
-            if (not migrate_legacy or server_cert_changed
-                    or os.path.exists(new_p12_path)):
+            if (
+                not migrate_legacy
+                or server_cert_changed
+                or os.path.exists(new_p12_path)
+            ):
                 raise
             logging.warning(
                 "TAK legacy cert migration failed for %s@%s (%s); "
@@ -409,12 +450,11 @@ async def resolve_tak_url(tak_url: str) -> dict:
                 username, hostname, type(exc).__name__,
             )
         finally:
-            for staged in (temporary_p12, temporary_pass, temporary_server):
-                if staged:
-                    try:
-                        os.unlink(staged)
-                    except FileNotFoundError:
-                        pass
+            if temporary_p12:
+                try:
+                    os.unlink(temporary_p12)
+                except FileNotFoundError:
+                    pass
 
     if (
         not legacy_cache_selected
@@ -427,11 +467,11 @@ async def resolve_tak_url(tak_url: str) -> dict:
         os.chmod(server_fp_path, 0o600)
 
     if explicit_port and port == pytak.DEFAULT_TAK_STREAMING_PORT:
-        cot_url = f"tls://{hostname}:{port}"
+        cot_url = f"tls://{url_host}:{port}"
     else:
         if not explicit_port:
             port = pytak.DEFAULT_MARTI_PORT
-        cot_url = f"wss://{hostname}:{port}{pytak.DEFAULT_WS_PATH}"
+        cot_url = f"wss://{url_host}:{port}{pytak.DEFAULT_WS_PATH}"
 
     return {
         "COT_URL": cot_url,
@@ -550,12 +590,13 @@ async def ws_factory(
     except aiohttp.WSServerHandshakeError as exc:
         await session.close()
         if exc.status == 403:
-            # Server rejected the cert — clear the cert cache so the next
-            # run forces a fresh enrollment with the new token.
+            # Server rejected the cert — clear the enrollment cache so the next
+            # run forces a fresh enrollment with the new token. Only files
+            # pytak itself cached are removed; a user-provided cert is left
+            # untouched.
             cert_path = config.get("PYTAK_TLS_CLIENT_CERT", "")
-            if cert_path and os.path.exists(cert_path):
-                pass_path = cert_path.replace(".p12", ".pass")
-                for p in (cert_path, pass_path):
+            if _is_cached_enrollment_p12(cert_path):
+                for p in (cert_path, str(Path(cert_path).with_suffix(".pass"))):
                     try:
                         os.remove(p)
                     except OSError:
@@ -603,8 +644,9 @@ async def mqtt_factory(
     scheme = raw_url.split("://")[0].lower() if "://" in raw_url else ""
     _, write_only, read_only = pytak.parse_cot_scheme(scheme)
 
-    cot_url = get_cot_url(config)
-    parts = parse_mqtt_url(cot_url)
+    get_cot_url(config)  # Validate COT_URL.
+    # Parse the raw string: a parsed URL has already dropped a '#' wildcard.
+    parts = parse_mqtt_url(raw_url)
 
     username = parts.username or config.get("MQTT_USERNAME")
     password = parts.password or config.get("MQTT_PASSWORD")
@@ -752,6 +794,19 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     return reader, writer
 
 
+def _local_address_for(host: str, port: int) -> str:
+    """Return the local IPv4 address the OS would use to reach *host*.
+
+    Connecting a UDP socket sends no packets; it only selects a route.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect((host, port or 9))
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
+
+
 async def create_udp_client(
     url: ParseResult,
     local_addr=None,
@@ -872,35 +927,49 @@ async def create_udp_client(
 
     # Create the Reader
     rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # SO_REUSEADDR/SO_REUSEPORT MUST be set BEFORE bind() -- setting them
+        # afterwards has no effect on a bind that already happened.
+        #
+        # They used to be applied after, which meant only ONE process per host could
+        # subscribe to a given multicast group. Observed on an AryaOS box: the
+        # neighbour-discovery daemon holds 239.2.3.1:6969, so gdltak died with
+        #
+        #   OSError: [Errno 98] Address already in use
+        #
+        # restarted 10 times, hit the systemd start limit and left the machine
+        # `degraded`. Two subscribers to one CoT multicast group is a normal
+        # arrangement, not an error.
+        if is_broadcast:
+            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    # SO_REUSEADDR/SO_REUSEPORT MUST be set BEFORE bind() -- setting them
-    # afterwards has no effect on a bind that already happened.
-    #
-    # They used to be applied after, which meant only ONE process per host could
-    # subscribe to a given multicast group. Observed on an AryaOS box: the
-    # neighbour-discovery daemon holds 239.2.3.1:6969, so gdltak died with
-    #
-    #   OSError: [Errno 98] Address already in use
-    #
-    # restarted 10 times, hit the systemd start limit and left the machine
-    # `degraded`. Two subscribers to one CoT multicast group is a normal
-    # arrangement, not an error.
-    if is_broadcast:
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if is_broadcast or is_multicast:
+            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except (AttributeError, OSError):
+                # Not every platform has SO_REUSEPORT; SO_REUSEADDR alone is enough
+                # for multiple multicast subscribers on Linux.
+                pass
 
-    if is_broadcast or is_multicast:
-        rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        bindall = sys.platform == "win32"
         try:
-            rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except (AttributeError, OSError):
-            # Not every platform has SO_REUSEPORT; SO_REUSEADDR alone is enough
-            # for multiple multicast subscribers on Linux.
-            pass
+            rsock.bind(("" if bindall else host, port))
+        except OSError as exc:
+            # Plain unicast (udp://<remote-host>:<port>) names the REMOTE peer,
+            # which is not a local address: listen on the local interface
+            # address used to reach that peer (not on every interface).
+            # Local unicast addresses (e.g. 127.0.0.1) still bind explicitly.
+            if is_broadcast or is_multicast or exc.errno != errno.EADDRNOTAVAIL:
+                raise
+            rsock.bind((_local_address_for(host, port), port))
 
-    bindall = sys.platform == "win32"
-    rsock.bind(("" if bindall else host, port))
-
-    reader = await from_socket(rsock)
+        reader = await from_socket(rsock)
+    except BaseException:
+        rsock.close()
+        if writer is not None:
+            writer.close()
+        raise
 
     if not reader:
         return reader, writer
@@ -967,7 +1036,11 @@ def get_tls_config(config: SectionProxy) -> SectionProxy:
 
     tls_config_req.update(tls_config_opt)
 
-    return ConfigParser(dict(filter(lambda x: x[1], tls_config_req.items())))["DEFAULT"]
+    # Values were already interpolated when read from ``config``; re-interpolating
+    # would reject (or rewrite) a literal '%' in e.g. a TLS password.
+    return ConfigParser(
+        dict(filter(lambda x: x[1], tls_config_req.items())), interpolation=None
+    )["DEFAULT"]
 
 
 async def create_tls_client(
@@ -1106,10 +1179,11 @@ def get_ssl_ctx(tls_config: SectionProxy) -> ssl.SSLContext:
         client_key = cert_paths["pk_pem_path"]
 
     try:
-        if not os.path.exists(client_cert) or not os.path.exists(client_key):
-            raise SystemError(
-                f"Missing PKCS#12 extracted {client_cert} & {client_key}."
-            )
+        # PYTAK_TLS_CLIENT_KEY is optional: the cert PEM may hold the key too.
+        if not os.path.exists(client_cert) or (
+            client_key and not os.path.exists(client_key)
+        ):
+            raise SystemError(f"Missing client cert {client_cert} or key {client_key}.")
         ssl_ctx.load_cert_chain(
             client_cert, keyfile=client_key, password=client_password
         )
@@ -1190,9 +1264,18 @@ async def main(app_name: str, config: SectionProxy, full_config: ConfigParser) -
     clitool: pytak.CLITool = pytak.CLITool(config)
     create_tasks = getattr(app, "create_tasks")
     await clitool.create_workers(config)
-    if bool(config.get("IMPORT_OTHER_CONFIGS", pytak.DEFAULT_IMPORT_OTHER_CONFIGS)):
+    # Historically any value (even "0") enabled this, and so did leaving it
+    # unset; keep importing when unset so existing multi-section config.ini
+    # files keep every destination, but honour an explicit off value.
+    import_other = config.get("IMPORT_OTHER_CONFIGS")
+    if import_other is None or pytak.classes._is_true(import_other):
+        own_section = getattr(config, "name", None)
+        if own_section:
+            other_sections = [s for s in full_config.sections() if s != own_section]
+        else:
+            other_sections = full_config.sections()[1:]
         try:
-            for i in full_config.sections()[1:]:
+            for i in other_sections:
                 await clitool.create_workers(full_config[i])
         except EOFError:
             logging.warning("No more configs to create workers for!")
@@ -1412,6 +1495,15 @@ def cli(app_name: str) -> None:
 
     # Remove env vars that contain '%', which ConfigParser or pprint barf on:
     env_vars = {key: val for key, val in env_vars.items() if "%" not in val}
+
+    # ConfigParser lower-cases option names, so env vars differing only by case
+    # (e.g. no_proxy and NO_PROXY) would raise DuplicateOptionError. Keep one
+    # per name, preferring the upper-case spelling PyTAK documents.
+    deduped_env_vars: dict = {}
+    for key in sorted(env_vars, key=lambda k: k != k.upper()):
+        if key.lower() not in deduped_env_vars:
+            deduped_env_vars[key.lower()] = (key, env_vars[key])
+    env_vars = dict(deduped_env_vars.values())
 
     env_vars["COT_URL"] = env_vars.get("COT_URL", pytak.DEFAULT_COT_URL)
     env_vars["COT_HOST_ID"] = f"{app_name}@{platform.node()}"

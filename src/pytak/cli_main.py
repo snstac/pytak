@@ -39,6 +39,8 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
+import stat
 import sys
 import xml.etree.ElementTree as ET
 from configparser import RawConfigParser
@@ -55,6 +57,13 @@ _LOG = logging.getLogger(__name__)
 
 # CoT XML event boundary used for stdin framing
 _COT_END = b"</event>"
+
+# Start of a root <event> element (not e.g. <eventfoo>).
+_COT_START_RE = re.compile(rb"<event(?=[\s/>])")
+
+# A complete <event ...> start tag, honouring quoted attribute values so that
+# '>' or '/>' inside an attribute does not end the tag.
+_COT_START_TAG_RE = re.compile(rb"<event(?:[^>\"']|\"[^\"]*\"|'[^']*')*>")
 
 
 def _pretty_xml(data: bytes) -> bytes:
@@ -88,16 +97,53 @@ def _indent_xml(elem: ET.Element, level: int = 0, space: str = "  ") -> None:
             children[-1].tail = indent
 
 
+def _find_cot_event_end(buf: bytes):
+    """Return the index just past the first complete CoT event, or None.
+
+    A CoT event is complete either at ``</event>`` or, for a self-closing
+    root element (``<event .../>``), at the end of its start tag.
+    """
+    close_idx = buf.find(_COT_END)
+    close_end = None if close_idx == -1 else close_idx + len(_COT_END)
+
+    start = _COT_START_RE.search(buf)
+    if start is None or (close_idx != -1 and close_idx < start.start()):
+        return close_end
+
+    tag = _COT_START_TAG_RE.match(buf, start.start())
+    if tag is None:
+        # Start tag not yet complete (or malformed): fall back to </event>.
+        return close_end
+
+    if buf[tag.end() - 2 : tag.end()] == b"/>":
+        return tag.end()
+
+    close_idx = buf.find(_COT_END, tag.end())
+    if close_idx == -1:
+        return None
+    return close_idx + len(_COT_END)
+
+
 def _frame_cot_xml_events(buf: bytes):
     """Yield complete CoT XML events from *buf* and return remainder bytes."""
     events = []
-    while _COT_END in buf:
-        idx = buf.index(_COT_END) + len(_COT_END)
+    while True:
+        idx = _find_cot_event_end(buf)
+        if idx is None:
+            break
         event = buf[:idx].strip()
         buf = buf[idx:]
         if event:
             events.append(event)
     return events, buf
+
+
+def _warn_trailing(logger, buf: bytes, source: str) -> None:
+    """Log a warning if incomplete CoT data is left over at EOF."""
+    if buf.strip():
+        logger.warning(
+            "Discarding %d bytes of incomplete CoT at end of %s", len(buf), source
+        )
 
 
 class StdinWorker(pytak.QueueWorker):
@@ -127,6 +173,7 @@ class StdinWorker(pytak.QueueWorker):
             events, buf = _frame_cot_xml_events(buf)
             for event in events:
                 await self.handle_data(event)
+        _warn_trailing(self._logger, buf, "stdin")
 
 
 class FileWorker(pytak.QueueWorker):
@@ -151,6 +198,25 @@ class FileWorker(pytak.QueueWorker):
                 events, buf = _frame_cot_xml_events(buf)
                 for event in events:
                     await self.handle_data(event)
+        _warn_trailing(self._logger, buf, self.file_path)
+
+
+def _stdin_is_data_source(stdin_is_tty: bool) -> bool:
+    """Return True if stdin is a pipe or regular file carrying CoT data.
+
+    A non-TTY stdin is not necessarily a data source: under cron, systemd or
+    CI it is often ``/dev/null`` (a character device). Pipes, regular files
+    and sockets (socat, inetd, systemd socket activation) carry data.
+    """
+    if stdin_is_tty:
+        return False
+    try:
+        mode = os.fstat(sys.stdin.fileno()).st_mode
+    except (AttributeError, OSError, ValueError):
+        # stdin replaced by an object without a real descriptor (e.g. under a
+        # test harness); keep the historical "non-TTY means data" behaviour.
+        return True
+    return stat.S_ISFIFO(mode) or stat.S_ISREG(mode) or stat.S_ISSOCK(mode)
 
 
 def _get_tx_source(args, stdin_is_tty: bool) -> str:
@@ -158,7 +224,7 @@ def _get_tx_source(args, stdin_is_tty: bool) -> str:
     if args.rx_only:
         return "none"
 
-    has_stdin_data = not stdin_is_tty
+    has_stdin_data = _stdin_is_data_source(stdin_is_tty)
     has_file_data = bool(args.tx_file)
 
     if has_stdin_data and has_file_data:

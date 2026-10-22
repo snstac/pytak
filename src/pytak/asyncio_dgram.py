@@ -259,7 +259,8 @@ class Protocol(asyncio.DatagramProtocol):
             old_peer = self._transport.get_extra_info("peername")
             new_peer = transport.get_extra_info("peername")
             warnings.warn(
-                "Reinitializing transport connection from %s to %s", old_peer, new_peer
+                "Reinitializing transport connection from %s to %s"
+                % (old_peer, new_peer)
             )
 
         self._transport = transport

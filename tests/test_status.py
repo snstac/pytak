@@ -195,10 +195,12 @@ class TestWriteFailureIsSurvivable:
     """Moving CoT is the job; reporting on it is not."""
 
     def _readonly_writer(self, tmp_path):
+        # A regular file where the parent directory should be makes every
+        # write fail, even as root (where a chmod-ed directory is writable).
         d = tmp_path / "ro"
-        d.mkdir()
+        d.write_text("not a directory")
         w = StatusWriter("t", path=str(d / "sub" / "status.json"))
-        d.chmod(stat.S_IRUSR | stat.S_IXUSR)  # no write permission
+        d.chmod(stat.S_IRUSR | stat.S_IXUSR)
         return w, d
 
     def test_write_failure_does_not_raise(self, tmp_path):
@@ -343,6 +345,61 @@ class TestSingleWriter:
         w._last_contention_check = 0.0
         w.write(now=2000.0, force=True)  # corrupt
         assert w.contended_with is None
+
+    @pytest.mark.parametrize("content", ["[]", "null", "42", '"text"', "true"])
+    def test_valid_nonobject_json_does_not_stop_status_writes(self, tmp_path, content):
+        """A foreign JSON value is bad status, not a gateway exception."""
+        path = tmp_path / "status.json"
+        path.write_text(content)
+        w = StatusWriter("t", path=str(path))
+
+        assert w.write(now=1000.0, force=True) is True
+        assert json.loads(path.read_text())["pid"] == os.getpid()
+        assert w.write_errors == 0
+        assert w.contended_with is None
+
+    @pytest.mark.parametrize("pid", [0, -1, True, False])
+    def test_invalid_pid_is_not_probed(self, tmp_path, monkeypatch, pid):
+        """Only a positive, real PID may be sent signal zero."""
+        path = tmp_path / "status.json"
+        path.write_text(json.dumps({"pid": pid}))
+        w = StatusWriter("t", path=str(path))
+
+        calls = []
+
+        def record_kill(*args):
+            calls.append(args)
+
+        monkeypatch.setattr(os, "kill", record_kill)
+        assert w.write(now=1000.0, force=True) is True
+        assert calls == []
+        assert w.contended_with is None
+
+    def test_pid_probe_overflow_does_not_stop_status_writes(
+        self, tmp_path, monkeypatch
+    ):
+        path = tmp_path / "status.json"
+        path.write_text(json.dumps({"pid": os.getpid() + 1}))
+        w = StatusWriter("t", path=str(path))
+
+        def overflow(*args):
+            raise OverflowError("PID outside platform range")
+
+        monkeypatch.setattr(os, "kill", overflow)
+        assert w.write(now=1000.0, force=True) is True
+        assert w.contended_with is None
+
+    def test_diagnostic_error_cannot_stop_status_write(self, tmp_path, monkeypatch):
+        path = tmp_path / "status.json"
+        w = StatusWriter("t", path=str(path))
+
+        def broken_check(*args):
+            raise RuntimeError("diagnostic failed")
+
+        monkeypatch.setattr(w, "_check_sole_writer", broken_check)
+        assert w.write(now=1000.0, force=True) is True
+        assert json.loads(path.read_text())["pid"] == os.getpid()
+        assert w.write_errors == 0
 
     def test_check_does_not_run_on_every_write(self, tmp_path):
         """The correct case must cost nothing."""
