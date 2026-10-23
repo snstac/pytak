@@ -89,6 +89,7 @@ pytak --tx-only --tx-file events.xml tcp://127.0.0.1:4242
 ```
 
 Terminal 1 should show an `<event ... uid="netcat-test" ...>` document.
+PyTAK can also send its own identity event; look for the `netcat-test` UID.
 `--tx-only` suppresses received output; it does not make the sender exit after
 the file is sent. Once the event appears, press Ctrl-C in terminal 2 to stop
 PyTAK, then stop the listener if it is still running. Restart the listener
