@@ -9,6 +9,7 @@
 
 """Tests for tak:// URL parsing and cert cache helpers."""
 
+import asyncio
 import os
 import stat
 import tempfile
@@ -478,6 +479,253 @@ async def test_resolve_tak_url_legacy_fallback(tmp_path):
     # Should have used the legacy cert
     assert result["PYTAK_TLS_CLIENT_CERT"] == str(legacy_p12)
     assert result["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == "stored_passphrase"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("backfilled_sidecar", [False, True])
+async def test_legacy_cache_migrates_with_readable_fingerprint(
+    tmp_path, backfilled_sidecar
+):
+    """A legacy cache's sidecar does not prove client authentication succeeded."""
+    url = (
+        "tak://com.atakmap.app/enroll?host=tak.example.com:8089"
+        "&username=alice&token=tok"
+    )
+    new_p12, new_pass = tmp_path / "new.p12", tmp_path / "new.pass"
+    legacy_p12, legacy_pass = tmp_path / "legacy.p12", tmp_path / "legacy.pass"
+    legacy_p12.write_bytes(b"old-cert")
+    legacy_pass.write_text("old-pass")
+    if backfilled_sidecar:
+        (tmp_path / "legacy.server").write_text("current-fingerprint")
+
+    def fake_enroll(*args, **kwargs):
+        Path(kwargs["output_path"]).write_bytes(b"new-cert")
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(str(legacy_p12), str(legacy_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=True,
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="current-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ) as enroll:
+        first = await resolve_tak_url(url)
+        second = await resolve_tak_url(url)
+
+    enroll.assert_called_once()
+    assert first["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)
+    assert second["PYTAK_TLS_CLIENT_CERT"] == str(new_p12)
+    assert new_p12.read_bytes() == b"new-cert"
+    assert new_pass.read_text() == first["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"]
+    assert second["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == new_pass.read_text()
+    assert (tmp_path / "new.server").read_text() == "current-fingerprint"
+    if os.name == "posix":
+        for path in (new_p12, new_pass, tmp_path / "new.server"):
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert list(tmp_path.glob(".pytak-migrate-*")) == []
+    assert list(tmp_path.glob(".pytak-pass-*")) == []
+    assert legacy_p12.read_bytes() == b"old-cert"
+    assert legacy_pass.read_text() == "old-pass"
+    assert (tmp_path / "legacy.server").exists() is backfilled_sidecar
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["silent", "raised", "partial"])
+async def test_failed_legacy_migration_preserves_old_cache(tmp_path, failure):
+    """No partially enrolled new-key cert may mask a working legacy entry."""
+    url = (
+        "tak://com.atakmap.app/enroll?host=tak.example.com:8089"
+        "&username=alice&token=tok"
+    )
+    new_p12, new_pass = tmp_path / "new.p12", tmp_path / "new.pass"
+    legacy_p12, legacy_pass = tmp_path / "legacy.p12", tmp_path / "legacy.pass"
+    legacy_p12.write_bytes(b"old-cert")
+    legacy_pass.write_text("old-pass")
+
+    def fake_enroll(*args, **kwargs):
+        if failure == "raised":
+            raise RuntimeError("enrollment unavailable")
+        if failure == "partial":
+            Path(kwargs["output_path"]).write_bytes(b"invalid-cert")
+        # The real enrollment class can swallow its own error and return.
+        return None
+
+    def valid_cert(path, passphrase):
+        return str(path) == str(legacy_p12)
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(str(legacy_p12), str(legacy_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", side_effect=valid_cert,
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="current-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ) as enroll:
+        result = await resolve_tak_url(url)
+        retry = await resolve_tak_url(url)
+
+    assert result["PYTAK_TLS_CLIENT_CERT"] == str(legacy_p12)
+    assert retry["PYTAK_TLS_CLIENT_CERT"] == str(legacy_p12)
+    enroll.assert_called_once()
+    assert result["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == "old-pass"
+    assert legacy_p12.read_bytes() == b"old-cert"
+    assert legacy_pass.read_text() == "old-pass"
+    assert not (tmp_path / "legacy.server").exists()
+    assert not new_p12.exists()
+    assert not new_pass.exists()
+    assert list(tmp_path.glob(".pytak-migrate-*")) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["raised", "silent"])
+async def test_legacy_fingerprint_mismatch_fails_closed(tmp_path, failure):
+    """A changed server fingerprint must never fall back to a stale cert."""
+    url = (
+        "tak://com.atakmap.app/enroll?host=tak.example.com:8089"
+        "&username=alice&token=tok"
+    )
+    new_p12, new_pass = tmp_path / "new.p12", tmp_path / "new.pass"
+    legacy_p12, legacy_pass = tmp_path / "legacy.p12", tmp_path / "legacy.pass"
+    legacy_p12.write_bytes(b"old-cert")
+    legacy_pass.write_text("old-pass")
+    (tmp_path / "legacy.server").write_text("old-fingerprint")
+
+    def fake_enroll(*args, **kwargs):
+        if failure == "raised":
+            raise RuntimeError("enrollment unavailable")
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(str(legacy_p12), str(legacy_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=True,
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="new-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ) as enroll:
+        with pytest.raises(RuntimeError):
+            await resolve_tak_url(url)
+        with pytest.raises(RuntimeError):
+            await resolve_tak_url(url)
+
+    enroll.assert_called_once()
+    assert legacy_p12.read_bytes() == b"old-cert"
+    assert legacy_pass.read_text() == "old-pass"
+    assert (tmp_path / "legacy.server").read_text() == "old-fingerprint"
+    assert not new_p12.exists()
+    assert not new_pass.exists()
+    assert list(tmp_path.glob(".pytak-migrate-*")) == []
+
+
+@pytest.mark.asyncio
+async def test_failed_legacy_migration_commit_keeps_legacy_selected(tmp_path):
+    """A metadata write failure must not install a new-key p12."""
+    url = (
+        "tak://com.atakmap.app/enroll?host=tak.example.com:8089"
+        "&username=alice&token=tok"
+    )
+    new_p12, new_pass = tmp_path / "new.p12", tmp_path / "new.pass"
+    legacy_p12, legacy_pass = tmp_path / "legacy.p12", tmp_path / "legacy.pass"
+    legacy_p12.write_bytes(b"old-cert")
+    legacy_pass.write_text("old-pass")
+    real_replace = os.replace
+
+    def fake_replace(source, destination):
+        if str(destination) == str(tmp_path / "new.server"):
+            raise OSError("sidecar write failed")
+        return real_replace(source, destination)
+
+    def fake_enroll(*args, **kwargs):
+        Path(kwargs["output_path"]).write_bytes(b"new-cert")
+
+    def valid_cert(path, passphrase):
+        return str(path) in {str(legacy_p12), str(new_p12)} or (
+            str(path).endswith(".tmp") and passphrase != "old-pass"
+        )
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(str(legacy_p12), str(legacy_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", side_effect=valid_cert,
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="current-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=fake_enroll),
+    ), mock.patch("pytak.client_functions.os.replace", side_effect=fake_replace):
+        result = await resolve_tak_url(url)
+
+    assert result["PYTAK_TLS_CLIENT_CERT"] == str(legacy_p12)
+    assert result["PYTAK_TLS_CERT_ENROLLMENT_PASSPHRASE"] == "old-pass"
+    assert legacy_p12.read_bytes() == b"old-cert"
+    assert legacy_pass.read_text() == "old-pass"
+    assert not new_p12.exists()
+    assert not (tmp_path / "new.server").exists()
+    if os.name == "posix":
+        assert stat.S_IMODE(new_pass.stat().st_mode) == 0o600
+    assert list(tmp_path.glob(".pytak-migrate-*")) == []
+    assert list(tmp_path.glob(".pytak-pass-*")) == []
+
+
+@pytest.mark.asyncio
+async def test_cancelled_legacy_migration_propagates(tmp_path):
+    """Cancellation must not be converted into a legacy-cache success."""
+    url = (
+        "tak://com.atakmap.app/enroll?host=tak.example.com:8089"
+        "&username=alice&token=tok"
+    )
+    new_p12, new_pass = tmp_path / "new.p12", tmp_path / "new.pass"
+    legacy_p12, legacy_pass = tmp_path / "legacy.p12", tmp_path / "legacy.pass"
+    legacy_p12.write_bytes(b"old-cert")
+    legacy_pass.write_text("old-pass")
+
+    with mock.patch(
+        "pytak.client_functions._cert_cache_paths",
+        return_value=(str(new_p12), str(new_pass)),
+    ), mock.patch(
+        "pytak.client_functions._legacy_cert_cache_paths",
+        return_value=(str(legacy_p12), str(legacy_pass)),
+    ), mock.patch(
+        "pytak.client_functions._cached_cert_valid", return_value=True,
+    ), mock.patch(
+        "pytak.client_functions._server_cert_fingerprint_async",
+        new=AsyncMock(return_value="current-fingerprint"),
+    ), mock.patch(
+        "pytak.crypto_classes.CertificateEnrollment.begin_enrollment",
+        new=AsyncMock(side_effect=asyncio.CancelledError),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await resolve_tak_url(url)
+
+    assert legacy_p12.read_bytes() == b"old-cert"
+    assert not new_p12.exists()
+    assert not new_pass.exists()
+    assert list(tmp_path.glob(".pytak-migrate-*")) == []
 
 
 @pytest.mark.asyncio

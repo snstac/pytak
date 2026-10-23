@@ -58,6 +58,12 @@ from pytak.asyncio_dgram import (
 from pytak.crypto_functions import convert_cert
 
 
+# A failed best-effort legacy migration should not repeat enrollment credentials
+# on every reconnect in this process. A changed server fingerprint still fails
+# closed after a failed attempt rather than reusing a stale certificate.
+_failed_legacy_migrations = set()
+
+
 def parse_tak_url(tak_url: str) -> dict:
     """Parse a TAK enrollment deep-link URL.
 
@@ -298,6 +304,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
     # when upgrading from pre-7.3.13 so we do not force unnecessary re-enrollment.
     p12_path, pass_path = new_p12_path, new_pass_path
     server_fp_path = new_server_fp_path
+    legacy_cache_selected = False
     if not os.path.exists(new_p12_path):
         legacy_p12, legacy_pass = _legacy_cert_cache_paths(hostname, username)
         if os.path.exists(legacy_p12):
@@ -308,6 +315,7 @@ async def resolve_tak_url(tak_url: str) -> dict:
             )
             p12_path, pass_path = legacy_p12, legacy_pass
             server_fp_path = _cert_cache_server_fingerprint_path(legacy_p12)
+            legacy_cache_selected = True
 
     passphrase: str = ""
     if os.path.exists(pass_path):
@@ -340,11 +348,24 @@ async def resolve_tak_url(tak_url: str) -> dict:
             hostname, fingerprint_port,
         )
 
+    cache_valid = bool(passphrase) and _cached_cert_valid(p12_path, passphrase)
+    # A sidecar on a legacy entry can have been backfilled before client auth,
+    # so even a matching fingerprint does not establish its provenance.
+    migration_key = (new_p12_path, current_server_fp)
     if (
-        passphrase
-        and _cached_cert_valid(p12_path, passphrase)
-        and not server_cert_changed
+        legacy_cache_selected
+        and server_cert_changed
+        and migration_key in _failed_legacy_migrations
     ):
+        raise RuntimeError("TAK server certificate changed and migration failed")
+    migrate_legacy = (
+        legacy_cache_selected
+        and bool(current_server_fp)
+        and cache_valid
+        and migration_key not in _failed_legacy_migrations
+    )
+
+    if cache_valid and not server_cert_changed and not migrate_legacy:
         logging.info(
             "TAK cert cache hit: using cached certificate for %s@%s:%s",
             username, hostname, port,
@@ -356,35 +377,91 @@ async def resolve_tak_url(tak_url: str) -> dict:
         )
         from pytak.crypto_classes import CertificateEnrollment
 
-        passphrase = secrets.token_urlsafe(
+        new_passphrase = secrets.token_urlsafe(
             pytak.DEFAULT_TLS_ENROLLMENT_CERT_PASSPHRASE_LENGTH
         )
-        enrollment = CertificateEnrollment()
-        # Enrollment always writes to the new-format path.
-        await enrollment.begin_enrollment(
-            domain=url_host,
-            username=username,
-            password=token,
-            output_path=new_p12_path,
-            passphrase=passphrase,
-            trust_all=True,
-        )
-        if not os.path.exists(new_p12_path):
-            raise RuntimeError(
-                f"TAK certificate enrollment failed for {username}@{hostname}"
+        # A migration must not leave a partial new-key cert that masks the
+        # working legacy entry on the next run. Enroll into a private temp file.
+        temporary_p12 = None
+        try:
+            if migrate_legacy:
+                with tempfile.NamedTemporaryFile(
+                    prefix=".pytak-migrate-", suffix=".tmp",
+                    dir=Path(new_p12_path).parent, delete=False,
+                ) as temporary:
+                    temporary_p12 = temporary.name
+            enrollment = CertificateEnrollment()
+            # Enrollment always writes to the new-format path (or its staging file).
+            await enrollment.begin_enrollment(
+                domain=url_host,
+                username=username,
+                password=token,
+                output_path=temporary_p12 or new_p12_path,
+                passphrase=new_passphrase,
+                trust_all=True,
             )
-        _write_private_passphrase(new_pass_path, passphrase)
-        os.chmod(new_p12_path, 0o600)
-        if current_server_fp:
-            with open(new_server_fp_path, "w") as f:
-                f.write(current_server_fp)
-            os.chmod(new_server_fp_path, 0o600)
-        logging.info("TAK client certificate cached at %s", new_p12_path)
-        # Return dict will use new-format paths.
-        p12_path = new_p12_path
-        server_fp_path = new_server_fp_path
+            enrolled_p12 = temporary_p12 or new_p12_path
+            if not os.path.exists(enrolled_p12) or (
+                migrate_legacy and (
+                    os.path.getsize(enrolled_p12) == 0
+                    or not _cached_cert_valid(enrolled_p12, new_passphrase)
+                )
+            ):
+                raise RuntimeError(
+                    f"TAK certificate enrollment failed for {username}@{hostname}"
+                )
+            if migrate_legacy:
+                # Private metadata first; the p12 is the commit point, so the
+                # legacy entry stays selected until it is published.
+                os.chmod(temporary_p12, 0o600)
+                _write_private_passphrase(new_pass_path, new_passphrase)
+                _write_private_passphrase(new_server_fp_path, current_server_fp)
+                os.replace(temporary_p12, new_p12_path)
+                temporary_p12 = None
+                if not _cached_cert_valid(new_p12_path, new_passphrase):
+                    raise RuntimeError("TAK migrated certificate failed readback")
+                _failed_legacy_migrations.discard(migration_key)
+            else:
+                _write_private_passphrase(new_pass_path, new_passphrase)
+                os.chmod(new_p12_path, 0o600)
+                if current_server_fp:
+                    with open(new_server_fp_path, "w") as f:
+                        f.write(current_server_fp)
+                    os.chmod(new_server_fp_path, 0o600)
+            logging.info("TAK client certificate cached at %s", new_p12_path)
+            # Return dict will use new-format paths.
+            passphrase = new_passphrase
+            p12_path = new_p12_path
+            server_fp_path = new_server_fp_path
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if migrate_legacy:
+                _failed_legacy_migrations.add(migration_key)
+            if (
+                not migrate_legacy
+                or server_cert_changed
+                or os.path.exists(new_p12_path)
+            ):
+                raise
+            logging.warning(
+                "TAK legacy cert migration failed for %s@%s (%s); "
+                "keeping legacy cache and suppressing retries until restart",
+                username, hostname, type(exc).__name__,
+            )
+        finally:
+            if temporary_p12:
+                try:
+                    os.unlink(temporary_p12)
+                except FileNotFoundError:
+                    pass
 
-    if current_server_fp and not cached_server_fp and os.path.exists(p12_path):
+    if (
+        not legacy_cache_selected
+        and current_server_fp
+        and not cached_server_fp
+        and os.path.exists(p12_path)
+    ):
         with open(server_fp_path, "w") as f:
             f.write(current_server_fp)
         os.chmod(server_fp_path, 0o600)
