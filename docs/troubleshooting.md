@@ -89,8 +89,10 @@ pytak --tx-only --tx-file events.xml tcp://127.0.0.1:4242
 ```
 
 Terminal 1 should show an `<event ... uid="netcat-test" ...>` document.
-`--tx-only` sends the file without waiting for incoming CoT. Restart the
-listener for another TCP connection; press Ctrl-C when finished.
+`--tx-only` suppresses received output; it does not make the sender exit after
+the file is sent. Once the event appears, press Ctrl-C in terminal 2 to stop
+PyTAK, then stop the listener if it is still running. Restart the listener
+before another TCP connection.
 
 ### UDP: two terminals
 
@@ -106,9 +108,9 @@ In terminal 2:
 pytak --tx-only --tx-file events.xml udp+wo://127.0.0.1:6969
 ```
 
-Look for the same event in terminal 1, then stop the listener with Ctrl-C.
-UDP has no connection handshake: the sender exiting successfully does **not**
-prove a receiver got the datagram. Seeing the event at the listener does.
+Look for the same event in terminal 1, then stop PyTAK and the listener with
+Ctrl-C. UDP has no connection handshake: a running sender with no error does
+**not** prove a receiver got the datagram. Seeing the event at the listener does.
 Some netcat variants keep a UDP listener associated with the first sender;
 restart it if a later invocation produces no output.
 
