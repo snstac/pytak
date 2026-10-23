@@ -36,6 +36,102 @@ Look for connection errors, dropped packets, or queue warnings in the output.
 
 ---
 
+## Inspect outgoing XML with netcat
+
+A local netcat listener can show whether PyTAK sends bytes before you debug a
+TAK Server, TLS, or multicast network. The examples below use **OpenBSD netcat**
+(`nc`, available as `netcat-openbsd` on Debian/Ubuntu); other netcat variants
+have different listen options. Install PyTAK first as described in
+[Installation](installation.md).
+
+These listeners bind only to `127.0.0.1`. They are plaintext diagnostics, not
+TAK Servers: they do not authenticate clients, validate CoT, or answer TAK
+protocol negotiation. Keep the default XML protocol (`TAK_PROTO = 0`) for this
+check; Protobuf output is binary and will not look like XML in the terminal.
+
+### Prepare one event
+
+Create `events.xml` with current timestamps so it can also be used with your
+own test receiver:
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import xml.etree.ElementTree as ET
+import pytak
+
+event = ET.Element(
+    "event", version="2.0", type="a-f-G-U-C", uid="netcat-test", how="m-g",
+    time=pytak.cot_time(), start=pytak.cot_time(), stale=pytak.cot_time(60),
+)
+ET.SubElement(event, "point", lat="0", lon="0", hae="0", ce="9999999", le="9999999")
+detail = ET.SubElement(event, "detail")
+ET.SubElement(detail, "contact", callsign="netcat-test")
+Path("events.xml").write_bytes(ET.tostring(event) + b"\n")
+PY
+```
+
+This is a synthetic marker at latitude/longitude zero. Do not send it to an
+operational TAK network.
+
+### TCP: two terminals
+
+In terminal 1, start the listener **before** the sender:
+
+```sh
+nc -l 127.0.0.1 4242
+```
+
+In terminal 2, send the file using PyTAK's command-line client:
+
+```sh
+pytak --tx-only --tx-file events.xml tcp://127.0.0.1:4242
+```
+
+Terminal 1 should show an `<event ... uid="netcat-test" ...>` document.
+`--tx-only` sends the file without waiting for incoming CoT. Restart the
+listener for another TCP connection; press Ctrl-C when finished.
+
+### UDP: two terminals
+
+Stop the TCP listener, then start a fresh UDP listener in terminal 1:
+
+```sh
+nc -u -l 127.0.0.1 6969
+```
+
+In terminal 2:
+
+```sh
+pytak --tx-only --tx-file events.xml udp+wo://127.0.0.1:6969
+```
+
+Look for the same event in terminal 1, then stop the listener with Ctrl-C.
+UDP has no connection handshake: the sender exiting successfully does **not**
+prove a receiver got the datagram. Seeing the event at the listener does.
+Some netcat variants keep a UDP listener associated with the first sender;
+restart it if a later invocation produces no output.
+
+### Interpret the result
+
+- **XML appears locally:** the command-line sender can send over that transport.
+  It does not establish that a remote TAK Server accepts the event or that
+  routing, firewall rules, multicast membership, or TLS credentials are correct.
+- **TCP reports connection refused:** check the listener is running, its port,
+  and that both commands use TCP.
+- **UDP prints nothing:** check both commands use UDP and the same address/port;
+  restart the listener before retrying.
+- **Your application prints nothing:** point its actual `COT_URL` configuration
+  at the listener and confirm it produces events. The [Quick Start](quickstart.md)
+  sender sets `COT_URL` in Python; changing an environment variable alone does
+  not replace that hard-coded setting.
+
+Do not point plain `nc` at a `tls://` endpoint and expect a successful TLS test.
+Keep TLS verification enabled when returning to your real server, and use the
+certificate guidance below for TLS failures.
+
+---
+
 ## `Enter PEM pass phrase:` prompt
 
 This prompt appears when your private key is password-protected (the default when using TAK Server's `makeCert.sh`).
