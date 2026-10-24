@@ -28,6 +28,33 @@ export DEBUG=0
 
 ## Core Parameters
 
+### `PYTAK_LOG_LEVEL`
+
+Set the output level of PyTAK workers and `CLITool` to `DEBUG`, `INFO`,
+`WARNING`, `ERROR` or `CRITICAL` (case-insensitive). For example, `ERROR`
+suppresses routine queue warnings while keeping errors visible:
+
+```sh
+export PYTAK_LOG_LEVEL=ERROR
+```
+
+For a program that passes a `ConfigParser` section to `Worker` or `CLITool`:
+
+```ini
+[mytool]
+PYTAK_LOG_LEVEL = ERROR
+```
+
+The environment takes precedence over a supplied section. An explicit level
+also takes precedence over `DEBUG`; without either setting, existing logging
+behavior is preserved. Invalid or empty levels raise a configuration error
+when the worker or CLI tool is constructed.
+
+Workers and CLI tools share a logger within a process: use one level for all
+of them. The most recently constructed tool with an explicit level sets it
+for the others too. This does not configure the Python root logger, third-party
+libraries or application-owned loggers, and it does not silence errors globally.
+
 ### `COT_URL`
 
 **Default:** `udp+wo://239.2.3.1:6969` (ATAK Mesh SA multicast, write-only)

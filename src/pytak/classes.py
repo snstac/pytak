@@ -199,6 +199,31 @@ def _setup_logger(logger: logging.Logger, level: int = None) -> logging.Logger:
     return logger
 
 
+def _configure_log_level(logger: logging.Logger, config) -> None:
+    """Apply an explicit process-wide worker level, leaving root logging alone."""
+    value = os.environ.get("PYTAK_LOG_LEVEL", config.get("PYTAK_LOG_LEVEL"))
+    if value is None:
+        if not _is_true(config.get("DEBUG")):
+            return
+        level = logging.DEBUG
+    else:
+        levels = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL,
+        }
+        level = levels.get(value.strip().upper()) if isinstance(value, str) else None
+        if level is None:
+            raise ValueError(
+                "PYTAK_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL"
+            )
+    logger.setLevel(level)
+    for handler in logger.handlers:
+        handler.setLevel(level)
+
+
 async def _drop_oldest_queue_item(
     queue: Union[asyncio.Queue, mp.Queue], logger: logging.Logger
 ) -> None:
@@ -266,9 +291,7 @@ class Worker:
             config_p.add_section("pytak")
             self.config = config_p["pytak"] or {}
 
-        if _is_true(self.config.get("DEBUG")):
-            for handler in self._logger.handlers:
-                handler.setLevel(logging.DEBUG)
+        _configure_log_level(self._logger, self.config)
 
         tak_proto_version = int(self.config.get("TAK_PROTO") or pytak.DEFAULT_TAK_PROTO)
 
@@ -959,11 +982,7 @@ class CLITool:
             self.max_in_queue
         )
 
-        if isinstance(self._config, SectionProxy) and _is_true(
-            self._config.get("DEBUG")
-        ):
-            for handler in self._logger.handlers:
-                handler.setLevel(logging.DEBUG)
+        _configure_log_level(self._logger, self._config)
 
     @property
     def config(self):
