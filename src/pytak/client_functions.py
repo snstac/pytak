@@ -740,7 +740,8 @@ async def protocol_factory(  # NOQA pylint: disable=too-many-locals,too-many-bra
     # TCP
     if base_scheme == "tcp":
         host, port = pytak.parse_url(cot_url)
-        reader, writer = await asyncio.open_connection(host, port)
+        stream_limit = int(config.get("STREAM_LIMIT", pytak.DEFAULT_STREAM_LIMIT))
+        reader, writer = await asyncio.open_connection(host, port, limit=stream_limit)
 
     # TLS
     elif base_scheme in ("tls", "ssl"):
@@ -1109,9 +1110,14 @@ async def create_tls_client(
     else:
         expected_server_hostname = None
 
+    stream_limit = int(config.get("STREAM_LIMIT", pytak.DEFAULT_STREAM_LIMIT))
     try:
         reader, writer = await asyncio.open_connection(
-            host.strip("[]"), port, ssl=ssl_ctx, server_hostname=expected_server_hostname
+            host.strip("[]"),
+            port,
+            ssl=ssl_ctx,
+            server_hostname=expected_server_hostname,
+            limit=stream_limit,
         )
     except ssl.SSLCertVerificationError as exc:
         raise SyntaxError(

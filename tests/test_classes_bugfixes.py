@@ -291,3 +291,50 @@ def test_manifest_xml_works_without_xml_declaration_kwarg(tmp_path):
     assert (
         pytak_classes.ET.fromstring(manifest.encode()).tag == "MissionPackageManifest"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminated", [False, True])
+async def test_large_reader_limit_keeps_event_cap(terminated):
+    reader = asyncio.StreamReader(limit=pytak.DEFAULT_STREAM_LIMIT)
+    payload = b"<event>" + b"x" * 2048
+    if terminated:
+        payload += b"</event>"
+    reader.feed_data(payload)
+    worker = pytak.RXWorker(asyncio.Queue(), {}, reader)
+    with mock.patch.object(pytak_classes, "_MAX_COT_EVENT_SIZE", 1024):
+        with pytest.raises(pytak_classes._CoTEventTooLargeError):
+            await asyncio.wait_for(worker.readcot(), timeout=1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra_byte", [0, 1])
+async def test_event_at_cap_keeps_next_buffered_event(extra_byte):
+    cap = 64
+    first = b"<event>" + b"x" * (cap + extra_byte - 15) + b"</event>"
+    second = b"<event></event>"
+    reader = asyncio.StreamReader(limit=pytak.DEFAULT_STREAM_LIMIT)
+    reader.feed_data(first + second)
+    reader.feed_eof()
+    worker = pytak.RXWorker(asyncio.Queue(), {}, reader)
+    with mock.patch.object(pytak_classes, "_MAX_COT_EVENT_SIZE", cap):
+        if extra_byte:
+            with pytest.raises(pytak_classes._CoTEventTooLargeError):
+                await worker.readcot()
+            return
+        assert await worker.readcot() == first
+        assert await worker.readcot() == second
+    with pytest.raises(ConnectionResetError):
+        await worker.readcot()
+
+
+@pytest.mark.asyncio
+async def test_delimiter_across_chunk_boundary_keeps_following_event():
+    first = b"<event>" + b"x" * (64 * 1024 + 3 - 15) + b"</event>"
+    second = b"<event></event>"
+    reader = asyncio.StreamReader(limit=pytak.DEFAULT_STREAM_LIMIT)
+    reader.feed_data(first + second)
+    reader.feed_eof()
+    worker = pytak.RXWorker(asyncio.Queue(), {}, reader)
+    assert await worker.readcot() == first
+    assert await worker.readcot() == second

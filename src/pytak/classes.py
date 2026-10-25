@@ -413,6 +413,7 @@ class RXWorker(Worker):
         super().__init__(queue, config)
         self.reader: asyncio.Protocol = reader
         self.reader_queue = None
+        self._cot_pending = b""
 
     @abc.abstractmethod
     async def handle_data(self, data: bytes) -> None:
@@ -421,6 +422,8 @@ class RXWorker(Worker):
 
     async def _readuntil_event(self) -> bytes:
         """Read up to and including "</event>", even past the reader's limit."""
+        if isinstance(self.reader, asyncio.StreamReader):
+            return await self._read_stream_event()
         separator = b"</event>"
         parts = []
         size = 0
@@ -435,6 +438,35 @@ class RXWorker(Worker):
                         f"Inbound CoT event exceeds {_MAX_COT_EVENT_SIZE} bytes"
                     ) from exc
                 parts.append(await self.reader.readexactly(exc.consumed))
+
+    async def _read_stream_event(self) -> bytes:
+        """Bound event assembly independently of the configured reader limit."""
+        separator = b"</event>"
+        data = bytearray(self._cot_pending)
+        self._cot_pending = b""
+        search_from = 0
+        while True:
+            boundary = data.find(separator, search_from)
+            if boundary >= 0:
+                end = boundary + len(separator)
+                if end > _MAX_COT_EVENT_SIZE:
+                    raise _CoTEventTooLargeError(
+                        f"Inbound CoT event exceeds {_MAX_COT_EVENT_SIZE} bytes"
+                    )
+                self._cot_pending = bytes(data[end:])
+                return bytes(data[:end])
+            if len(data) >= _MAX_COT_EVENT_SIZE:
+                raise _CoTEventTooLargeError(
+                    f"Inbound CoT event exceeds {_MAX_COT_EVENT_SIZE} bytes"
+                )
+            # Recheck only the delimiter overlap, avoiding repeated full scans.
+            search_from = max(0, len(data) - len(separator) + 1)
+            chunk = await self.reader.read(
+                min(64 * 1024, _MAX_COT_EVENT_SIZE + 1 - len(data))
+            )
+            if not chunk:
+                raise asyncio.IncompleteReadError(bytes(data), None)
+            data.extend(chunk)
 
     async def readcot(self):
         """Read CoT from the wire until we hit an event boundary."""

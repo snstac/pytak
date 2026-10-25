@@ -436,3 +436,39 @@ def test_cli_tolerates_env_vars_differing_only_by_case(monkeypatch, tmp_path):
     # The upper-case spelling (PyTAK's documented form) wins.
     assert config["COT_URL"] == "tcp://takserver.example.com:8087"
     assert config["NO_PROXY"] == "upper.example.com"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured_limit", [None, "131072", "256"])
+async def test_tcp_stream_limit_with_real_large_event(configured_limit):
+    """A real TCP reader accepts large events or enforces an explicit small limit."""
+    payload = b"<event>" + b"x" * 70000 + b"</event>"
+
+    async def send_event(reader, writer):
+        try:
+            writer.write(payload)
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    server = await asyncio.start_server(send_event, "127.0.0.1", 0)
+    writer = None
+    try:
+        port = server.sockets[0].getsockname()[1]
+        config = {"COT_URL": "tcp://127.0.0.1:%s" % port}
+        if configured_limit is not None:
+            config["STREAM_LIMIT"] = configured_limit
+        reader, writer = await pytak.protocol_factory(config)
+        read_event = asyncio.wait_for(reader.readuntil(b"</event>"), timeout=5)
+        if configured_limit == "256":
+            with pytest.raises(asyncio.LimitOverrunError):
+                await read_event
+        else:
+            assert await read_event == payload
+    finally:
+        if writer is not None:
+            writer.close()
+            await writer.wait_closed()
+        server.close()
+        await server.wait_closed()

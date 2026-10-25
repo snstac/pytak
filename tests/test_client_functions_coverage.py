@@ -743,10 +743,14 @@ async def test_udp_reader_none_from_socket_returns_writer():
 
 
 @pytest.mark.asyncio
-async def test_create_tls_client_passes_expected_hostname():
+@pytest.mark.parametrize("configured_limit", [None, "131072"])
+async def test_create_tls_client_passes_expected_hostname(configured_limit):
     ctx = mock.MagicMock()
     ctx.check_hostname = True
-    config = _section({"PYTAK_TLS_SERVER_EXPECTED_HOSTNAME": "takserver.example.com"})
+    values = {"PYTAK_TLS_SERVER_EXPECTED_HOSTNAME": "takserver.example.com"}
+    if configured_limit is not None:
+        values["STREAM_LIMIT"] = configured_limit
+    config = _section(values)
     opener = _awaitable(("r", "w"))
     with mock.patch.object(cf, "get_ssl_ctx", return_value=ctx), mock.patch.object(
         cf.asyncio, "open_connection", opener
@@ -757,7 +761,15 @@ async def test_create_tls_client_passes_expected_hostname():
     assert result == ("r", "w")
     args, kwargs = opener.calls[0]
     assert args == ("2001:db8::1", 8089)
-    assert kwargs == {"ssl": ctx, "server_hostname": "takserver.example.com"}
+    assert kwargs == {
+        "ssl": ctx,
+        "server_hostname": "takserver.example.com",
+        "limit": (
+            int(configured_limit)
+            if configured_limit is not None
+            else pytak.DEFAULT_STREAM_LIMIT
+        ),
+    }
 
 
 @pytest.mark.asyncio

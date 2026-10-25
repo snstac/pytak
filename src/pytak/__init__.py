@@ -64,6 +64,7 @@ from .constants import (  # NOQA
     DEFAULT_MQTTS_PORT,
     DEFAULT_MQTT_QOS,
     DEFAULT_MQTT_KEEPALIVE,
+    DEFAULT_STREAM_LIMIT,
 )
 
 from .classes import (  # NOQA
