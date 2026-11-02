@@ -1,0 +1,14 @@
+name: CLA Check
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  cla-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run CLA Check
+        uses: contributor-assistant/github-action@v1
+        with:
+          signature-repo: snstac/cla-signatures
