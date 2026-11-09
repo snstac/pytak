@@ -1,5 +1,18 @@
 ## Unreleased
 
+- CoT objects are decoupled from the wire protocol (#49, #88). The TX queue
+  now accepts a `takproto` `TakMessage`, its `dict` form, or an
+  `ElementTree.Element` as well as XML bytes, and serializes each for
+  `TAK_PROTO` (XML for `0`, Mesh or Stream Protobuf for `1`). Protobuf bytes in
+  the wrong framing for the transport are re-framed instead of being sent
+  as-is. XML bytes are handled exactly as before.
+- New `PYTAK_RX_FORMAT` (`raw` default, `xml`, `proto`, `dict`): decode
+  received TAK Protocol v0 and v1 alike into one format, independent of
+  `TAK_PROTO`. With it set, `tcp://`/`tls://` streams can carry TAK Protocol v1
+  Stream messages mixed with XML. Applies to socket, WebSocket, MQTT and Marti
+  workers. The conversions are public as `pytak.cot2wire()` and
+  `pytak.wire2cot()`.
+
 - `cot_point()` (and therefore `cot_event()`) now truncates latitude and longitude
   to 7 decimal places by default instead of 4, so RTK-grade positions are no
   longer rounded to ~10 m. Pass `precision=4` for the previous behavior.

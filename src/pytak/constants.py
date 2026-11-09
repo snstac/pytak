@@ -94,6 +94,11 @@ DEFAULT_COT_VAL: str = "9999999.0"
 # Doesn't always work with iTAK. Recommend sticking with 0 (XML).
 DEFAULT_TAK_PROTO: str = "0"
 
+# Format of CoT put on the RX queue: raw (default, as received), xml (CoT XML
+# bytes), proto (takproto TakMessage) or dict (protobuf JSON mapping). Anything
+# but raw decodes TAK Protocol v1 and XML alike, whatever TAK_PROTO is.
+DEFAULT_RX_FORMAT: str = "raw"
+
 # Python <3.8 has no way of including XML Declaration in ET.tostring():
 DEFAULT_XML_DECLARATION: bytes = (
     b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
