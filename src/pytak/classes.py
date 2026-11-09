@@ -179,6 +179,138 @@ def _takmsg2xml(msg) -> Optional[bytes]:
     except Exception:  # pylint: disable=broad-except
         return None
 
+
+# TAK Protocol v1 framing (see takproto.constants): Mesh messages start with
+# 0xbf 0x01 0xbf, Stream messages with 0xbf followed by a varint length.
+# CoT XML can never start with 0xbf (it is not a valid UTF-8 lead byte).
+_TAK_MESH_HEADER = b"\xbf\x01\xbf"
+_TAK_MAGIC = b"\xbf"
+
+RX_FORMATS = ("raw", "xml", "proto", "dict")
+
+
+def _tak_framing(data) -> Optional[str]:
+    """Return "mesh" or "stream" for TAK Protocol v1 bytes, None otherwise."""
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        return None
+    if bytes(data[:3]) == _TAK_MESH_HEADER:
+        return "mesh"
+    if bytes(data[:1]) == _TAK_MAGIC:
+        return "stream"
+    return None
+
+
+def _require_takproto(what: str) -> None:
+    if takproto is None:
+        raise ValueError(
+            f"{what} requires the 'takproto' Python module. "
+            "Try: python -m pip install pytak[with_takproto]"
+        )
+
+
+def _to_takmessage(data):
+    """Convert any supported CoT representation to a takproto TakMessage."""
+    _require_takproto("Protobuf CoT conversion")
+    from takproto.proto import TakMessage  # pylint: disable=import-outside-toplevel
+
+    if isinstance(data, TakMessage):
+        return data
+    if isinstance(data, dict):
+        from google.protobuf import (  # pylint: disable=import-outside-toplevel
+            json_format,
+        )
+
+        return json_format.ParseDict(data, TakMessage())
+    if isinstance(data, ET.Element):
+        data = ET.tostring(data)
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    if _tak_framing(data):
+        msg = takproto.parse_proto(bytearray(data))
+        if msg is None or msg == -1:
+            raise ValueError("Could not parse TAK Protocol v1 message")
+        return msg
+    return takproto.functions.xml2message(bytes(data).strip())
+
+
+def cot2wire(data, tak_proto: int = 0, mesh: bool = False):
+    """Serialize a CoT event for transmission in the given TAK Protocol version.
+
+    ``data`` may be CoT XML (``bytes``, ``bytearray`` or ``str``), an
+    ``xml.etree.ElementTree.Element``, a ``takproto`` ``TakMessage``, a ``dict``
+    in the protobuf JSON mapping of ``TakMessage`` (as produced by
+    ``google.protobuf.json_format.MessageToDict``), or bytes that are already
+    TAK Protocol v1 encoded.
+
+    With ``tak_proto=0`` the result is CoT XML; raw bytes are returned
+    unchanged, as before. With ``tak_proto>0`` the result is TAK Protocol v1,
+    using Mesh framing when ``mesh`` is true (UDP multicast) and Stream framing
+    otherwise. Protobuf bytes in the other framing are re-framed.
+
+    Raises ``ValueError`` (or ``xml.etree.ElementTree.ParseError``) when the
+    input cannot be converted.
+    """
+    if data is None:
+        return None
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    elif isinstance(data, ET.Element):
+        data = ET.tostring(data)
+
+    if isinstance(data, (bytes, bytearray)):
+        if tak_proto <= 0:
+            return data
+        _require_takproto("TAK_PROTO > 0")
+        want = takproto.TAKProtoVer.MESH if mesh else takproto.TAKProtoVer.STREAM
+        framing = _tak_framing(data)
+        if framing is None:
+            return takproto.xml2proto(data, want)
+        if (framing == "mesh") == bool(mesh):
+            return data
+        return takproto.functions.msg2proto(_to_takmessage(data), want)
+
+    # Structured CoT: a TakMessage or its dict form.
+    msg = _to_takmessage(data)
+    if tak_proto > 0:
+        want = takproto.TAKProtoVer.MESH if mesh else takproto.TAKProtoVer.STREAM
+        return takproto.functions.msg2proto(msg, want)
+    xml = _takmsg2xml(msg)
+    if xml is None:
+        raise ValueError("TakMessage has no cotEvent uid, cannot convert to XML")
+    return xml
+
+
+def wire2cot(data, rx_format: str = "xml"):
+    """Convert a received CoT message to ``rx_format``, whatever its encoding.
+
+    ``data`` may be CoT XML or TAK Protocol v1 (Mesh or Stream) bytes, or a
+    ``TakMessage``. ``rx_format`` is one of:
+
+    * ``"raw"``: return ``data`` unchanged.
+    * ``"xml"``: CoT XML ``bytes``. XML input is returned unchanged; protobuf is
+      converted (requires ``takproto``).
+    * ``"proto"``: a ``takproto`` ``TakMessage``.
+    * ``"dict"``: the protobuf JSON mapping of the ``TakMessage``.
+    """
+    if rx_format == "raw" or data is None:
+        return data
+    if rx_format not in RX_FORMATS:
+        raise ValueError(f"Unknown rx_format {rx_format!r}, use one of {RX_FORMATS}")
+    if rx_format == "xml":
+        if isinstance(data, (bytes, bytearray)) and not _tak_framing(data):
+            return data
+        xml = _takmsg2xml(_to_takmessage(data))
+        if xml is None:
+            raise ValueError("TakMessage has no cotEvent uid, cannot convert to XML")
+        return xml
+    msg = _to_takmessage(data)
+    if rx_format == "proto":
+        return msg
+    from google.protobuf import json_format  # pylint: disable=import-outside-toplevel
+
+    return json_format.MessageToDict(msg)
+
+
 try:
     import aiohttp as _aiohttp  # type: ignore
 except ImportError:
@@ -282,6 +414,66 @@ class Worker:
 
         self.use_protobuf = tak_proto_version > 0 and takproto is not None
 
+        rx_format = (
+            str(self.config.get("PYTAK_RX_FORMAT") or pytak.DEFAULT_RX_FORMAT)
+            .strip()
+            .lower()
+        )
+        if rx_format not in RX_FORMATS:
+            self._logger.warning(
+                "PYTAK_RX_FORMAT '%s' is not one of %s, using 'raw'.",
+                rx_format,
+                ", ".join(RX_FORMATS),
+            )
+            rx_format = "raw"
+        if rx_format != "raw" and takproto is None:
+            self._logger.warning(
+                "PYTAK_RX_FORMAT is set to '%s', but the 'takproto' Python module "
+                "is not installed, using 'raw'.\n"
+                "Try: python -m pip install pytak[with_takproto]",
+                rx_format,
+            )
+            rx_format = "raw"
+        self.rx_format: str = rx_format
+
+    def _encode_tx(self, data, tak_proto: int, mesh: bool = False, label: str = "TX"):
+        """Serialize queued CoT for the wire, see ``cot2wire()``.
+
+        Bytes that cannot be converted are sent unchanged, as before. Other
+        objects that cannot be serialized are dropped with a warning.
+        """
+        try:
+            return cot2wire(data, tak_proto, mesh)
+        except Exception as exc:  # pylint: disable=broad-except
+            if isinstance(data, str):
+                data = data.encode("utf-8")
+            if isinstance(data, (bytes, bytearray)):
+                self._logger.warning(
+                    "%s: Protobuf encode failed, sending raw: %s", label, exc
+                )
+                return data
+            self._logger.warning(
+                "%s: Could not serialize %s, dropping it: %s",
+                label,
+                type(data).__name__,
+                exc,
+            )
+            return None
+
+    def _format_rx(self, data):
+        """Convert received CoT to ``PYTAK_RX_FORMAT``, see ``wire2cot()``."""
+        if self.rx_format == "raw" or not data:
+            return data
+        try:
+            return wire2cot(data, self.rx_format)
+        except Exception as exc:  # pylint: disable=broad-except
+            self._logger.warning(
+                "RX: Could not convert received CoT to '%s', dropping it: %s",
+                self.rx_format,
+                exc,
+            )
+            return None
+
     async def fts_compat(self) -> None:
         """Apply FreeTAKServer (FTS) compatibility.
 
@@ -359,26 +551,20 @@ class TXWorker(Worker):
             self._logger.warning("send_data called with None data, skipping send.")
             return
 
+        is_multicast: bool = False
         if self.use_protobuf:
             host, _ = pytak.parse_url(self.config.get("COT_URL", pytak.DEFAULT_COT_URL))
-            is_multicast: bool = False
-
             try:
                 is_multicast = ipaddress.ip_address(host).is_multicast
             except ValueError:
                 # It's probably not an ip address...
                 pass
 
-            if is_multicast:
-                proto = takproto.TAKProtoVer.MESH
-            else:
-                proto = takproto.TAKProtoVer.STREAM
-
-            try:
-                data = takproto.xml2proto(data, proto)
-            except ET.ParseError as exc:
-                self._logger.warning(exc)
-                self._logger.warning("Could not convert XML to Proto.")
+        # Queued CoT may be XML bytes, an Element, a TakMessage or its dict form;
+        # serialize it for the configured TAK_PROTO (Mesh framing on multicast).
+        data = self._encode_tx(data, 1 if self.use_protobuf else 0, is_multicast)
+        if data is None:
+            return
 
         if hasattr(self.writer, "send"):
             await self.writer.send(data)
@@ -436,18 +622,54 @@ class RXWorker(Worker):
                     ) from exc
                 parts.append(await self.reader.readexactly(exc.consumed))
 
+    async def _read_stream_message(self) -> bytes:
+        """Read one CoT XML event or TAK Protocol v1 Stream message.
+
+        A Stream message is 0xbf, a varint payload length, then the payload.
+        Anything else is read as XML up to "</event>", so a stream may mix both.
+        Whitespace between messages is skipped.
+        """
+        first = await self.reader.readexactly(1)
+        while first in (b" ", b"\t", b"\r", b"\n"):
+            first = await self.reader.readexactly(1)
+        if first != _TAK_MAGIC:
+            return first + await self._readuntil_event()
+        header = bytearray(first)
+        length = 0
+        shift = 0
+        while True:
+            byte = (await self.reader.readexactly(1))[0]
+            header.append(byte)
+            length |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                break
+            shift += 7
+            if shift > 63:
+                raise _CoTEventTooLargeError("Malformed TAK Protocol v1 length")
+        if length > _MAX_COT_EVENT_SIZE:
+            raise _CoTEventTooLargeError(
+                f"Inbound TAK Protocol v1 message exceeds {_MAX_COT_EVENT_SIZE} bytes"
+            )
+        return bytes(header) + await self.reader.readexactly(length)
+
     async def readcot(self):
         """Read CoT from the wire until we hit an event boundary."""
         cot = None
         try:
             if hasattr(self.reader, "readuntil"):
-                cot = await self._readuntil_event()
+                if self.rx_format != "raw" and hasattr(self.reader, "readexactly"):
+                    cot = await self._read_stream_message()
+                else:
+                    cot = await self._readuntil_event()
             elif hasattr(self.reader, "recv"):
                 cot, _ = await self.reader.recv()
         except asyncio.IncompleteReadError as exc:
             # Peer closed the stream: surface a retryable transport error so
             # the reconnect supervisor can act instead of spinning on EOF.
             raise ConnectionResetError("CoT stream closed by peer") from exc
+
+        if self.rx_format != "raw":
+            return self._format_rx(cot)
 
         if self.use_protobuf:
             tak_v1 = takproto.parse_proto(cot)
@@ -553,6 +775,9 @@ class MartiTXWorker(Worker):
         self._client_uid = client_uid
 
     async def handle_data(self, data: bytes) -> None:
+        data = self._encode_tx(data, 0, False, "Marti TX")
+        if not data:
+            return
         cot_xml = data.decode("utf-8", errors="ignore").strip()
         if not cot_xml:
             return
@@ -620,7 +845,9 @@ class MartiRXWorker(Worker):
                 if resp.status == 200:
                     text = await resp.text()
                     for event_xml in _extract_cot_events(text):
-                        await self.put_queue(event_xml.encode("utf-8"))
+                        event = self._format_rx(event_xml.encode("utf-8"))
+                        if event:
+                            await self.put_queue(event)
                     # Only advance the window once it has been fetched, so a
                     # failed or non-200 poll is retried from the same start.
                     self._last_poll = now
@@ -686,13 +913,11 @@ class WSTXWorker(Worker):
     async def handle_data(self, data: bytes) -> None:
         if not data:
             return
-        if takproto is not None:
-            try:
-                data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
-            except Exception as exc:
-                self._logger.warning("WS TX: Protobuf encode failed, sending raw: %s", exc)
-        else:
+        if takproto is None:
             self._warn_no_takproto()
+        data = self._encode_tx(data, 1 if takproto is not None else 0, False, "WS TX")
+        if data is None:
+            return
         try:
             await self._ws.send_bytes(data)
         except Exception as exc:
@@ -736,7 +961,9 @@ class WSRXWorker(Worker):
         msg = await self._ws.receive()
         if msg.type == _aiohttp.WSMsgType.BINARY:
             payload: Optional[bytes] = msg.data
-            if takproto is not None:
+            if self.rx_format != "raw":
+                payload = self._format_rx(payload)
+            elif takproto is not None:
                 tak_msg = takproto.parse_proto(payload)
                 if tak_msg and tak_msg != -1:
                     if isinstance(tak_msg, bytes):
@@ -801,13 +1028,9 @@ class MQTTTXWorker(Worker):
     async def handle_data(self, data: bytes) -> None:
         if not data:
             return
-        if self.use_protobuf:
-            try:
-                data = takproto.xml2proto(data, takproto.TAKProtoVer.STREAM)
-            except Exception as exc:
-                self._logger.warning(
-                    "MQTT TX: Protobuf encode failed, sending raw: %s", exc
-                )
+        data = self._encode_tx(data, 1 if self.use_protobuf else 0, False, "MQTT TX")
+        if data is None:
+            return
         try:
             await self._client.publish(self._topic, data, qos=self._qos)
         except Exception as exc:
@@ -844,7 +1067,9 @@ class MQTTRXWorker(Worker):
     async def run_once(self) -> None:
         message = await self._message_iter.__anext__()
         payload: Optional[bytes] = message.payload
-        if self.use_protobuf and takproto is not None:
+        if self.rx_format != "raw":
+            payload = self._format_rx(payload)
+        elif self.use_protobuf and takproto is not None:
             tak_msg = takproto.parse_proto(payload)
             if tak_msg and tak_msg != -1:
                 if isinstance(tak_msg, bytes):

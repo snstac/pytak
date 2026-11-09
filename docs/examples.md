@@ -266,6 +266,38 @@ For publish-only gateways, use `mqtt+wo://broker.example.com:1883/cot`.
 
 ---
 
+## Build CoT as Protobuf, Send in Either Protocol
+
+With `pytak[with_takproto]` installed, a `QueueWorker` can put a `TakMessage` (or its `dict` form) on the TX queue instead of XML. PyTAK serializes it for `TAK_PROTO`: XML for `0`, Protobuf for `1`. Set `PYTAK_RX_FORMAT` to receive every event in one format, whichever protocol the sender used.
+
+```python
+from takproto.proto import TakMessage
+import pytak
+
+
+class ProtoSender(pytak.QueueWorker):
+    async def handle_data(self, data):
+        await self.put_queue(data)
+
+    async def run(self, _=-1):
+        msg = TakMessage()
+        event = msg.cotEvent
+        event.type, event.uid, event.how = "a-f-G-U-C", "proto-example", "m-g"
+        event.sendTime = event.startTime = 1704067200000
+        event.staleTime = event.sendTime + 120000
+        event.lat, event.lon = 37.7749, -122.4194
+        await self.handle_data(msg)
+
+
+config = {
+    "COT_URL": "tcp://takserver.example.com:8087",
+    "TAK_PROTO": "0",  # or "1"
+    "PYTAK_RX_FORMAT": "proto",  # RX queue gets TakMessage objects
+}
+```
+
+---
+
 ## Send-only to a TAK Server
 
 If your tool only publishes CoT and does not process inbound events (for example, a sensor gateway), use the `+wo` modifier so PyTAK does not enqueue received data:

@@ -116,6 +116,26 @@ TAK Protocol version for CoT output:
 
 ---
 
+### `PYTAK_RX_FORMAT`
+
+**Default:** `raw`
+
+Format of the CoT events PyTAK puts on the RX queue. Anything other than `raw` decodes both TAK Protocol v0 (XML) and v1 (Protobuf, Mesh or Stream framing) whatever `TAK_PROTO` is set to, so a client can read mixed traffic, such as ATAK on multicast, in one format. Requires `pytak[with_takproto]`.
+
+| Value | RX queue items |
+|---|---|
+| `raw` | As received (default, unchanged behavior) |
+| `xml` | CoT XML `bytes` |
+| `proto` | `takproto` `TakMessage` objects |
+| `dict` | `dict` in the protobuf JSON mapping of `TakMessage` |
+
+With a value other than `raw`, `tcp://` and `tls://` streams may carry TAK Protocol v1 Stream messages as well as XML. Messages that cannot be decoded are logged and dropped.
+
+!!! tip "Sending"
+    The TX queue accepts CoT XML (`bytes` or `str`), an `xml.etree.ElementTree.Element`, a `TakMessage`, or its `dict` form. PyTAK serializes each item for the configured `TAK_PROTO`, so code that builds protobuf events also works with `TAK_PROTO=0`. `pytak.cot2wire()` and `pytak.wire2cot()` expose the same conversions.
+
+---
+
 ### `DEBUG`
 
 **Default:** `0`
