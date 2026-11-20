@@ -41,9 +41,9 @@ import sys
 import xml.etree.ElementTree as ET
 
 from dataclasses import dataclass
-from typing import Set, Union
+from typing import Mapping, Set, Union
 
-from configparser import ConfigParser, SectionProxy
+from configparser import ConfigParser, RawConfigParser, SectionProxy
 
 import pytak
 
@@ -928,6 +928,16 @@ async def _make_workers(tx_queue, rx_queue, config):
     return write_worker, read_worker
 
 
+def _reject_whole_configparser(config: object) -> None:
+    # Typed callers cannot pass one; untyped downstream tools still do.
+    if isinstance(config, RawConfigParser):
+        section = (config.sections() or ["<app_name>"])[0]
+        raise TypeError(
+            "CLITool takes one config section, such as "
+            f"config['{section}'], not the whole ConfigParser"
+        )
+
+
 class CLITool:
     """Wrapper Object for CLITools."""
 
@@ -936,11 +946,12 @@ class CLITool:
 
     def __init__(
         self,
-        config: Union[ConfigParser, SectionProxy],
+        config: Mapping[str, str],
         tx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
         rx_queue: Union[asyncio.Queue, mp.Queue, None] = None,
     ) -> None:
         """Initialize CLITool instance."""
+        _reject_whole_configparser(config)
         self.tasks: Set = set()
         self.running_tasks: Set = set()
         self._config = config

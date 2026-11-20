@@ -293,7 +293,6 @@ def test_manifest_xml_works_without_xml_declaration_kwarg(tmp_path):
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="bug: obscure crash")
 def test_clitool_rejects_whole_configparser_with_clear_error():
     """CLITool's signature advertised ConfigParser, which crashed deep in .get()."""
     from configparser import ConfigParser
