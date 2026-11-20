@@ -21,6 +21,7 @@ test = [
   "cryptography",
   "aiohttp",
   "takproto",
+  "mypy; python_version >= '3.9'",
 ]
 
 [project.scripts]
@@ -39,3 +40,44 @@ norecursedirs = [
   "dist",
   "site",
 ]
+
+[tool.mypy]
+files = ["src/pytak"]
+strict = true
+# Modules reach siblings through the package namespace (pytak.parse_url);
+# __init__.py re-exports without __all__, so strict's no-implicit-reexport
+# would flag every such use.
+implicit_reexport = true
+warn_unreachable = true
+enable_error_code = [
+  "ignore-without-code",
+  "redundant-expr",
+  "truthy-bool",
+  "possibly-undefined",
+]
+pretty = true
+
+# Optional dependencies without type information.
+[[tool.mypy.overrides]]
+module = ["takproto.*", "aiomqtt.*", "websockets.*"]
+ignore_missing_imports = true
+
+# Ratchet: modules written before mypy was introduced. Bodies are still
+# checked; only the missing-annotation rules are relaxed. Remove a module
+# from this list once it is fully annotated, never add one.
+[[tool.mypy.overrides]]
+module = [
+  "pytak.asyncio_dgram",
+  "pytak.classes",
+  "pytak.cli_main",
+  "pytak.client_functions",
+  "pytak.crypto_classes",
+  "pytak.crypto_functions",
+  "pytak.functions",
+  "pytak.onboarding_packages",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+check_untyped_defs = true

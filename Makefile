@@ -24,7 +24,7 @@ PIP    := $(VENV)/bin/pip
 RSYNC_HOST  ?= beast
 RSYNC_PATH  ?= $(CURDIR)
 
-.PHONY: help venv virtualenv install setup run verify rsync
+.PHONY: help venv virtualenv install setup run verify rsync typecheck mypy typecheck-progress
 
 help:
 	@echo "Targets:"
@@ -85,8 +85,20 @@ pylint: lint
 checkmetadata:
 	python3 setup.py check -s --restructuredtext
 
-mypy:
-	mypy --strict .
+# Gate: the [tool.mypy] config in pyproject.toml (strict, with a ratchet list
+# of legacy modules). Must pass.
+typecheck:
+	python3 -m mypy
+
+mypy: typecheck
+
+# Progress report, never fails: full --strict errors per module, i.e. what
+# remains before a module can leave the ratchet list.
+typecheck-progress:
+	-python3 -m mypy --config-file= --strict --implicit-reexport \
+		--ignore-missing-imports --no-pretty src/pytak \
+		| grep -oE '^src/[^:]+' | sort | uniq -c | sort -rn
+
 
 pytest:
 	python3 -m pytest
