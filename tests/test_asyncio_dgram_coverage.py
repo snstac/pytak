@@ -4,7 +4,6 @@
 """Coverage tests for the bundled pytak.asyncio_dgram (loopback sockets only)."""
 
 import asyncio
-import pathlib
 import socket
 import sys
 from unittest import mock
@@ -75,12 +74,10 @@ async def test_exception_property_raises_queued_error():
 
 
 @pytest.mark.asyncio
-async def test_bind_and_connect_unix_path(tmp_path, monkeypatch):
+async def test_bind_and_connect_unix_path(tmp_path):
     if sys.platform == "win32" or not hasattr(socket, "AF_UNIX"):
         pytest.skip("AF_UNIX datagram sockets unavailable")
-    # macOS caps socket paths at 104 bytes and its tmp_path exceeds that.
-    monkeypatch.chdir(tmp_path)
-    path = pathlib.Path("s.sock")
+    path = tmp_path / "s.sock"
     server = await asyncio_dgram.bind(path)
     client = await asyncio_dgram.connect(path)
     try:

@@ -27,6 +27,7 @@ test = [
 pytak = "pytak.cli_main:main"
 
 [tool.pytest.ini_options]
+addopts = "--basetemp=/tmp/pytest"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
