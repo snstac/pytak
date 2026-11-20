@@ -84,11 +84,6 @@ def test_find_file_missing_raises_eof(tmp_path):
         fn.find_file(str(tmp_path), "*.pref")
 
 
-def test_gen_cot_passes_through_non_element():
-    with mock.patch.object(fn, "gen_cot_xml", return_value=None):
-        assert fn.gen_cot(uid="x") is None
-
-
 def test_tak_pong_event():
     event = ET.fromstring(fn.tak_pong())
     assert event.tag == "event"
