@@ -291,3 +291,13 @@ def test_manifest_xml_works_without_xml_declaration_kwarg(tmp_path):
     assert (
         pytak_classes.ET.fromstring(manifest.encode()).tag == "MissionPackageManifest"
     )
+
+
+def test_clitool_rejects_whole_configparser_with_clear_error():
+    """CLITool's signature advertised ConfigParser, which crashed deep in .get()."""
+    from configparser import ConfigParser
+
+    cfg = ConfigParser()
+    cfg["my_app"] = {"COT_URL": "udp://239.2.3.1:6969"}
+    with pytest.raises(TypeError, match=r"sections are \['my_app'\]"):
+        pytak.CLITool(cfg)

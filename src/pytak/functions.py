@@ -391,7 +391,7 @@ def sanitize_url_credentials(url: str) -> str:
     return urlunparse(parsed)
 
 
-def hello_event(uid: Optional[bytes] = None) -> bytes:
+def hello_event(uid: Optional[str] = None) -> bytes:
     """Generate a Hello CoT Event."""
     uid = uid or "takPing"
     return gen_cot(uid=uid, cot_type="t-x-d-d")
@@ -507,7 +507,7 @@ def gen_cot_xml(
     stale: Union[float, int, None] = None,
     cot_type: Union[str, None] = None,
     callsign: Optional[str] = None,
-) -> Optional[ET.Element]:
+) -> ET.Element:
     """Generate a minimum CoT Event as an XML object."""
     return cot_event(
         lat=lat,
@@ -532,14 +532,11 @@ def gen_cot(
     stale: Union[float, int, None] = None,
     cot_type: Optional[str] = None,
     callsign: Optional[str] = None,
-) -> Optional[bytes]:
+) -> bytes:
     """Generate a minimum CoT Event as an XML string [gen_cot_xml() wrapper]."""
-    cot: Union[ET.Element, bytes, None] = gen_cot_xml(
-        lat, lon, ce, hae, le, uid, stale, cot_type, callsign
+    return serialize_cot(
+        gen_cot_xml(lat, lon, ce, hae, le, uid, stale, cot_type, callsign)
     )
-    if isinstance(cot, ET.Element):
-        return serialize_cot(cot)
-    return cot
 
 
 def tak_pong() -> bytes:
