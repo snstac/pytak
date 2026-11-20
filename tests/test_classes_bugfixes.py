@@ -299,5 +299,5 @@ def test_clitool_rejects_whole_configparser_with_clear_error():
 
     cfg = ConfigParser()
     cfg["my_app"] = {"COT_URL": "udp://239.2.3.1:6969"}
-    with pytest.raises(TypeError, match=r"config\['my_app'\]"):
+    with pytest.raises(TypeError, match=r"sections are \['my_app'\]"):
         pytak.CLITool(cfg)

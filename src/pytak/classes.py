@@ -931,10 +931,9 @@ async def _make_workers(tx_queue, rx_queue, config):
 def _reject_whole_configparser(config: object) -> None:
     # Typed callers cannot pass one; untyped downstream tools still do.
     if isinstance(config, RawConfigParser):
-        section = (config.sections() or ["<app_name>"])[0]
         raise TypeError(
-            "CLITool takes one config section, such as "
-            f"config['{section}'], not the whole ConfigParser"
+            "CLITool takes one config section, config[name], not the whole "
+            f"ConfigParser; its sections are {config.sections()}"
         )
 
 
